@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nix:
+    name: nix (x86_64-linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@b4b293eae0b79aac8a161bb32925a5508c9cca93
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Configure Cachix (push-enabled)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && env.CACHIX_CACHE != '' && env.CACHIX_AUTH_TOKEN != '' }}
+        uses: cachix/cachix-action@02b16339eddcf6ea27126a830c7f1992855cae13
+        with:
+          name: ${{ env.CACHIX_CACHE }}
+          authToken: ${{ env.CACHIX_AUTH_TOKEN }}
+          extraPullNames: nix-community
+
+      - name: Run flake checks
+        timeout-minutes: 10
+        run: nix flake check --print-build-logs --max-jobs 1

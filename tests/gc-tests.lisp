@@ -1,0 +1,311 @@
+;;;; tests/gc-tests.lisp - Generational GC Tests
+;;;
+;;; Tests for the cl-cc/runtime generational GC:
+;;; - Object header encoding/decoding
+;;; - Heap creation and layout
+;;; - Bump-pointer allocation
+;;; - Minor GC: garbage collection, live-object preservation, promotion
+;;; - Write barrier and card table
+;;; - GC statistics
+
+(in-package :cl-cc-runtime/test)
+
+;;; Import GC symbols from the runtime package.
+;;; We alias them locally via a helper rather than polluting the test package
+;;; — all calls below are fully qualified as cl-cc/runtime::*.
+
+;;; ------------------------------------------------------------
+;;; Suite
+;;; ------------------------------------------------------------
+
+(defsuite gc-suite
+  :description "Generational GC tests (heap, header, alloc, minor GC, write barrier, stats)"
+  :parent cl-cc-unit-suite)
+
+(in-suite gc-suite)
+
+;;; ------------------------------------------------------------
+;;; Helpers
+;;; ------------------------------------------------------------
+
+(defun %make-small-heap ()
+  "Create a minimal heap: 32-word young space (16 per semi), 32-word old space."
+  (cl-cc/runtime::make-rt-heap :young-size 32 :old-size 32))
+
+(defun %write-header (heap addr size tag &optional (age 0))
+  "Write a freshly made header at ADDR."
+  (cl-cc/runtime::rt-heap-set-header
+   heap addr
+   (cl-cc/runtime::make-rt-header size tag :gc-bits age)))
+
+;;; ------------------------------------------------------------
+;;; Test 1: gc-header-basics
+;;; ------------------------------------------------------------
+
+(deftest-each gc-header-field-roundtrip
+  "make-rt-header round-trips size, tag, and age fields independently."
+  :cases (("size" (cl-cc/runtime::make-rt-header 7 1 :gc-bits 0) #'cl-cc/runtime::rt-header-size 7)
+          ("tag"  (cl-cc/runtime::make-rt-header 3 5 :gc-bits 0) #'cl-cc/runtime::rt-header-type-tag  5)
+           ("age"  (cl-cc/runtime::make-rt-header 3 1 :gc-bits 2) #'cl-cc/runtime::rt-header-age  2))
+  (h accessor expected)
+  (assert-= expected (funcall accessor h)))
+
+(deftest gc-header-bit-toggles
+  "mark and gray bits: set makes true; clear makes false; fresh header is false."
+  (let ((h (cl-cc/runtime::make-rt-header 3 1 :gc-bits 0)))
+    ;; mark bit
+    (let* ((hm (cl-cc/runtime::header-set-mark h))
+           (hu (cl-cc/runtime::header-clear-mark hm)))
+      (assert-true  (cl-cc/runtime::header-marked-p hm))
+      (assert-false (cl-cc/runtime::header-marked-p h))
+      (assert-false (cl-cc/runtime::header-marked-p hu)))
+    ;; gray bit
+    (let* ((hg (cl-cc/runtime::header-set-gray h))
+           (hu (cl-cc/runtime::header-clear-gray hg)))
+      (assert-true  (cl-cc/runtime::header-gray-p hg))
+      (assert-false (cl-cc/runtime::header-gray-p h))
+      (assert-false (cl-cc/runtime::header-gray-p hu)))))
+
+(deftest-each gc-header-forwarding-cases
+  "Forwarding pointer: regular header is not forwarding; make-forwarding-ptr round-trips address."
+  :cases (("not-forwarding" nil  nil (cl-cc/runtime::make-rt-header 3 1 :gc-bits 0) nil)
+          ("forwarding-ptr" t    nil nil                            42))
+  (expect-fwd fwd-ptr plain-header target-addr)
+  (if expect-fwd
+      (let ((fwd (cl-cc/runtime::header-make-forwarding-ptr target-addr)))
+        (assert-true (cl-cc/runtime::header-forwarding-p fwd))
+        (assert-= target-addr (cl-cc/runtime::header-forwarding-ptr fwd)))
+      (assert-false (cl-cc/runtime::header-forwarding-p plain-header))))
+
+(deftest-each rt-header-increment-age
+  "rt-header-increment-age increments by 1 normally; caps at 3."
+  :cases (("increment" 1  2)
+          ("cap-at-3"  3  3))
+  (start-age expected)
+  (let* ((h  (cl-cc/runtime::make-rt-header 3 1 :gc-bits start-age))
+         (h2 (cl-cc/runtime::rt-header-increment-age h)))
+    (assert-= expected (cl-cc/runtime::rt-header-age h2))))
+
+;;; ------------------------------------------------------------
+;;; Test 2: gc-heap-creation
+;;; ------------------------------------------------------------
+
+(deftest-each gc-heap-creation-layout
+  "Heap creation: young-from-base=0, young-to-base=semi-size, old-base=2*semi-size, gc-state=:normal."
+  :cases (("32-word-young"
+           (cl-cc/runtime::make-rt-heap :young-size 32 :old-size 32) 0 16 32)
+          ("16-word-young"
+           (cl-cc/runtime::make-rt-heap :young-size 16 :old-size 16) 0  8 16))
+  (heap expected-from expected-to expected-old)
+  (assert-= expected-from (cl-cc/runtime::rt-heap-young-from-base heap))
+  (assert-= expected-to   (cl-cc/runtime::rt-heap-young-to-base heap))
+  (assert-= expected-old  (cl-cc/runtime::rt-heap-old-base heap)))
+
+;;; ------------------------------------------------------------
+;;; Test 3: gc-alloc-basic
+;;; ------------------------------------------------------------
+
+(deftest gc-alloc-sequential-addresses-and-free-pointer
+  "First alloc returns 0; young-free advances to 3; second alloc starts at 3."
+  (let* ((heap (%make-small-heap))
+         (addr1 (cl-cc/runtime::rt-gc-alloc heap cl-cc/runtime:+rt-tag-cons+ 3)))
+    (assert-= 0 addr1)
+    (assert-= 3 (cl-cc/runtime::rt-heap-young-free heap))
+    (let ((addr2 (cl-cc/runtime::rt-gc-alloc heap cl-cc/runtime:+rt-tag-cons+ 3)))
+      (assert-= 3 addr2))))
+
+(deftest rt-alloc-header-size-readable
+  "After writing a header, rt-heap-object-size returns the correct size."
+  (let* ((heap (%make-small-heap))
+         (addr (cl-cc/runtime::rt-gc-alloc heap cl-cc/runtime:+rt-tag-cons+ 3)))
+    (%write-header heap addr 3 cl-cc/runtime:+rt-tag-cons+)
+    (assert-= 3 (cl-cc/runtime::rt-heap-object-size heap addr))))
+
+;;; ------------------------------------------------------------
+;;; Test 4: gc-minor-gc-collects-garbage
+;;; ------------------------------------------------------------
+
+(deftest gc-minor-gc-collects-and-updates-root
+  "After minor GC: unreachable object's words are counted as collected; root's cdr is updated to the live object's new young-space address."
+  (let* ((heap (%make-small-heap)))
+    (let ((addr1 (cl-cc/runtime::rt-gc-alloc heap cl-cc/runtime:+rt-tag-cons+ 3))
+          (addr2 (cl-cc/runtime::rt-gc-alloc heap cl-cc/runtime:+rt-tag-cons+ 3)))
+      (%write-header heap addr1 3 cl-cc/runtime:+rt-tag-cons+)
+      (%write-header heap addr2 3 cl-cc/runtime:+rt-tag-cons+)
+      ;; Only register addr1 as a root; addr2 is unreachable
+      (let ((root (cons nil addr1)))
+        (cl-cc/runtime::rt-gc-add-root heap root)
+        (cl-cc/runtime::rt-gc-minor-collect heap)
+        (assert-= 1 (cl-cc/runtime::rt-heap-minor-gc-count heap))
+        (assert-true (>= (cl-cc/runtime::rt-heap-words-collected heap) 3))
+        (assert-true (cl-cc/runtime::rt-young-addr-p heap (cdr root)))
+        (cl-cc/runtime::rt-gc-remove-root heap root)))))
+
+;;; ------------------------------------------------------------
+;;; Test 5: gc-minor-gc-preserves-live-objects
+;;; ------------------------------------------------------------
+
+(deftest gc-minor-gc-preserves-live-object-data
+  "After minor GC, a live object's slot values and header tag are preserved."
+  (let* ((heap (%make-small-heap)))
+    (let ((addr (cl-cc/runtime::rt-gc-alloc heap cl-cc/runtime:+rt-tag-cons+ 3)))
+      (%write-header heap addr 3 cl-cc/runtime:+rt-tag-cons+)
+      ;; Write slot values (non-pointer integers, safe for this test)
+      (cl-cc/runtime::rt-heap-set heap (+ addr 1) 111)
+      (cl-cc/runtime::rt-heap-set heap (+ addr 2) 222)
+      (let ((root (cons nil addr)))
+        (cl-cc/runtime::rt-gc-add-root heap root)
+        (cl-cc/runtime::rt-gc-minor-collect heap)
+        (let ((new-addr (cdr root)))
+          (assert-= 111 (cl-cc/runtime::rt-heap-ref heap (+ new-addr 1)))
+          (assert-= 222 (cl-cc/runtime::rt-heap-ref heap (+ new-addr 2))))
+        (cl-cc/runtime::rt-gc-remove-root heap root))))
+  (let* ((heap (%make-small-heap)))
+    (let ((addr (cl-cc/runtime::rt-gc-alloc heap cl-cc/runtime:+rt-tag-string+ 3)))
+      (%write-header heap addr 3 cl-cc/runtime:+rt-tag-string+)
+      (let ((root (cons nil addr)))
+        (cl-cc/runtime::rt-gc-add-root heap root)
+        (cl-cc/runtime::rt-gc-minor-collect heap)
+        (let* ((new-addr (cdr root))
+               (new-hdr  (cl-cc/runtime::rt-heap-object-header heap new-addr)))
+          (assert-= cl-cc/runtime:+rt-tag-string+ (cl-cc/runtime::rt-header-type-tag new-hdr)))
+        (cl-cc/runtime::rt-gc-remove-root heap root)))))
+
+;;; ------------------------------------------------------------
+;;; Test 6: gc-promotion-threshold
+;;; ------------------------------------------------------------
+
+(deftest gc-promotion-promotes-old-object
+  "An object that survives enough minor GCs is promoted to old space."
+  ;; Use a larger heap to fit the object after repeated copies.
+  ;; Bind *gc-tenuring-threshold* to insulate against parallel-test mutation.
+  (let* ((cl-cc/runtime::*gc-tenuring-threshold* 3)
+         (heap (cl-cc/runtime::make-rt-heap :young-size 128 :old-size 64)))
+    (let ((addr (cl-cc/runtime::rt-gc-alloc heap cl-cc/runtime:+rt-tag-cons+ 3)))
+      ;; Write header with age already at the tenuring threshold so the
+      ;; very next minor GC will promote it.
+      (cl-cc/runtime::rt-heap-set-header
+       heap addr
+       (cl-cc/runtime::make-rt-header 3 cl-cc/runtime:+rt-tag-cons+ :gc-bits 3))
+      (let ((root (cons nil addr)))
+        (cl-cc/runtime::rt-gc-add-root heap root)
+        (cl-cc/runtime::rt-gc-minor-collect heap)
+        ;; words-promoted must be > 0
+        (assert-true (> (cl-cc/runtime::rt-heap-words-promoted heap) 0))
+        ;; The object must now live in old space
+        (assert-true (cl-cc/runtime::rt-old-addr-p heap (cdr root)))
+        (cl-cc/runtime::rt-gc-remove-root heap root)))))
+
+;;; ------------------------------------------------------------
+;;; Test 7: gc-write-barrier-card-dirty
+;;; ------------------------------------------------------------
+
+(deftest gc-write-barrier-card-dirty-behavior
+  "rt-gc-write-barrier marks the card dirty for old->young writes; leaves it clean for old->old writes."
+  ;; old-space object receives young pointer: card must become dirty
+  (let* ((heap (cl-cc/runtime::make-rt-heap :young-size 64 :old-size 64)))
+    (let ((young-addr (cl-cc/runtime::rt-gc-alloc heap cl-cc/runtime:+rt-tag-cons+ 3)))
+      (%write-header heap young-addr 3 cl-cc/runtime:+rt-tag-cons+)
+      (let* ((old-addr (cl-cc/runtime::rt-heap-old-base heap)))
+        (%write-header heap old-addr 3 cl-cc/runtime:+tag-other+)
+        (setf (cl-cc/runtime::rt-heap-old-free heap) (+ old-addr 3))
+        (assert-false (cl-cc/runtime::rt-card-dirty-p heap old-addr))
+        (cl-cc/runtime::rt-gc-write-barrier heap old-addr 1 young-addr)
+        (assert-true (cl-cc/runtime::rt-card-dirty-p heap old-addr))
+        (assert-= young-addr (cl-cc/runtime::rt-heap-ref heap (+ old-addr 1))))))
+  ;; old-space object receives old-space pointer: card must remain clean
+  (let* ((heap (cl-cc/runtime::make-rt-heap :young-size 64 :old-size 64)))
+    (let* ((old-base (cl-cc/runtime::rt-heap-old-base heap))
+           (obj1     old-base)
+           (obj2     (+ old-base 3)))
+      (%write-header heap obj1 3 cl-cc/runtime:+tag-other+)
+      (%write-header heap obj2 3 cl-cc/runtime:+tag-other+)
+      (setf (cl-cc/runtime::rt-heap-old-free heap) (+ old-base 6))
+      (cl-cc/runtime::rt-gc-write-barrier heap obj1 1 obj2)
+      (assert-false (cl-cc/runtime::rt-card-dirty-p heap obj1)))))
+
+;;; ------------------------------------------------------------
+;;; Section 4: GC minor helper unit tests
+;;; ------------------------------------------------------------
+
+(deftest gc-update-promoted-empty-list-is-noop
+  "%gc-update-promoted on an empty promoted list completes without error."
+  (let ((heap (%make-small-heap)))
+    (cl-cc/runtime::%gc-update-promoted heap '())
+    ;; No assertion needed — just verify no error is raised.
+    (assert-true t)))
+
+(deftest gc-cheney-scan-empty-to-space-terminates
+  "%gc-cheney-scan with evac-target equal to to-free does not iterate."
+  (let* ((heap         (%make-small-heap))
+         (base         (cl-cc/runtime::rt-heap-young-to-base heap))
+         (to-free-cell (cons base base))
+         (promoted     (list nil))
+         (in-source-p  (lambda (addr) (declare (ignore addr)) nil)))
+    ;; scan == (cdr to-free-cell) so the loop body never runs
+    (cl-cc/runtime::%gc-cheney-scan heap base to-free-cell promoted in-source-p)
+    (assert-= base (cdr to-free-cell))))
+
+(deftest gc-scan-dirty-cards-clean-heap-is-noop
+  "%gc-scan-dirty-cards on a fresh heap (all cards clean) makes no modifications."
+  (let* ((heap         (%make-small-heap))
+         (to-free-cell (cons (cl-cc/runtime::rt-heap-young-to-base heap)
+                             (cl-cc/runtime::rt-heap-young-to-base heap)))
+         (promoted     (list nil))
+         (in-source-p  (lambda (addr) (declare (ignore addr)) nil))
+         (initial-free (cdr to-free-cell)))
+    (cl-cc/runtime::%gc-scan-dirty-cards heap to-free-cell promoted in-source-p)
+    ;; No dirty cards → to-free not advanced
+    (assert-= initial-free (cdr to-free-cell))))
+
+;;; ------------------------------------------------------------
+;;; Test: rt-gc-auto-configure-heap
+;;; ------------------------------------------------------------
+
+(deftest gc-auto-configure-small-memory-within-clamp-bounds
+  "rt-gc-auto-configure-heap with a small memory-bytes clamps young/old to their minimums."
+  ;; Save and restore the global words so the test is side-effect-free.
+  (let ((saved-young cl-cc/runtime::*gc-young-size-words*)
+        (saved-old   cl-cc/runtime::*gc-old-size-words*))
+    (unwind-protect
+        (let ((result (cl-cc/runtime::rt-gc-auto-configure-heap :memory-bytes (* 4 1024 1024))))
+          ;; young clamp: [1MB/8 .. 4MB/8] words; small input should hit lower bound
+          (assert-true (>= cl-cc/runtime::*gc-young-size-words* (floor (* 1 1024 1024) 8)))
+          (assert-true (<= cl-cc/runtime::*gc-young-size-words* (floor (* 4 1024 1024) 8)))
+          ;; old clamp: [4MB/8 .. 16MB/8] words; small input should hit lower bound
+          (assert-true (>= cl-cc/runtime::*gc-old-size-words* (floor (* 4 1024 1024) 8)))
+          (assert-true (<= cl-cc/runtime::*gc-old-size-words* (floor (* 16 1024 1024) 8)))
+          ;; result plist includes the expected keys
+          (assert-true (getf result :young-size-words))
+          (assert-true (getf result :old-size-words)))
+      (setf cl-cc/runtime::*gc-young-size-words* saved-young
+            cl-cc/runtime::*gc-old-size-words*   saved-old))))
+
+(deftest gc-auto-configure-large-memory-capped-at-maximums
+  "rt-gc-auto-configure-heap with a large memory-bytes caps young/old at their maximums."
+  (let ((saved-young cl-cc/runtime::*gc-young-size-words*)
+        (saved-old   cl-cc/runtime::*gc-old-size-words*))
+    (unwind-protect
+        (let ((result (cl-cc/runtime::rt-gc-auto-configure-heap
+                       :memory-bytes (* 64 1024 1024 1024)))) ; 64 GB
+          ;; young cap: 4MB/8 = 524288 words
+          (assert-true (<= cl-cc/runtime::*gc-young-size-words* (floor (* 4 1024 1024) 8)))
+          ;; old cap: 16MB/8 = 2097152 words
+          (assert-true (<= cl-cc/runtime::*gc-old-size-words* (floor (* 16 1024 1024) 8)))
+          ;; result plist must report the capped values
+          (assert-= cl-cc/runtime::*gc-young-size-words* (getf result :young-size-words))
+          (assert-= cl-cc/runtime::*gc-old-size-words*   (getf result :old-size-words)))
+      (setf cl-cc/runtime::*gc-young-size-words* saved-young
+            cl-cc/runtime::*gc-old-size-words*   saved-old))))
+
+(deftest gc-auto-configure-result-plist-keys-present
+  "rt-gc-auto-configure-heap returns a plist with all expected keys."
+  (let ((saved-young cl-cc/runtime::*gc-young-size-words*)
+        (saved-old   cl-cc/runtime::*gc-old-size-words*))
+    (unwind-protect
+        (let ((result (cl-cc/runtime::rt-gc-auto-configure-heap :memory-bytes (* 256 1024 1024))))
+          (assert-true (member :memory-bytes result))
+          (assert-true (member :young-size-words result))
+          (assert-true (member :old-size-words result)))
+      (setf cl-cc/runtime::*gc-young-size-words* saved-young
+            cl-cc/runtime::*gc-old-size-words*   saved-old))))
