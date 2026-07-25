@@ -1,0 +1,187 @@
+;;;; t/gc-sweep-major-tests.lisp - GC Sweep and Major Collection Tests
+;;;
+;;; Tests for %gc-sweep-old-space and rt-gc-major-collect:
+;;; - Sweep reclaims dead (unmarked) old-space objects to the free-list
+;;; - Sweep clears mark bits on live objects
+;;; - Major GC increments counter and restores gc-state
+;;; - Major GC reclaims unreachable old-space objects
+;;; - Major GC preserves rooted old-space objects
+
+(in-package :cl-cc-runtime/test)
+
+(in-suite gc-suite)
+
+;;; ------------------------------------------------------------
+;;; Test 9: %gc-sweep-old-space
+;;; ------------------------------------------------------------
+
+(deftest gc-sweep-old-space-reclaims-dead-objects
+  "Sweep reclaims unmarked (dead) objects to the free-list and clears mark
+   bits on live (marked) objects."
+  (let* ((heap     (cl-cc/runtime::make-rt-heap :young-size 64 :old-size 64))
+         (old-base (cl-cc/runtime::rt-heap-old-base heap))
+         ;; Place two 3-word objects in old space
+         (live-addr old-base)
+         (dead-addr (+ old-base 3)))
+    ;; Write headers: live object is marked; dead object is not
+    (cl-cc/runtime::rt-heap-set-header
+     heap live-addr
+     (cl-cc/runtime::header-set-mark
+      (cl-cc/runtime::make-rt-header 3 cl-cc/runtime:+rt-tag-cons+ :gc-bits 0)))
+    (cl-cc/runtime::rt-heap-set-header
+     heap dead-addr
+     (cl-cc/runtime::make-rt-header 3 cl-cc/runtime:+rt-tag-cons+ :gc-bits 0))
+    ;; Advance old-free past both objects
+    (setf (cl-cc/runtime::rt-heap-old-free heap) (+ old-base 6))
+    ;; Sweep
+    (cl-cc/runtime::%gc-sweep-old-space heap)
+    ;; Dead object (3 words) should be reclaimed
+    (assert-true (>= (cl-cc/runtime::rt-heap-words-collected heap) 3))
+    ;; Free-list should contain the dead object
+    (assert-true (not (null (cl-cc/runtime::rt-heap-free-list heap))))
+    ;; Live object's mark bit should be cleared after sweep
+    (let ((live-hdr (cl-cc/runtime::rt-heap-object-header heap live-addr)))
+      (assert-false (cl-cc/runtime::header-marked-p live-hdr)))))
+
+(deftest gc-sweep-old-space-all-live-no-reclaim
+  "Sweep of all-marked objects reclaims nothing; free-list stays empty."
+  (let* ((heap     (cl-cc/runtime::make-rt-heap :young-size 64 :old-size 64))
+         (old-base (cl-cc/runtime::rt-heap-old-base heap)))
+    ;; Two marked objects
+    (cl-cc/runtime::rt-heap-set-header
+     heap old-base
+     (cl-cc/runtime::header-set-mark
+      (cl-cc/runtime::make-rt-header 3 cl-cc/runtime:+rt-tag-cons+ :gc-bits 0)))
+    (cl-cc/runtime::rt-heap-set-header
+     heap (+ old-base 3)
+     (cl-cc/runtime::header-set-mark
+      (cl-cc/runtime::make-rt-header 3 cl-cc/runtime:+rt-tag-cons+ :gc-bits 0)))
+    (setf (cl-cc/runtime::rt-heap-old-free heap) (+ old-base 6))
+    (cl-cc/runtime::%gc-sweep-old-space heap)
+    (assert-= 0 (cl-cc/runtime::rt-heap-words-collected heap))
+    (assert-true (null (cl-cc/runtime::rt-heap-free-list heap)))))
+
+;;; ------------------------------------------------------------
+;;; Test 10: rt-gc-major-collect
+;;; ------------------------------------------------------------
+
+(deftest gc-major-collect-increments-counter
+  "rt-gc-major-collect increments major-gc-count and restores gc-state to :normal."
+  (let ((cl-cc/runtime::*rt-package-registry* (make-hash-table :test #'equal))
+        (cl-cc/runtime::*rt-global-var-registry* (make-hash-table :test #'eq)))
+    (let* ((heap (cl-cc/runtime::make-rt-heap :young-size 64 :old-size 64)))
+      (assert-= 0 (cl-cc/runtime::rt-heap-major-gc-count heap))
+      (cl-cc/runtime::rt-gc-major-collect heap)
+      (assert-= 1 (cl-cc/runtime::rt-heap-major-gc-count heap))
+      (assert-eq :normal (cl-cc/runtime::rt-heap-gc-state heap)))))
+
+(deftest gc-major-collect-gc-state-restored-on-empty-heap
+  "Major GC on a fresh heap: gc-state is :normal after the call."
+  (let ((cl-cc/runtime::*rt-package-registry* (make-hash-table :test #'equal))
+        (cl-cc/runtime::*rt-global-var-registry* (make-hash-table :test #'eq)))
+    (let* ((heap (cl-cc/runtime::make-rt-heap :young-size 128 :old-size 128)))
+      (cl-cc/runtime::rt-gc-major-collect heap)
+      (assert-eq :normal (cl-cc/runtime::rt-heap-gc-state heap)))))
+
+(deftest gc-major-collect-reclaims-unreachable-old-object
+  "An old-space object with no root is swept; words-collected increases."
+  (let ((cl-cc/runtime::*rt-package-registry* (make-hash-table :test #'equal))
+        (cl-cc/runtime::*rt-global-var-registry* (make-hash-table :test #'eq)))
+    (let* ((heap (cl-cc/runtime::make-rt-heap :young-size 128 :old-size 128))
+           ;; Promote an object by bumping it into old space manually
+           (old-base (cl-cc/runtime::rt-heap-old-base heap)))
+      ;; Place an unmarked object in old space with no root
+      (cl-cc/runtime::rt-heap-set-header
+       heap old-base
+       (cl-cc/runtime::make-rt-header 3 cl-cc/runtime:+rt-tag-cons+ :gc-bits 0))
+      (setf (cl-cc/runtime::rt-heap-old-free heap) (+ old-base 3))
+      ;; Run major GC — object is unreachable, should be collected
+      (cl-cc/runtime::rt-gc-major-collect heap)
+      (assert-true (>= (cl-cc/runtime::rt-heap-words-collected heap) 3)))))
+
+(deftest gc-major-collect-preserves-rooted-old-object
+  "An old-space object reachable from a root survives major GC."
+  (let ((cl-cc/runtime::*rt-package-registry* (make-hash-table :test #'equal))
+        (cl-cc/runtime::*rt-global-var-registry* (make-hash-table :test #'eq)))
+    (let* ((heap (cl-cc/runtime::make-rt-heap :young-size 128 :old-size 128))
+           (old-base (cl-cc/runtime::rt-heap-old-base heap)))
+      ;; Place live object in old space
+      (cl-cc/runtime::rt-heap-set-header
+       heap old-base
+       (cl-cc/runtime::make-rt-header 3 cl-cc/runtime:+rt-tag-cons+ :gc-bits 0))
+      (setf (cl-cc/runtime::rt-heap-old-free heap) (+ old-base 3))
+      ;; Register root pointing directly into old space
+      (let ((root (cons nil old-base)))
+        (cl-cc/runtime::rt-gc-add-root heap root)
+        (cl-cc/runtime::rt-gc-major-collect heap)
+        ;; Live object must still have a readable header
+        (let ((hdr (cl-cc/runtime::rt-heap-object-header heap old-base)))
+          (assert-true (integerp hdr))
+          (assert-= 3 (cl-cc/runtime::rt-header-size hdr)))
+        (cl-cc/runtime::rt-gc-remove-root heap root)))))
+
+(deftest gc-major-collect-stats-major-count
+  "rt-gc-stats :major-gc-count reflects the number of major GCs run."
+  (let ((cl-cc/runtime::*rt-concurrent-gc-enabled-p* nil)
+        (cl-cc/runtime::*rt-package-registry* (make-hash-table :test #'equal))
+        (cl-cc/runtime::*rt-global-var-registry* (make-hash-table :test #'eq)))
+    (let* ((heap (cl-cc/runtime::make-rt-heap :young-size 128 :old-size 128)))
+      (cl-cc/runtime::rt-gc-major-collect heap)
+      (cl-cc/runtime::rt-gc-major-collect heap)
+      (assert-= 2 (getf (cl-cc/runtime::rt-gc-stats heap) :major-gc-count)))))
+
+(deftest gc-configure-concurrent-mode-updates-runtime-flags
+  "rt-gc-configure-concurrent-mode updates runtime concurrent-GC flags and surfaces them in stats."
+  (let ((cl-cc/runtime::*rt-concurrent-gc-enabled-p* nil)
+        (cl-cc/runtime::*rt-concurrent-gc-write-barrier-mode* :satb)
+        (cl-cc/runtime::*rt-concurrent-gc-stw-phases* nil)
+        (cl-cc/runtime::*rt-concurrent-gc-mutator-assist-p* nil))
+    (let* ((heap (cl-cc/runtime::make-rt-heap :young-size 128 :old-size 128)))
+      (cl-cc/runtime::rt-gc-configure-concurrent-mode
+       :enabled-p t
+       :write-barrier :satb
+       :stw-phases '(:initial-mark :final-remark)
+       :mutator-assist-p t)
+      (let ((stats (cl-cc/runtime::rt-gc-stats heap)))
+        (assert-true (getf stats :concurrent-gc-enabled-p))
+        (assert-eq :satb (getf stats :concurrent-gc-write-barrier))
+        (assert-equal '(:initial-mark :final-remark)
+                      (getf stats :concurrent-gc-stw-phases))
+        (assert-true (getf stats :concurrent-gc-mutator-assist-p))))))
+
+(deftest gc-major-collect-enters-concurrent-state-when-enabled
+  "Major GC enters concurrent state when concurrent mode is enabled and restores :normal on completion."
+  (let ((cl-cc/runtime::*rt-concurrent-gc-enabled-p* nil)
+        (cl-cc/runtime::*rt-package-registry* (make-hash-table :test #'equal))
+        (cl-cc/runtime::*rt-global-var-registry* (make-hash-table :test #'eq)))
+    (let* ((heap (cl-cc/runtime::make-rt-heap :young-size 128 :old-size 128)))
+      (cl-cc/runtime::rt-gc-configure-concurrent-mode :enabled-p t)
+      (cl-cc/runtime::rt-gc-major-collect heap)
+      (assert-eq :normal (cl-cc/runtime::rt-heap-gc-state heap))
+      (assert-true (getf (cl-cc/runtime::rt-gc-stats heap) :concurrent-gc-enabled-p)))))
+
+(deftest gc-concurrent-assist-marks-satb-old-pointers-with-budget
+  "rt-gc-concurrent-assist marks queued old-space SATB pointers up to budget."
+  (let ((cl-cc/runtime::*rt-concurrent-gc-enabled-p* nil)
+        (cl-cc/runtime::*rt-concurrent-gc-mutator-assist-p* nil))
+    (let* ((heap (cl-cc/runtime::make-rt-heap :young-size 128 :old-size 128))
+           (old-base (cl-cc/runtime::rt-heap-old-base heap))
+           (a old-base)
+           (b (+ old-base 3)))
+      (cl-cc/runtime::rt-heap-set-header
+       heap a (cl-cc/runtime::make-rt-header 3 cl-cc/runtime:+rt-tag-cons+ :gc-bits 0))
+      (cl-cc/runtime::rt-heap-set-header
+       heap b (cl-cc/runtime::make-rt-header 3 cl-cc/runtime:+rt-tag-cons+ :gc-bits 0))
+      (setf (cl-cc/runtime::rt-heap-old-free heap) (+ old-base 6))
+      (setf (cl-cc/runtime::rt-heap-satb-queue heap) (list a b))
+      (cl-cc/runtime::rt-gc-configure-concurrent-mode
+       :enabled-p t
+       :mutator-assist-p t)
+      (setf (cl-cc/runtime::rt-heap-gc-state heap) :major-gc-concurrent)
+      (assert-= 1 (cl-cc/runtime::rt-gc-concurrent-assist heap :budget 1))
+      (assert-true
+       (or (cl-cc/runtime::header-marked-p (cl-cc/runtime::rt-heap-object-header heap a))
+           (cl-cc/runtime::header-marked-p (cl-cc/runtime::rt-heap-object-header heap b))))
+      ;; SATB queue is fully drained to the grey queue before any budgeted
+      ;; incremental marking occurs; expect the queue to be empty.
+      (assert-= 0 (length (cl-cc/runtime::rt-heap-satb-queue heap))))))
