@@ -51,20 +51,25 @@ kept in *RT-GLOBAL-VAR-REGISTRY* rather than in thread-local dynamic frames."
         (rt-special-variable-metadata-global-only-p metadata))))
 
 (defun %rt-binding-symbol (binding)
+  ;; A plist frame is (:symbol S :value V); a compact frame is the dotted cons
+  ;; (S . V) produced by RT-DYNAMIC-BIND.  Only proper-list frames may be probed
+  ;; with GETF — calling GETF on a dotted cons signals "malformed property list".
   (cond
-    ((and (consp binding) (getf binding :symbol)) (getf binding :symbol))
+    ((and (consp binding) (consp (cdr binding)) (getf binding :symbol))
+     (getf binding :symbol))
     ((consp binding) (car binding))
     (t nil)))
 
 (defun %rt-binding-value (binding)
   (cond
-    ((and (consp binding) (getf binding :value)) (getf binding :value))
+    ((and (consp binding) (consp (cdr binding)) (getf binding :value))
+     (getf binding :value))
     ((consp binding) (cdr binding))
     (t nil)))
 
 (defun %rt-set-binding-value (binding value)
   (cond
-    ((and (consp binding) (getf binding :value))
+    ((and (consp binding) (consp (cdr binding)) (getf binding :value))
      (setf (getf binding :value) value))
     ((consp binding)
      (setf (cdr binding) value)))

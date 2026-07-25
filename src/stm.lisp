@@ -87,14 +87,6 @@
         (push (cons tv value) (%rt-stm-write-log))))
   value)
 
-(defun %rt-stm-conflict-p ()
-  (some (lambda (entry)
-          (let ((tv (car entry))
-                (version (cdr entry)))
-            (rt-with-mutex ((rt-tvar-lock tv))
-              (when (/= version (rt-tvar-version tv)) tv))))
-        (%rt-stm-read-log)))
-
 (defun %rt-stm-write-tvars ()
   (sort (copy-list (mapcar #'car (%rt-stm-write-log))) #'< :key #'rt-tvar-id))
 

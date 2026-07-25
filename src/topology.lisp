@@ -114,9 +114,6 @@ as unavailable (NIL), exactly like a command failure.")
            append (%rt-parse-cpulist-token part))
      :test #'eql)))
 
-(defun %rt-format-cpulist (cpus)
-  (format nil "~{~d~^,~}" (sort (copy-list cpus) #'<)))
-
 (defun %rt-default-cpu-list ()
   (loop for cpu below (detect-cpu-cores) collect cpu))
 

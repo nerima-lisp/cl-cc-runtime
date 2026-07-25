@@ -288,6 +288,15 @@ sweep clears those bits."
 ;;; Weak Hash Table Support (FR-448, FR-449)
 ;;; ------------------------------------------------------------
 
+(defun %rt-weak-entry-dead-p (weakness key-live-p value-live-p)
+  "Return true when a weak-hash entry must be removed under WEAKNESS given liveness."
+  (case weakness
+    (:key (not key-live-p))
+    (:value (not value-live-p))
+    (:key-and-value (and (not key-live-p) (not value-live-p)))
+    (:key-or-value (or (not key-live-p) (not value-live-p)))
+    (otherwise nil)))
+
 (defstruct (rt-weak-hash-entry (:conc-name rtwhe-))
   "Internal entry for weak hash tables. GC clears entries whose
    key or value becomes unreachable based on the weakness mode."
@@ -328,13 +337,7 @@ sweep clears those bits."
                   (value (rtwhe-value entry))
                   (key-live-p (%rt-gc-reference-live-p heap marked-set key))
                   (value-live-p (%rt-gc-reference-live-p heap marked-set value))
-                  (remove-p
-                    (case weakness
-                      (:key (not key-live-p))
-                      (:value (not value-live-p))
-                      (:key-and-value (and (not key-live-p) (not value-live-p)))
-                      (:key-or-value (or (not key-live-p) (not value-live-p)))
-                      (otherwise nil))))
+                  (remove-p (%rt-weak-entry-dead-p weakness key-live-p value-live-p)))
              (when remove-p
                (remhash key backing)
                (push metadata-key dead-keys))))
@@ -377,13 +380,7 @@ sweep clears those bits."
                (multiple-value-bind (new-value value-live-p)
                    (%rt-gc-forwarded-value-after-minor heap (rtwhe-value entry) in-source-p)
                  (let* ((weakness (rt-weak-hash-table-weakness ht))
-                        (remove-p
-                          (case weakness
-                            (:key (not key-live-p))
-                            (:value (not value-live-p))
-                            (:key-and-value (and (not key-live-p) (not value-live-p)))
-                            (:key-or-value (or (not key-live-p) (not value-live-p)))
-                            (otherwise nil))))
+                        (remove-p (%rt-weak-entry-dead-p weakness key-live-p value-live-p)))
                    (if remove-p
                        (progn
                          (remhash (rtwhe-key entry) backing)

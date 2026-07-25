@@ -67,23 +67,24 @@ Each summary entry is true when any card in its 64-card block is dirty."
 ;;; Object Pointer Predicate Helpers
 ;;; ------------------------------------------------------------
 
-(defun rt-young-addr-p (heap addr)
-  "Return true if ADDR is within the young from-space."
-  (and (>= addr (rt-heap-young-from-base heap))
-       (< addr (+ (rt-heap-young-from-base heap)
-                  (rt-heap-young-semi-size heap)))))
+(defmacro define-heap-region-predicate (name base-accessor size-accessor docstring)
+  "Define predicate NAME testing whether ADDR lies in the [base, base+size) region."
+  `(defun ,name (heap addr)
+     ,docstring
+     (and (>= addr (,base-accessor heap))
+          (< addr (+ (,base-accessor heap) (,size-accessor heap))))))
 
-(defun rt-old-addr-p (heap addr)
-  "Return true if ADDR is within the old space."
-  (and (>= addr (rt-heap-old-base heap))
-       (< addr (+ (rt-heap-old-base heap)
-                   (rt-heap-old-size heap)))))
+(define-heap-region-predicate rt-young-addr-p
+    rt-heap-young-from-base rt-heap-young-semi-size
+  "Return true if ADDR is within the young from-space.")
 
-(defun rt-large-obj-addr-p (heap addr)
-  "Return true if ADDR is within the large object space."
-  (and (>= addr (rt-heap-large-obj-base heap))
-       (< addr (+ (rt-heap-large-obj-base heap)
-                  (rt-heap-large-obj-size heap)))))
+(define-heap-region-predicate rt-old-addr-p
+    rt-heap-old-base rt-heap-old-size
+  "Return true if ADDR is within the old space.")
+
+(define-heap-region-predicate rt-large-obj-addr-p
+    rt-heap-large-obj-base rt-heap-large-obj-size
+  "Return true if ADDR is within the large object space.")
 
 (defun rt-heap-addr-p (heap addr)
   "Return true if ADDR is within any live region of HEAP."

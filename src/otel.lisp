@@ -27,61 +27,34 @@
 (defun %rt-otel-now-nanos ()
   (* (get-universal-time) 1000000000))
 
-(defun %rt-otel-escape-json-string (value)
-  (with-output-to-string (out)
-    (loop for char across (princ-to-string value)
-          do (case char
-               (#\" (write-string "\\\"" out))
-               (#\\ (write-string "\\\\" out))
-               (#\Newline (write-string "\\n" out))
-               (#\Return (write-string "\\r" out))
-               (#\Tab (write-string "\\t" out))
-               (otherwise (write-char char out))))))
-
-(defun %rt-otel-json-value (value)
+(defun %rt-json-scalar (value)
+  "Coerce VALUE to a cl-json-kit-serializable scalar with OTLP null/true semantics."
   (cond
-    ((null value) "null")
-    ((eq value t) "true")
-    ((numberp value) (princ-to-string value))
-    ((stringp value) (format nil "\"~a\"" (%rt-otel-escape-json-string value)))
-    ((symbolp value) (format nil "\"~a\"" (%rt-otel-escape-json-string value)))
-    (t (format nil "\"~a\"" (%rt-otel-escape-json-string value)))))
+    ((null value) json-kit:+json-null+)
+    ((eq value t) t)
+    ((numberp value) value)
+    ((stringp value) value)
+    (t (princ-to-string value))))
 
-(defun %rt-otel-attributes-to-json (attributes)
-  (with-output-to-string (out)
-    (write-char #\{ out)
-    (let ((first t))
-      (cond
-        ((hash-table-p attributes)
-         (maphash (lambda (key value)
-                    (unless first (write-char #\, out))
-                    (setf first nil)
-                    (format out "\"~a\":~a"
-                            (%rt-otel-escape-json-string key)
-                            (%rt-otel-json-value value)))
-                  attributes))
-        (t
-         (dolist (pair attributes)
-           (unless first (write-char #\, out))
-           (setf first nil)
-           (format out "\"~a\":~a"
-                   (%rt-otel-escape-json-string (car pair))
-                   (%rt-otel-json-value (cdr pair)))))))
-    (write-char #\} out)))
+(defun %rt-json-attributes (attributes)
+  "Build an ordered JSON object from ATTRIBUTES, a hash-table or an alist."
+  (let ((members nil))
+    (if (hash-table-p attributes)
+        (maphash (lambda (key value)
+                   (push (cons (princ-to-string key) (%rt-json-scalar value)) members))
+                 attributes)
+        (dolist (pair attributes)
+          (push (cons (princ-to-string (car pair)) (%rt-json-scalar (cdr pair))) members)))
+    (json-kit:make-json-object (nreverse members))))
 
-(defun %rt-otel-events-to-json (events)
-  (with-output-to-string (out)
-    (write-char #\[ out)
-    (loop for event in (reverse events)
-          for first = t then nil
-          unless first do (write-char #\, out)
-          do (format out
-                     "{\"name\":\"~a\",\"timeUnixNano\":~d,\"attributes\":~a}"
-                     (%rt-otel-escape-json-string (rt-otel-event-name event))
-                     (rt-otel-event-time event)
-                     (%rt-otel-attributes-to-json
-                      (rt-otel-event-attributes event))))
-    (write-char #\] out)))
+(defun %rt-otel-events->json (events)
+  "Return EVENTS (stored newest-first) as a chronologically ordered JSON array."
+  (mapcar (lambda (event)
+            (json-kit:make-json-object
+             (list (cons "name" (rt-otel-event-name event))
+                   (cons "timeUnixNano" (rt-otel-event-time event))
+                   (cons "attributes" (%rt-json-attributes (rt-otel-event-attributes event))))))
+          (reverse events)))
 
 (defun rt-otel-start-span (name &key parent)
   (let ((span (make-rt-otel-span
@@ -131,18 +104,21 @@
 
 (defun rt-otel-span-to-json (span)
   "Export SPAN as an OTLP-compatible JSON span object."
-  (format nil
-          "{\"traceId\":\"~a\",\"spanId\":\"~a\",\"parentSpanId\":\"~a\",\"name\":\"~a\",\"kind\":\"SPAN_KIND_INTERNAL\",\"startTimeUnixNano\":~d,\"endTimeUnixNano\":~d,\"attributes\":~a,\"events\":~a,\"status\":{\"code\":\"~a\",\"message\":\"~a\"}}"
-          (rt-otel-span-trace-id span)
-          (rt-otel-span-span-id span)
-          (or (rt-otel-span-parent-span-id span) "")
-          (%rt-otel-escape-json-string (rt-otel-span-name span))
-          (rt-otel-span-start span)
-          (rt-otel-span-end span)
-          (%rt-otel-attributes-to-json (rt-otel-span-attributes span))
-          (%rt-otel-events-to-json (rt-otel-span-events span))
-          (rt-otel-span-status-code span)
-          (%rt-otel-escape-json-string (rt-otel-span-status-message span))))
+  (json-kit:stringify
+   (json-kit:make-json-object
+    (list (cons "traceId" (rt-otel-span-trace-id span))
+          (cons "spanId" (rt-otel-span-span-id span))
+          (cons "parentSpanId" (or (rt-otel-span-parent-span-id span) ""))
+          (cons "name" (rt-otel-span-name span))
+          (cons "kind" "SPAN_KIND_INTERNAL")
+          (cons "startTimeUnixNano" (rt-otel-span-start span))
+          (cons "endTimeUnixNano" (rt-otel-span-end span))
+          (cons "attributes" (%rt-json-attributes (rt-otel-span-attributes span)))
+          (cons "events" (%rt-otel-events->json (rt-otel-span-events span)))
+          (cons "status"
+                (json-kit:make-json-object
+                 (list (cons "code" (rt-otel-span-status-code span))
+                       (cons "message" (rt-otel-span-status-message span)))))))))
 
 (defmacro rt-with-span ((name &key attrs) &body body)
   (let ((span-var (gensym "SPAN")))
@@ -157,13 +133,3 @@
   (setf *rt-otel-span* nil)
   t)
 
-(export '(rt-otel-event make-rt-otel-event rt-otel-event-name
-          rt-otel-event-time rt-otel-event-attributes
-          rt-otel-span make-rt-otel-span rt-otel-span-name
-          rt-otel-span-trace-id rt-otel-span-span-id
-          rt-otel-span-parent-span-id rt-otel-span-start rt-otel-span-end
-          rt-otel-span-attributes rt-otel-span-events
-          rt-otel-span-status-code rt-otel-span-status-message
-          *rt-otel-span* rt-otel-start-span rt-otel-end-span
-          rt-otel-set-attribute rt-otel-add-event rt-otel-set-status
-          rt-otel-span-to-json rt-with-span rt-otel-init))

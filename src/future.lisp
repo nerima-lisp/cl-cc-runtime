@@ -12,11 +12,27 @@
     (rt-condition-notify-all (rt-future-cond f)))
   (values-list values))
 (defun rt-future-await (f &key timeout)
-  (rt-with-mutex ((rt-future-mutex f) :timeout timeout)
-    (loop until (rt-future-resolved-p f)
-          do (rt-condition-wait (rt-future-cond f)
-                                 (rt-future-mutex f)
-                                 :timeout timeout)))
+  "Block until F is resolved, or until TIMEOUT seconds have elapsed in
+total, and return its values (or no values, on timeout).
+
+Tracks a single deadline across retries rather than resetting TIMEOUT on
+every wakeup, and explicitly re-locks F's mutex after a timed-out
+RT-CONDITION-WAIT: SB-THREAD:CONDITION-WAIT only reacquires the mutex when
+woken by a notification, not when it returns due to timeout."
+  (let ((deadline (and timeout (+ (get-internal-real-time)
+                                   (round (* timeout internal-time-units-per-second))))))
+    (rt-mutex-lock (rt-future-mutex f))
+    (unwind-protect
+         (loop until (rt-future-resolved-p f)
+               do (let ((remaining (and deadline
+                                         (/ (max 0 (- deadline (get-internal-real-time)))
+                                            (float internal-time-units-per-second)))))
+                    (when (and deadline (<= remaining 0))
+                      (return))
+                    (unless (rt-condition-wait (rt-future-cond f) (rt-future-mutex f) :timeout remaining)
+                      (rt-mutex-lock (rt-future-mutex f))
+                      (return))))
+      (rt-mutex-unlock (rt-future-mutex f))))
   (values-list (rt-future-values f)))
 (defun rt-future-then (f callback)
   (let ((new-f (rt-make-future)))

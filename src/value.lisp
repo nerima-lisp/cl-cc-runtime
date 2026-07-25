@@ -93,13 +93,6 @@
 (defparameter *heap-base-address* 0
   "Logical start address of the managed heap region used for pointer compression.")
 
-(export '(+compressed-pointer-flag+ +compressed-pointer-offset-mask+
-          +compressed-heap-region-bytes+ +compressed-heap-region-words+
-          *compressed-pointers-enabled* *heap-base-address*
-          val-compressed-pointer-p compressed-pointer-enabled-p
-          encode-compressed-pointer decode-compressed-pointer)
-        :cl-cc/runtime)
-
 ;;; 3-bit pointer sub-tags (shifted to bits[50:48])
 (defconstant +tag-object+   #x0001000000000000  "Heap object sub-tag.")
 (defconstant +tag-cons+     #x0002000000000000  "Cons cell sub-tag.")
@@ -334,10 +327,6 @@ characters with codes above #xFF must use the heap string representation."
           do (setf (char string i)
                    (code-char (ldb (byte 8 (+ 3 (* 8 i))) value))))
     string))
-
-(export '(+sso-string-base+ +sso-string-mask+ +sso-string-max-length+
-          val-sso-string-p encode-sso-string decode-sso-string)
-        :cl-cc/runtime)
 
 (defun val-char-p (v)
   "True if V is a boxed character."

@@ -61,21 +61,23 @@ otherwise queue ITEM for a later RT-ASYNC-GENERATOR-NEXT call."
               (nconc (rt-async-generator-state-items gen) (list item)))))
   item)
 
+(defun %rt-async-generator-drain-waiters (gen)
+  "Resolve every pending waiter of GEN with (values nil t), signalling done."
+  (loop for waiter = (%rt-async-generator-pop-waiter gen)
+        while waiter
+        do (rt-future-resolve waiter nil t)))
+
 (defun rt-async-generator-close (gen)
   "Mark GEN complete and resolve all pending waiters with DONE-P true."
   (setf (rt-async-generator-state-done-p gen) t)
-  (loop for waiter = (%rt-async-generator-pop-waiter gen)
-        while waiter
-        do (rt-future-resolve waiter nil t))
+  (%rt-async-generator-drain-waiters gen)
   t)
 
 (defun rt-async-generator-fail (gen condition)
   "Record CONDITION as GEN's terminal error and resolve waiters as done."
   (setf (rt-async-generator-state-error gen) condition
         (rt-async-generator-state-done-p gen) t)
-  (loop for waiter = (%rt-async-generator-pop-waiter gen)
-        while waiter
-        do (rt-future-resolve waiter nil t))
+  (%rt-async-generator-drain-waiters gen)
   condition)
 
 (defun rt-async-generator-next (gen)

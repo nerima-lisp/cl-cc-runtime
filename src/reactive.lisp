@@ -124,12 +124,6 @@ ON-SUBSCRIBE, ON-NEXT, ON-ERROR, and ON-COMPLETE default to no-op callbacks."
   "Return true when N is valid positive Reactive Streams demand."
   (and (integerp n) (> n 0)))
 
-(defun %rt-signal-error-once (subscriber done-p error)
-  "Signal ERROR to SUBSCRIBER once and mark DONE-P."
-  (unless (symbol-value done-p)
-    (setf (symbol-value done-p) t)
-    (rt-on-error subscriber error)))
-
 (defun %rt-demand-error (n)
   "Create a condition describing invalid demand N."
   (make-condition 'simple-error

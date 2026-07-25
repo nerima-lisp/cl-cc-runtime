@@ -339,10 +339,16 @@ the implementation portable while preserving the CAS-style try/fail API shape."
                     (handler-case
                         (setf (rt-native-thread-return-value wrapper) (funcall function)
                               (rt-native-thread-state wrapper) :finished)
+                      ;; Record the failure on WRAPPER for RT-THREAD-JOIN et al. to
+                      ;; inspect; do NOT re-signal here. A condition raised in this
+                      ;; thread cannot be caught by any handler in another thread's
+                      ;; dynamic extent, so re-signaling only ever reaches SBCL's
+                      ;; top-level debugger hook -- which, under --disable-debugger
+                      ;; (as in batch/CI runs), terminates the entire process instead
+                      ;; of just this thread.
                       (error (c)
                         (setf (rt-native-thread-error wrapper) c
-                              (rt-native-thread-state wrapper) :failed)
-                        (error c)))
+                              (rt-native-thread-state wrapper) :failed)))
                  (rt-gc-unregister-thread sb-thread:*current-thread*)))))
       (%rt-register-native-thread
        wrapper

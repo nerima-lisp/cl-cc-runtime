@@ -5,12 +5,6 @@
 
 ;; ── Counter types ──────────────────────────────────────────────────────
 
-(defconstant +perf-cpu-cycles+ 0)
-(defconstant +perf-instructions+ 1)
-(defconstant +perf-cache-misses+ 2)
-(defconstant +perf-branch-mispredictions+ 3)
-(defconstant +perf-tlb-misses+ 4)
-
 (defparameter *perf-event-names*
   '(:cycles :instructions :cache-misses :branch-mispredictions :tlb-misses)
   "Supported performance counter event names.")

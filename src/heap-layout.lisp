@@ -54,29 +54,21 @@
 ;;; fields retain their exact widths; native runtimes can lower them to side
 ;;; metadata or use the 4 GC bits according to their collector encoding.
 
+;;; Each field is (ash header (- shift)) masked to its width; the readers below
+;;; are generated uniformly by DEFINE-HEADER-FIELD-READER from these shifts.
 ;;; Size field: bits 31..0
 (defconstant +header-size-shift+    0)
 
-(defconstant +header-size-mask+     #x00000000FFFFFFFF)
-
 ;;; Shape-id field: bits 51..32
 (defconstant +header-shape-id-shift+ 32)
-
-(defconstant +header-shape-field-mask+ #x000FFFFF00000000)
-
-(defconstant +header-shape-id-mask+ #x000FFFFF00000000)
 
 (defconstant +header-shape-id-max+ #xFFFFF)
 
 ;;; GC-bits field: bits 55..52
 (defconstant +header-gc-bits-shift+ 52)
 
-(defconstant +header-gc-bits-mask+  #x00F0000000000000)
-
 ;;; Type tag field: bits 63..56
 (defconstant +header-tag-shift+     56)
-
-(defconstant +header-tag-mask+      #xFF00000000000000)
 
 ;;; Age occupies bits 53..52 (2 bits, 0-3) within the GC-bits field.
 ;;; Mark (bit 55) and gray (bit 54) are outside the age sub-field.
@@ -115,22 +107,23 @@ per-object class pointer in compact object layouts."
           (ash (logand shape-id +header-shape-id-max+) +header-shape-id-shift+)
           (logand size #xFFFFFFFF)))
 
-(defun rt-header-size (header-word)
-  "Extract the 32-bit object size field from compressed header HEADER-WORD."
-  (logand header-word #xFFFFFFFF))
+(defmacro define-header-field-reader (name shift width-mask docstring)
+  "Define reader NAME extracting a right-shifted, WIDTH-MASK-wide field from a header word."
+  `(defun ,name (header-word)
+     ,docstring
+     (logand (ash header-word (- ,shift)) ,width-mask)))
 
-(defun rt-header-type-tag (header-word)
-  "Extract the 8-bit runtime type tag from compressed header HEADER-WORD."
-  (logand (ash header-word (- +header-tag-shift+)) #xFF))
+(define-header-field-reader rt-header-size +header-size-shift+ #xFFFFFFFF
+  "Extract the 32-bit object size field from compressed header HEADER-WORD.")
 
-(defun rt-header-gc-bits (header-word)
-  "Extract the 4-bit GC field from compressed header HEADER-WORD."
-  (logand (ash header-word (- +header-gc-bits-shift+)) #xF))
+(define-header-field-reader rt-header-type-tag +header-tag-shift+ #xFF
+  "Extract the 8-bit runtime type tag from compressed header HEADER-WORD.")
 
-(defun rt-header-shape-id (header-word)
-  "Extract the embedded 20-bit FR-214 shape id from compressed header HEADER-WORD."
-  (logand (ash (logand header-word +header-shape-id-mask+) (- +header-shape-id-shift+))
-          +header-shape-id-max+))
+(define-header-field-reader rt-header-gc-bits +header-gc-bits-shift+ #xF
+  "Extract the 4-bit GC field from compressed header HEADER-WORD.")
+
+(define-header-field-reader rt-header-shape-id +header-shape-id-shift+ +header-shape-id-max+
+  "Extract the embedded 20-bit FR-214 shape id from compressed header HEADER-WORD.")
 
 (defun rt-header-age (header-word)
   "Extract the age (0-3) from compressed header HEADER-WORD."
@@ -143,33 +136,26 @@ per-object class pointer in compact object layouts."
     (logior (logand header-word (lognot +header-age-mask+))
             (ash new-age +header-age-shift+))))
 
-(defun header-marked-p (header-word)
-  "Return true if the mark bit is set in header HEADER-WORD."
-  (not (zerop (logand header-word +header-mark-bit+))))
+(defmacro define-header-flag (predicate setter clearer bit-constant flag-name)
+  "Define the predicate/set/clear trio for the transient collector flag BIT-CONSTANT."
+  `(progn
+     (defun ,predicate (header-word)
+       ,(format nil "Return true if the ~A bit is set in header HEADER-WORD." flag-name)
+       (not (zerop (logand header-word ,bit-constant))))
+     (defun ,setter (header-word)
+       ,(format nil "Return a new header with the ~A bit set." flag-name)
+       (logior header-word ,bit-constant))
+     (defun ,clearer (header-word)
+       ,(format nil "Return a new header with the ~A bit cleared." flag-name)
+       (logand header-word (lognot ,bit-constant)))))
 
-(defun header-gray-p (header-word)
-  "Return true if the gray bit is set in header HEADER-WORD."
-  (not (zerop (logand header-word +header-gray-bit+))))
+(define-header-flag header-marked-p header-set-mark header-clear-mark +header-mark-bit+ "mark")
+
+(define-header-flag header-gray-p header-set-gray header-clear-gray +header-gray-bit+ "gray")
 
 (defun header-forwarding-p (header-word)
   "Return true if HEADER-WORD represents a forwarding pointer (i.e. is a cons :forwarded)."
   (and (consp header-word) (eq (car header-word) :forwarded)))
-
-(defun header-set-mark (header-word)
-  "Return a new header with the mark bit set."
-  (logior header-word +header-mark-bit+))
-
-(defun header-clear-mark (header-word)
-  "Return a new header with the mark bit cleared."
-  (logand header-word (lognot +header-mark-bit+)))
-
-(defun header-set-gray (header-word)
-  "Return a new header with the gray bit set."
-  (logior header-word +header-gray-bit+))
-
-(defun header-clear-gray (header-word)
-  "Return a new header with the gray bit cleared."
-  (logand header-word (lognot +header-gray-bit+)))
 
 (defun header-make-forwarding-ptr (dest-addr)
   "Create a forwarding pointer value for DEST-ADDR.

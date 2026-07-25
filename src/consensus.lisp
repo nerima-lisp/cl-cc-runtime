@@ -13,6 +13,19 @@
   (command nil))
 
 (defstruct rt-raft-node
+  "A Raft node. STATE is one of +raft-follower+ / +raft-candidate+ / +raft-leader+
+and moves as a small state machine:
+
+  follower  --election timeout-->  candidate            (rt-raft-start-election)
+  candidate --wins majority----->  leader               (rt-raft-become-leader)
+  candidate --split/higher term->  follower             (%rt-raft-step-down)
+  leader    --sees higher term-->  follower             (%rt-raft-step-down)
+
+Every transition that observes a strictly higher term adopts it and clears any
+vote (%rt-raft-adopt-newer-term); vote granting additionally requires the
+candidate log to be at least as up-to-date (%rt-raft-log-up-to-date-p). LOG is
+stored newest-first; NEXT-INDEX / MATCH-INDEX are per-peer replication cursors
+used only while leader."
   (id "")
   (state +raft-follower+)
   (current-term 0)
@@ -66,10 +79,34 @@
 (defun %rt-raft-majority (cluster)
   (1+ (floor (length (rt-raft-cluster-node-ids cluster)) 2)))
 
-(defun %rt-raft-step-down (node term cluster)
+(defun %rt-raft-leader-p (node)
+  (eq (rt-raft-node-state node) +raft-leader+))
+
+(defun %rt-raft-candidate-p (node)
+  (eq (rt-raft-node-state node) +raft-candidate+))
+
+(defun %rt-raft-adopt-newer-term (node term)
+  "Adopt TERM when it is newer than NODE's current term, forgetting any vote.
+Returns true when a newer term was adopted. Raft rule: any RPC carrying a higher
+term drags the receiver forward and invalidates the vote it may have cast."
   (when (> term (rt-raft-node-current-term node))
     (setf (rt-raft-node-current-term node) term
-          (rt-raft-node-voted-for node) nil))
+          (rt-raft-node-voted-for node) nil)
+    t))
+
+(defun %rt-raft-log-up-to-date-p (candidate voter)
+  "Raft log-completeness rule: is CANDIDATE's log at least as up-to-date as
+VOTER's? A higher last-log term wins; on a tie the longer log wins."
+  (let ((candidate-term (%rt-raft-last-log-term candidate))
+        (voter-term (%rt-raft-last-log-term voter)))
+    (or (> candidate-term voter-term)
+        (and (= candidate-term voter-term)
+             (>= (%rt-raft-last-log-index candidate)
+                 (%rt-raft-last-log-index voter))))))
+
+(defun %rt-raft-step-down (node term cluster)
+  "Revert NODE to follower, adopting TERM if newer, and clear cluster leadership."
+  (%rt-raft-adopt-newer-term node term)
   (setf (rt-raft-node-state node) +raft-follower+
         (rt-raft-cluster-leader-id cluster) nil
         (rt-raft-node-votes-received node) nil)
@@ -105,23 +142,17 @@
   node)
 
 (defun rt-raft-request-vote (candidate voter)
+  "Decide whether VOTER grants its vote to CANDIDATE under Raft's rules:
+never vote backwards in term, at most one vote per term, and only for a log at
+least as up-to-date as our own."
   (let ((candidate-term (rt-raft-node-current-term candidate)))
     (cond
       ((< candidate-term (rt-raft-node-current-term voter)) nil)
       (t
-       (when (> candidate-term (rt-raft-node-current-term voter))
-         (setf (rt-raft-node-current-term voter) candidate-term
-               (rt-raft-node-voted-for voter) nil
-               (rt-raft-node-state voter) +raft-follower+))
-       (let* ((voted-for (rt-raft-node-voted-for voter))
-              (candidate-log-term (%rt-raft-last-log-term candidate))
-              (voter-log-term (%rt-raft-last-log-term voter))
-              (candidate-log-index (%rt-raft-last-log-index candidate))
-              (voter-log-index (%rt-raft-last-log-index voter))
-              (log-current-p (or (> candidate-log-term voter-log-term)
-                                 (and (= candidate-log-term voter-log-term)
-                                      (>= candidate-log-index voter-log-index)))))
-         (when (and log-current-p
+       (when (%rt-raft-adopt-newer-term voter candidate-term)
+         (setf (rt-raft-node-state voter) +raft-follower+))
+       (let ((voted-for (rt-raft-node-voted-for voter)))
+         (when (and (%rt-raft-log-up-to-date-p candidate voter)
                     (or (null voted-for)
                         (equal voted-for (rt-raft-node-id candidate))))
            (setf (rt-raft-node-voted-for voter) (rt-raft-node-id candidate))
@@ -144,7 +175,7 @@
              (%rt-raft-step-down node (rt-raft-node-current-term peer) cluster))
             ((rt-raft-request-vote node peer)
              (pushnew peer-id (rt-raft-node-votes-received node) :test #'equal)))))))
-  (when (and (eq (rt-raft-node-state node) +raft-candidate+)
+  (when (and (%rt-raft-candidate-p node)
              (>= (length (rt-raft-node-votes-received node))
                  (%rt-raft-majority cluster)))
     (rt-raft-become-leader node cluster)
@@ -180,9 +211,7 @@ Without APPLY-FUNCTION, commands are appended to the state-machine list."
     ((< (rt-raft-node-current-term leader) (rt-raft-node-current-term follower)) nil)
     ((not (eql (%rt-raft-log-term-at follower prev-index) prev-term)) nil)
     (t
-     (when (> (rt-raft-node-current-term leader) (rt-raft-node-current-term follower))
-       (setf (rt-raft-node-current-term follower) (rt-raft-node-current-term leader)
-             (rt-raft-node-voted-for follower) nil))
+     (%rt-raft-adopt-newer-term follower (rt-raft-node-current-term leader))
      (setf (rt-raft-node-state follower) +raft-follower+
            (rt-raft-cluster-leader-id cluster) (rt-raft-node-id leader))
      (%rt-raft-reset-election-timer follower)
@@ -195,7 +224,7 @@ Without APPLY-FUNCTION, commands are appended to the state-machine list."
 
 (defun rt-raft-advance-commit (leader cluster)
   "Advance LEADER's commit index when a majority has replicated an entry."
-  (when (eq (rt-raft-node-state leader) +raft-leader+)
+  (when (%rt-raft-leader-p leader)
     (loop for index from (1+ (rt-raft-node-commit-index leader))
             to (%rt-raft-last-log-index leader)
           for entry = (%rt-raft-entry-at leader index)
@@ -210,7 +239,7 @@ Without APPLY-FUNCTION, commands are appended to the state-machine list."
 
 (defun rt-raft-append-entries (leader cluster &optional peer-id)
   "Send AppendEntries heartbeats/log entries from LEADER to followers."
-  (unless (eq (rt-raft-node-state leader) +raft-leader+)
+  (unless (%rt-raft-leader-p leader)
     (return-from rt-raft-append-entries nil))
   (let ((replicated 1)
         (old-commit (rt-raft-node-commit-index leader))
@@ -258,7 +287,7 @@ Without APPLY-FUNCTION, commands are appended to the state-machine list."
 (defun rt-raft-tick (node cluster &optional (elapsed-ms 1))
   "Advance Raft timers. Followers/candidates may start elections; leaders send heartbeats."
   (cond
-    ((eq (rt-raft-node-state node) +raft-leader+)
+    ((%rt-raft-leader-p node)
      (incf (rt-raft-node-heartbeat-timer node) elapsed-ms)
      (when (>= (rt-raft-node-heartbeat-timer node) +raft-heartbeat-timeout-ms+)
        (setf (rt-raft-node-heartbeat-timer node) 0)
@@ -273,7 +302,7 @@ Without APPLY-FUNCTION, commands are appended to the state-machine list."
   (let* ((leader-id (rt-raft-cluster-leader-id cluster))
          (leader (and leader-id
                       (gethash leader-id (rt-raft-cluster-nodes cluster)))))
-    (unless (and leader (eq (rt-raft-node-state leader) +raft-leader+))
+    (unless (and leader (%rt-raft-leader-p leader))
       (error "No leader"))
     (let ((entry (make-rt-raft-entry
                   :term (rt-raft-node-current-term leader)
@@ -290,18 +319,3 @@ Without APPLY-FUNCTION, commands are appended to the state-machine list."
 
 (defun rt-consensus-init () t)
 
-(export '(+raft-follower+ +raft-candidate+ +raft-leader+
-          rt-raft-entry make-rt-raft-entry rt-raft-entry-term
-          rt-raft-entry-index rt-raft-entry-command
-          rt-raft-node make-rt-raft-node rt-raft-node-id
-          rt-raft-node-state rt-raft-node-current-term
-          rt-raft-node-voted-for rt-raft-node-log
-          rt-raft-node-commit-index rt-raft-node-last-applied
-          rt-raft-node-election-timeout rt-raft-node-election-timer
-          rt-raft-node-state-machine
-          rt-raft-cluster make-rt-raft-cluster rt-raft-cluster-nodes
-          rt-raft-cluster-node-ids rt-raft-cluster-leader-id
-          rt-make-raft-node rt-make-raft-cluster rt-raft-become-leader
-          rt-raft-request-vote rt-raft-start-election rt-raft-append-entries
-          rt-raft-tick rt-raft-advance-commit rt-raft-apply
-          rt-raft-propose rt-raft-snapshot rt-consensus-init))

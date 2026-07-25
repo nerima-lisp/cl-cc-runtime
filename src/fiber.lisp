@@ -3,7 +3,6 @@
   (id 0) (thunk nil) (status :ready) (result nil) (error nil)
   (locals (make-hash-table :test #'eq)) (yielded-value nil)
   (continuation nil)
-  (stack nil)
   (future nil)
   (scheduler nil))
 (defvar *rt-fiber-counter* 0)
@@ -11,8 +10,8 @@
 (defvar *rt-fiber-ready* nil)
 (defun rt-make-fiber (thunk &key future scheduler)
   "Create a lightweight cooperative fiber.
-STACK is represented as an explicit continuation stack; no OS thread stack is
-required, which keeps fibers portable and suitable for M:N scheduling."
+A suspended fiber resumes through its CONTINUATION closure rather than an OS
+thread stack, which keeps fibers portable and suitable for M:N scheduling."
   (make-rt-fiber :id (incf *rt-fiber-counter*)
                  :thunk thunk
                  :future future
@@ -32,12 +31,6 @@ required, which keeps fibers portable and suitable for M:N scheduling."
         (rt-fiber-status fiber) :suspended)
   fiber)
 
-(defun rt-fiber-push-frame (fiber frame)
-  (push frame (rt-fiber-stack fiber))
-  frame)
-
-(defun rt-fiber-pop-frame (fiber)
-  (pop (rt-fiber-stack fiber)))
 (defun rt-fiber-resume (f)
   (when (member (rt-fiber-status f) '(:done :failed :cancelled))
     (return-from rt-fiber-resume (rt-fiber-result f)))

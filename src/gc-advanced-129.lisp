@@ -91,15 +91,10 @@ Maintains tri-color invariant (white/gray/black) during concurrent marking."
   "Target maximum pause time in milliseconds for G1-style collection.")
 
 (defun estimate-region-garbage-ratio (region)
-  "Estimate the garbage ratio for REGION."
+  "Estimate the garbage ratio for REGION: the fraction of its fixed-size
++GC-REGION-SIZE+ bytes that are NOT live."
   (setf (gc-region-garbage-ratio region)
-        (/ (float (- (gc-region-live-bytes region)
-                     (gc-region-live-bytes region)))
+        (/ (float (- +gc-region-size+ (gc-region-live-bytes region)))
            (float +gc-region-size+))))
 
 ;; ── Exports ──
-(export '(*gc-epsilon-enabled* epsilon-gc-enabled-p enable-epsilon-gc
-          colored-pointer-p set-pointer-color pointer-color strip-pointer-color
-          satb-write-barrier satb-drain-queue *satb-queue*
-          +gc-region-size+ gc-region make-gc-region *gc-regions*
-          *gc-pause-target-ms* estimate-region-garbage-ratio))

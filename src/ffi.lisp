@@ -6,11 +6,6 @@
 (in-package :cl-cc/runtime)
 
 ;; ── Platform detection ──
-(defconstant +ffi-platform+
-  #+darwin :darwin
-  #+linux :linux
-  #-(or darwin linux) :unknown)
-
 ;; ── Dynamic library loading ──
 (defvar *rt-ffi-loaded-libs* (make-hash-table :test #'equal))
 

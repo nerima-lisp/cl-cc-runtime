@@ -286,48 +286,59 @@ instrumentation; background sampling uses the same storage path."
                   :count count)))
     (%rt-profile-add-sample session sample)))
 
-(defun %rt-profile-json-array (items writer)
-  (with-output-to-string (out)
-    (write-char #\[ out)
-    (loop for item in items
-          for first = t then nil
-          unless first do (write-char #\, out)
-          do (write-string (funcall writer item) out))
-    (write-char #\] out)))
+(defun %rt-profile-frame->json (frame)
+  "Build a JSON object describing one resolved profile FRAME."
+  (json-kit:make-json-object
+   (list (cons "function" (rt-profile-frame-function frame))
+         (cons "file" (%rt-json-scalar (rt-profile-frame-source-file frame)))
+         (cons "line" (%rt-json-scalar (rt-profile-frame-source-line frame)))
+         (cons "address" (%rt-json-scalar (rt-profile-frame-address frame)))
+         (cons "perf_symbol" (%rt-json-scalar (rt-profile-frame-perf-symbol frame))))))
 
-(defun %rt-profile-frame-to-json (frame)
-  (format nil "{\"function\":\"~a\",\"file\":~a,\"line\":~a,\"address\":~a,\"perf_symbol\":~a}"
-          (%rt-otel-escape-json-string (rt-profile-frame-function frame))
-          (%rt-otel-json-value (rt-profile-frame-source-file frame))
-          (%rt-otel-json-value (rt-profile-frame-source-line frame))
-          (%rt-otel-json-value (rt-profile-frame-address frame))
-          (%rt-otel-json-value (rt-profile-frame-perf-symbol frame))))
-
-(defun %rt-profile-sample-to-json (sample)
-  (format nil "{\"timeUnixNano\":~d,\"thread_id\":\"~a\",\"trace_id\":~a,\"span_id\":~a,\"count\":~d,\"stack\":~a}"
-          (rt-profile-sample-timestamp-nanos sample)
-          (%rt-otel-escape-json-string (rt-profile-sample-thread-id sample))
-          (%rt-otel-json-value (rt-profile-sample-trace-id sample))
-          (%rt-otel-json-value (rt-profile-sample-span-id sample))
-          (rt-profile-sample-count sample)
-          (%rt-profile-json-array (rt-profile-sample-stack sample)
-                                  #'%rt-profile-frame-to-json)))
+(defun %rt-profile-sample->json (sample)
+  "Build a JSON object describing one profiler SAMPLE with its resolved stack."
+  (json-kit:make-json-object
+   (list (cons "timeUnixNano" (rt-profile-sample-timestamp-nanos sample))
+         (cons "thread_id" (rt-profile-sample-thread-id sample))
+         (cons "trace_id" (%rt-json-scalar (rt-profile-sample-trace-id sample)))
+         (cons "span_id" (%rt-json-scalar (rt-profile-sample-span-id sample)))
+         (cons "count" (rt-profile-sample-count sample))
+         (cons "stack" (mapcar #'%rt-profile-frame->json (rt-profile-sample-stack sample))))))
 
 (defun rt-continuous-profile-to-otel-json (session)
   "Export SESSION as thin OpenTelemetry Profiling Signal JSON."
   (let ((samples nil))
     (%rt-profile-with-lock (session)
       (setf samples (coerce (rt-continuous-profile-session-sample-log session) 'list)))
-    (format nil "{\"resourceProfiles\":[{\"resource\":{\"attributes\":~a},\"scopeProfiles\":[{\"scope\":{\"name\":\"cl-cc/runtime\"},\"profiles\":[{\"profileId\":\"~a\",\"trace_id\":\"~a\",\"span_id\":\"~a\",\"name\":\"~a\",\"sampleType\":\"cpu\",\"periodType\":\"cpu\",\"period\":~d,\"startTimeUnixNano\":~d,\"endTimeUnixNano\":~d,\"samples\":~a}]}]}]}"
-            (%rt-otel-attributes-to-json (rt-continuous-profile-session-attributes session))
-            (%rt-otel-escape-json-string (rt-continuous-profile-session-name session))
-            (rt-continuous-profile-session-trace-id session)
-            (rt-continuous-profile-session-span-id session)
-            (%rt-otel-escape-json-string (rt-continuous-profile-session-name session))
-            (truncate 1000000000 (rt-continuous-profile-session-sample-rate-hz session))
-            (rt-continuous-profile-session-started-at-nanos session)
-            (or (rt-continuous-profile-session-stopped-at-nanos session) (%rt-profile-now-nanos))
-            (%rt-profile-json-array samples #'%rt-profile-sample-to-json))))
+    (let* ((profile
+             (json-kit:make-json-object
+              (list (cons "profileId" (rt-continuous-profile-session-name session))
+                    (cons "trace_id" (rt-continuous-profile-session-trace-id session))
+                    (cons "span_id" (rt-continuous-profile-session-span-id session))
+                    (cons "name" (rt-continuous-profile-session-name session))
+                    (cons "sampleType" "cpu")
+                    (cons "periodType" "cpu")
+                    (cons "period" (truncate 1000000000
+                                             (rt-continuous-profile-session-sample-rate-hz session)))
+                    (cons "startTimeUnixNano" (rt-continuous-profile-session-started-at-nanos session))
+                    (cons "endTimeUnixNano" (or (rt-continuous-profile-session-stopped-at-nanos session)
+                                                (%rt-profile-now-nanos)))
+                    (cons "samples" (mapcar #'%rt-profile-sample->json samples)))))
+           (scope-profile
+             (json-kit:make-json-object
+              (list (cons "scope" (json-kit:make-json-object (list (cons "name" "cl-cc/runtime"))))
+                    (cons "profiles" (list profile)))))
+           (resource-profile
+             (json-kit:make-json-object
+              (list (cons "resource"
+                          (json-kit:make-json-object
+                           (list (cons "attributes"
+                                       (%rt-json-attributes
+                                        (rt-continuous-profile-session-attributes session))))))
+                    (cons "scopeProfiles" (list scope-profile))))))
+      (json-kit:stringify
+       (json-kit:make-json-object
+        (list (cons "resourceProfiles" (list resource-profile))))))))
 
 (defun rt-continuous-profile-to-pprof-json (session)
   "Export SESSION as a pprof-compatible JSON profile shape.
@@ -348,12 +359,11 @@ runtime leaf system."
                  (or (gethash key function-ids)
                      (setf (gethash key function-ids)
                            (let ((id (1+ (hash-table-count function-ids))))
-                             (push (format nil "{\"id\":~d,\"name\":\"~a\",\"filename\":~a}"
-                                           id
-                                           (%rt-otel-escape-json-string
-                                            (rt-profile-frame-function frame))
-                                           (%rt-otel-json-value
-                                            (rt-profile-frame-source-file frame)))
+                             (push (json-kit:make-json-object
+                                    (list (cons "id" id)
+                                          (cons "name" (rt-profile-frame-function frame))
+                                          (cons "filename"
+                                                (%rt-json-scalar (rt-profile-frame-source-file frame)))))
                                    functions)
                              id)))))
              (location-id (frame)
@@ -365,34 +375,50 @@ runtime leaf system."
                      (setf (gethash key location-ids)
                            (let ((id (1+ (hash-table-count location-ids)))
                                  (fid (function-id frame)))
-                             (push (format nil "{\"id\":~d,\"address\":~a,\"line\":[{\"functionId\":~d,\"line\":~a}],\"perfSymbol\":~a}"
-                                           id
-                                           (%rt-otel-json-value (rt-profile-frame-address frame))
-                                           fid
-                                           (%rt-otel-json-value (rt-profile-frame-source-line frame))
-                                           (%rt-otel-json-value (rt-profile-frame-perf-symbol frame)))
+                             (push (json-kit:make-json-object
+                                    (list (cons "id" id)
+                                          (cons "address"
+                                                (%rt-json-scalar (rt-profile-frame-address frame)))
+                                          (cons "line"
+                                                (list (json-kit:make-json-object
+                                                       (list (cons "functionId" fid)
+                                                             (cons "line"
+                                                                   (%rt-json-scalar
+                                                                    (rt-profile-frame-source-line frame)))))))
+                                          (cons "perfSymbol"
+                                                (%rt-json-scalar (rt-profile-frame-perf-symbol frame)))))
                                    locations)
                              id))))))
       (let ((sample-json
               (mapcar (lambda (sample)
-                        (format nil "{\"locationId\":~a,\"value\":[~d],\"timeUnixNano\":~d,\"threadId\":\"~a\",\"traceId\":~a,\"spanId\":~a}"
-                                (%rt-profile-json-array
-                                 (mapcar #'location-id (rt-profile-sample-stack sample))
-                                 (lambda (id) (princ-to-string id)))
-                                (rt-profile-sample-count sample)
-                                (rt-profile-sample-timestamp-nanos sample)
-                                (%rt-otel-escape-json-string (rt-profile-sample-thread-id sample))
-                                (%rt-otel-json-value (rt-profile-sample-trace-id sample))
-                                (%rt-otel-json-value (rt-profile-sample-span-id sample))))
+                        (json-kit:make-json-object
+                         (list (cons "locationId"
+                                     (mapcar #'location-id (rt-profile-sample-stack sample)))
+                               (cons "value" (list (rt-profile-sample-count sample)))
+                               (cons "timeUnixNano" (rt-profile-sample-timestamp-nanos sample))
+                               (cons "threadId" (rt-profile-sample-thread-id sample))
+                               (cons "traceId" (%rt-json-scalar (rt-profile-sample-trace-id sample)))
+                               (cons "spanId" (%rt-json-scalar (rt-profile-sample-span-id sample))))))
                       samples)))
-        (format nil "{\"sampleType\":[{\"type\":\"samples\",\"unit\":\"count\"}],\"periodType\":{\"type\":\"cpu\",\"unit\":\"nanoseconds\"},\"period\":~d,\"timeNanos\":~d,\"durationNanos\":~d,\"sample\":~a,\"location\":~a,\"function\":~a,\"stringTable\":[\"\"]}"
-                (truncate 1000000000 (rt-continuous-profile-session-sample-rate-hz session))
-                (rt-continuous-profile-session-started-at-nanos session)
-                (- (or (rt-continuous-profile-session-stopped-at-nanos session) (%rt-profile-now-nanos))
-                   (rt-continuous-profile-session-started-at-nanos session))
-                (%rt-profile-json-array sample-json #'identity)
-                (%rt-profile-json-array (nreverse locations) #'identity)
-                (%rt-profile-json-array (nreverse functions) #'identity))))))
+        (json-kit:stringify
+         (json-kit:make-json-object
+          (list (cons "sampleType"
+                      (list (json-kit:make-json-object
+                             (list (cons "type" "samples") (cons "unit" "count")))))
+                (cons "periodType"
+                      (json-kit:make-json-object
+                       (list (cons "type" "cpu") (cons "unit" "nanoseconds"))))
+                (cons "period" (truncate 1000000000
+                                         (rt-continuous-profile-session-sample-rate-hz session)))
+                (cons "timeNanos" (rt-continuous-profile-session-started-at-nanos session))
+                (cons "durationNanos"
+                      (- (or (rt-continuous-profile-session-stopped-at-nanos session)
+                             (%rt-profile-now-nanos))
+                         (rt-continuous-profile-session-started-at-nanos session)))
+                (cons "sample" sample-json)
+                (cons "location" (nreverse locations))
+                (cons "function" (nreverse functions))
+                (cons "stringTable" (list "")))))))))
 
 (defun rt-export-continuous-profile (session &key (format (rt-continuous-profile-session-format session))
                                                (output (rt-continuous-profile-session-output session)))

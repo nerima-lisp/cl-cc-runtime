@@ -8,31 +8,22 @@
 (defstruct rt-lfstack
   (top nil))
 
-(defun %rt-cas-symbol (symbol old new)
-  (eq old (sb-ext:compare-and-swap (symbol-value symbol) old new)))
-
-(defun %rt-cas-slot (reader writer object old new)
-  (if (eq (funcall reader object) old)
-      (progn (funcall writer new object) t)
-      nil))
-
 (defun rt-make-lfstack ()
   (make-rt-lfstack))
 
 (defun rt-lfstack-push (s v)
+  "Push V onto S via a real atomic compare-and-swap retry loop."
   (loop for old = (rt-lfstack-top s)
         for node = (make-rt-lfstack-node :value v :next old)
-        when (%rt-cas-slot #'rt-lfstack-top
-                           (lambda (nv obj) (setf (rt-lfstack-top obj) nv))
-                           s old node)
-          do (return v)))
+        until (eq (sb-ext:cas (rt-lfstack-top s) old node) old))
+  v)
 
 (defun rt-lfstack-pop (s)
+  "Pop and return (VALUES value t) from S, or (VALUES nil nil) when empty.
+Uses a real atomic compare-and-swap retry loop."
   (loop for top = (rt-lfstack-top s)
         do (unless top (return (values nil nil)))
-           (when (%rt-cas-slot #'rt-lfstack-top
-                               (lambda (nv obj) (setf (rt-lfstack-top obj) nv))
-                               s top (rt-lfstack-node-next top))
+           (when (eq (sb-ext:cas (rt-lfstack-top s) top (rt-lfstack-node-next top)) top)
              (return (values (rt-lfstack-node-value top) t)))))
 
 (defun rt-lfstack-empty-p (s)
@@ -76,7 +67,7 @@
 
 (defstruct rt-lfhash-map
   (buckets (make-array 64 :initial-element nil))
-  (count 0)
+  (count 0 :type (unsigned-byte 64))
   (test #'eql)
   (mutex (rt-make-mutex)))
 
@@ -106,24 +97,26 @@
         (values d nil))))
 
 (defun rt-lfhash-put (m k v)
+  "Insert or update K/V in M. New-entry bucket insertion is a real atomic
+compare-and-swap retry loop on the bucket head."
   (loop
-    (let* ((idx (%rt-lfhash-index m k))
-           (head (svref (rt-lfhash-map-buckets m) idx))
-           (existing (%rt-lfhash-find m k)))
+    (let ((existing (%rt-lfhash-find m k)))
       (when existing
         (setf (rt-lfhash-entry-value existing) v)
-        (return v))
-      (let ((entry (make-rt-lfhash-entry :key k :value v :next head)))
-        (when (eq head (svref (rt-lfhash-map-buckets m) idx))
-          (setf (svref (rt-lfhash-map-buckets m) idx) entry)
-          (incf (rt-lfhash-map-count m))
-          (return v))))))
+        (return v)))
+    (let* ((idx (%rt-lfhash-index m k))
+           (buckets (rt-lfhash-map-buckets m))
+           (head (svref buckets idx))
+           (entry (make-rt-lfhash-entry :key k :value v :next head)))
+      (when (eq (sb-ext:cas (svref buckets idx) head entry) head)
+        (sb-ext:atomic-incf (rt-lfhash-map-count m))
+        (return v)))))
 
 (defun rt-lfhash-remove (m k)
   (let ((e (%rt-lfhash-find m k)))
     (when e
       (setf (rt-lfhash-entry-deleted-p e) t)
-      (decf (rt-lfhash-map-count m))
+      (sb-ext:atomic-decf (rt-lfhash-map-count m))
       t)))
 
 (defun rt-lfhash-cas (m k old new)

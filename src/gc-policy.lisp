@@ -277,22 +277,22 @@ can defer non-critical mixed collection work."
           (nth-value 1 (rt-free-list-find heap size))))))
 
 (defun %rt-zero-frame (frame)
-  (when (and frame (fboundp 'vm-frame-registers))
-    (fill (vm-frame-registers frame) +val-nil+))
-  (when (and frame (fboundp '(setf vm-frame-sp)))
-    (setf (vm-frame-sp frame) 0))
-  (when (and frame (fboundp '(setf vm-frame-pc)))
+  "Reset FRAME's registers, stack pointer, and program counter to their
+initial state. VM-FRAME-* accessors are always bound here: frame.lisp loads
+before gc-policy.lisp in cl-cc-runtime.asd's serial component order."
+  (when frame
+    (fill (vm-frame-registers frame) +val-nil+)
+    (setf (vm-frame-sp frame) 0)
     (setf (vm-frame-pc frame) 0))
   frame)
 
-(defun rt-alloc-call-frame (&optional (size 0))
-  "Allocate a VM call frame, reusing a zeroed frame from *VM-CALL-FRAME-POOL* when possible."
+(defun rt-alloc-call-frame (&optional size)
+  "Allocate a VM call frame, reusing a zeroed frame from *VM-CALL-FRAME-POOL*
+when possible. SIZE is accepted for API symmetry with RT-FREE-CALL-FRAME but
+ignored: VM-FRAME is a fixed-size struct (see frame.lisp)."
+  (declare (ignore size))
   (let ((frame (pop *vm-call-frame-pool*)))
-    (cond
-      (frame (%rt-zero-frame frame))
-      ((fboundp 'make-vm-frame) (make-vm-frame :register-count size))
-      ((fboundp '%make-vm-frame) (%make-vm-frame))
-      (t (make-array size :initial-element +val-nil+)))))
+    (if frame (%rt-zero-frame frame) (%make-vm-frame))))
 
 (defun rt-free-call-frame (frame)
   "Zero FRAME and return it to the bounded VM call-frame pool."

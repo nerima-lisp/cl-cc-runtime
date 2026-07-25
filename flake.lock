@@ -1,0 +1,44 @@
+{
+  "nodes": {
+    "cl-weave": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784453306,
+        "narHash": "sha256-Ff88QPdT2BKHSQF0HHeypPgvG0kQGBQXSilMyX2fMsY=",
+        "owner": "nerima-lisp",
+        "repo": "cl-weave",
+        "rev": "bf6b7876e08246b78b550642abf7c40a0c469c50",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nerima-lisp",
+        "repo": "cl-weave",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1784555310,
+        "narHash": "sha256-/FCliTPgiuV1owejZFNx3Ch9irdvkOfOFl+HHZ+DrtM=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "421eebfd0ec7bccd4abe826ce62d7e6e83129493",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "cl-weave": "cl-weave",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

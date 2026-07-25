@@ -10,8 +10,6 @@
 (defconstant +rt-o-creat+ #o100)
 (defconstant +rt-o-trunc+ #o1000)
 (defconstant +rt-o-append+ #o2000)
-(defconstant +rt-default-file-mode+ #o644)
-
 (defstruct rt-file-handle
   "Host-backed runtime file descriptor wrapper."
   (stream nil)
@@ -33,7 +31,7 @@ runtime lifecycle (:RUNNING, :EXITED, :SIGNALED, or :UNKNOWN).  EXIT-CODE is
 filled by RT-PROCESS-WAIT or by an eager wait requested from RT-RUN-PROGRAM.
 INPUT, OUTPUT, and ERROR are host streams corresponding to the child stdin,
 stdout, and stderr pipes when :PIPE was requested.  HOST-PROCESS stores the
-implementation/UIOP process handle used for portable process management."
+CL-PROCESS-KIT:PROCESS-HANDLE used for portable process management."
   (pid nil)
   (status :running)
   (exit-code nil)
@@ -43,10 +41,6 @@ implementation/UIOP process handle used for portable process management."
   (host-process nil))
 
 (defvar *rt-saved-argv* nil)
-(defvar *rt-max-call-stack-depth* 10000)
-(defvar *rt-stack-depth* 0)
-(defvar *rt-instruction-limit* nil)
-(defvar *rt-instruction-count* 0)
 (defvar *rt-open-files* (make-hash-table :test #'eq))
 (defvar *rt-platform*
   #+darwin :darwin
@@ -152,103 +146,6 @@ implementation/UIOP process handle used for portable process management."
       (make-rt-process-status :pid (or wpid -1) :status (or status 0)
                               :exited-p (and wpid (not (zerop wpid)))))))
 
-(defun %rt-uiop-process-stream-option (role option)
-  "Translate runtime process stream OPTION for ROLE into a UIOP launch option."
-  (declare (ignore role))
-  (etypecase option
-    (null nil)
-    (stream option)
-    (symbol
-     (ecase option
-       (:pipe :stream)
-       (:null nil)
-       (:inherit :interactive)))))
-
-(defun %rt-process-info-accessor (name process-info)
-  "Call UIOP process-info accessor NAME when it is available."
-  (let ((symbol (find-symbol (string name) :uiop)))
-    (when (and symbol (fboundp symbol))
-      (funcall (symbol-function symbol) process-info))))
-
-(defun %rt-process-info-pid (process-info)
-  (or (%rt-process-info-accessor :process-info-pid process-info)
-      (ignore-errors (sb-ext:process-pid process-info))))
-
-(defun %rt-process-info-exit-code (process-info)
-  (or (%rt-process-info-accessor :process-info-exit-code process-info)
-      (ignore-errors (sb-ext:process-exit-code process-info))))
-
-(defun %rt-process-info-stream (process-info accessor fallback-slot)
-  (or (%rt-process-info-accessor accessor process-info)
-      (ignore-errors (slot-value process-info fallback-slot))))
-
-(defun %rt-command-vector (command args)
-  (cons command (mapcar #'princ-to-string args)))
-
-(defun rt-run-program (command args &key (input :inherit) (output :pipe) (error :inherit) (wait nil))
-  "Run COMMAND with ARGS and return an RT-PROCESS object.
-
-INPUT, OUTPUT, and ERROR accept :PIPE, :NULL, :INHERIT, or an existing stream.
-When WAIT is true, wait for process termination before returning.  The
-implementation delegates to UIOP:LAUNCH-PROGRAM, which uses fork/exec with pipe
-redirection on POSIX hosts and the platform process API elsewhere."
-  (check-type command string)
-  (let* ((process-info
-           (uiop:launch-program (%rt-command-vector command args)
-                                :input (%rt-uiop-process-stream-option :input input)
-                                :output (%rt-uiop-process-stream-option :output output)
-                                :error-output (%rt-uiop-process-stream-option :error error)
-                                :ignore-error-status t))
-         (process (make-rt-process
-                   :pid (%rt-process-info-pid process-info)
-                   :host-process process-info
-                   :input (%rt-process-info-stream process-info :process-info-input 'input)
-                   :output (%rt-process-info-stream process-info :process-info-output 'output)
-                   :error (%rt-process-info-stream process-info :process-info-error-output 'error-output))))
-    (when wait
-      (rt-process-wait process))
-    process))
-
-(defun rt-process-wait (process &optional check-for-stopped)
-  "Wait for PROCESS and return its exit code."
-  (declare (ignore check-for-stopped))
-  (check-type process rt-process)
-  (let* ((info (rt-process-host-process process))
-         (code (or (ignore-errors (uiop:wait-process info :ignore-error-status t))
-                   (%rt-process-info-exit-code info))))
-    (setf (rt-process-exit-code process) code
-          (rt-process-status process) :exited)
-    code))
-
-(defun rt-process-kill (process signal)
-  "Send SIGNAL to PROCESS. Returns true when a signal was sent or requested."
-  (check-type process rt-process)
-  (check-type signal integer)
-  (let ((pid (rt-process-pid process)))
-    (cond
-      (pid
-       (%rt-sb-posix-call :kill pid signal)
-       t)
-      (t
-       (let ((info (rt-process-host-process process)))
-         (when (fboundp 'uiop:terminate-process)
-           (uiop:terminate-process info)
-           t))))))
-
-(defun rt-process-alive-p (process)
-  "Return true while PROCESS appears to still be running."
-  (check-type process rt-process)
-  (let ((info (rt-process-host-process process)))
-    (cond
-      ((eq (rt-process-status process) :exited) nil)
-      ((fboundp 'uiop:process-alive-p)
-       (uiop:process-alive-p info))
-      (t
-       (let ((pid (rt-process-pid process)))
-         (and pid
-              (let ((status (rt-waitpid pid :nohang t)))
-                (not (rt-process-status-exited-p status)))))))))
-
 (defun %rt-dyld-interposition-var-p (entry)
   "True when ENVIRON entry ENTRY is a macOS dyld interposition variable."
   (uiop:string-prefix-p "DYLD_INSERT_LIBRARIES=" entry))
@@ -266,15 +163,65 @@ the interposition variable keeps spawned shells and programs runnable."
     (when (some #'%rt-dyld-interposition-var-p env)
       (remove-if #'%rt-dyld-interposition-var-p env))))
 
-(defun rt-shell (command)
-  "Run COMMAND through the user's shell and return stdout as a string."
+(defparameter *rt-default-process-timeout-seconds* 30
+  "Default deadline, in seconds, for RT-PROCESS-WAIT and RT-SHELL. A spawned
+child that outlives it is SIGTERM'd, then SIGKILL'd after a grace period (see
+CL-PROCESS-KIT:RUN / CL-PROCESS-KIT:PROCESS-WAIT). Callers that need a longer
+or shorter deadline pass :TIMEOUT explicitly; this only guards against a
+process hanging forever with no deadline at all.")
+
+(defun rt-run-program (command args &key (input :inherit) (output :pipe) (error :inherit) (wait nil)
+                                       (timeout *rt-default-process-timeout-seconds*))
+  "Run COMMAND with ARGS and return an RT-PROCESS object.
+
+INPUT, OUTPUT, and ERROR accept :PIPE, :NULL, :INHERIT, or an existing stream,
+passed straight through to CL-PROCESS-KIT:MAKE-COMMAND. When WAIT is true,
+wait up to TIMEOUT seconds for process termination before returning."
   (check-type command string)
-  (let ((child-env (%rt-child-environment)))
-    (if child-env
-        (uiop:run-program command :output :string :error-output :interactive
-                                  :ignore-error-status t :environment child-env)
-        (uiop:run-program command :output :string :error-output :interactive
-                                  :ignore-error-status t))))
+  (let* ((spec (process-kit:make-command
+                command (mapcar #'princ-to-string args)
+                :stdin input :stdout output :stderr error
+                :environment-policy (or (%rt-child-environment) :inherit)))
+         (handle (process-kit:spawn-command spec))
+         (process (make-rt-process
+                   :pid (process-kit:process-id handle)
+                   :host-process handle
+                   :input (process-kit:process-stdin handle)
+                   :output (process-kit:process-output handle)
+                   :error (process-kit:process-stderr handle))))
+    (when wait
+      (rt-process-wait process :timeout timeout))
+    process))
+
+(defun rt-process-wait (process &key (timeout *rt-default-process-timeout-seconds*))
+  "Wait up to TIMEOUT seconds for PROCESS and return its exit code, or NIL if
+it is still running when the deadline passes."
+  (check-type process rt-process)
+  (let* ((handle (rt-process-host-process process))
+         (result (process-kit:process-wait handle :timeout timeout)))
+    (when result
+      (setf (rt-process-exit-code process) (process-kit:process-result-exit-code result)
+            (rt-process-status process) :exited))
+    (rt-process-exit-code process)))
+
+(defun rt-process-kill (process signal)
+  "Send SIGNAL to PROCESS's whole process group. Returns true when sent."
+  (check-type process rt-process)
+  (check-type signal integer)
+  (and (process-kit:process-terminate (rt-process-host-process process) signal) t))
+
+(defun rt-process-alive-p (process)
+  "Return true while PROCESS appears to still be running."
+  (check-type process rt-process)
+  (process-kit:process-alive-p (rt-process-host-process process)))
+
+(defun rt-shell (command &key (timeout *rt-default-process-timeout-seconds*))
+  "Run COMMAND through /bin/sh and return its stdout as a string. Raises
+CL-PROCESS-KIT:PROCESS-TIMEOUT-ERROR if it runs longer than TIMEOUT seconds."
+  (check-type command string)
+  (process-kit:process-result-stdout
+   (process-kit:run-shell command :timeout timeout
+                                   :environment (%rt-child-environment))))
 
 (defun rt-gettime (&optional (clock :monotonic))
   (ecase clock

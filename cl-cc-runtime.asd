@@ -2,26 +2,34 @@
 ;;;;
 ;;;; Phase 2 of the package-by-feature monorepo migration. Files live in the
 ;;;; :cl-cc/runtime package (rt-* function namespace + GC + heap + frame).
-;;;; Leaf system: no dependencies on other cl-cc systems after the rt-eval
-;;;; backward dependency on :cl-cc was removed.
+;;;; Leaf system: no dependencies on other cl-cc systems. Depends directly on
+;;;; sibling nerima-lisp libraries (cl-log-kit, cl-process-kit) rather than
+;;;; reimplementing what they already do well.
 
 (asdf:defsystem :cl-cc-runtime
   :description "cl-cc runtime library — rt-* primitives, GC, heap, frame, value codec"
-  :author "takeokunn"
+  :author "nerima-lisp"
   :license "MIT"
+  :homepage "https://github.com/nerima-lisp/cl-cc-runtime"
   :version "0.1.0"
-  :depends-on ()
+  :depends-on ("cl-log-kit" "cl-process-kit" "cl-json-kit")
   :pathname "src"
   :serial t
   :components
    (   (:file "package")
     (:file "runtime-region")
     (:file "runtime")
+   (:file "runtime-stack")
+   (:file "runtime-conditions")
+   (:file "runtime-list")
    (:file "runtime-ops")
    (:file "runtime-strings")
    (:file "runtime-math-io")
    (:file "runtime-clos")
+   (:file "runtime-clos-dispatch")
    (:file "runtime-io")
+   (:file "runtime-packages")
+   (:file "runtime-pathnames")
     (:file "value")
     (:file "value-codec")
     (:file "frame")
@@ -46,6 +54,7 @@
        (:file "gc-major-mark")
       (:file "gc-workers")
       (:file "gc-major-sweep")
+      (:file "gc-sweep-telemetry")
       ;; ── Synchronization & concurrency primitives ──
       (:file "deadlock")
       (:file "sync")
@@ -68,6 +77,8 @@
       (:file "fiber")
      (:file "context")
      (:file "image")
+     (:file "image-core")
+     (:file "image-restore")
      ;; ── OS / I/O / Network ──
      (:file "os")
       (:file "signals")

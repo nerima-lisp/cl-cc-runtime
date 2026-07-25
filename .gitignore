@@ -3,4 +3,6 @@
 /.direnv/
 /.claude/
 /.serena/
+/.deps/
+/coverage/
 *.paredit-tmp-*
