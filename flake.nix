@@ -52,7 +52,7 @@
       inputs.cl-weave.follows = "cl-weave";
     };
     cl-process-kit = {
-      url = "github:nerima-lisp/cl-process-kit/v1.0.0";
+      url = "github:nerima-lisp/cl-process-kit/v1.0.1";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.cl-boundary-kit.follows = "cl-boundary-kit";
       inputs.cl-log-kit.follows = "cl-log-kit";
