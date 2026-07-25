@@ -1,0 +1,149 @@
+# cl-cc-runtime documentation -- MkDocs + Material configuration.
+#
+# Build:   mkdocs build --strict -f docs/mkdocs.yml
+# Serve:   mkdocs serve -f docs/mkdocs.yml
+#
+# Both are run from the repository root, not from docs/: docs/src/changelog.md
+# pulls in the root CHANGELOG.md through a pymdownx.snippets include whose
+# base_path is ".". The Nix flake (`nix build .#docs`) drives the same config
+# offline and from the same directory.
+
+site_name: cl-cc-runtime
+site_description: >-
+  cl-cc runtime library: rt-* primitives, GC, heap, frame, value codec, and
+  concurrency.
+site_author: nerima-lisp
+site_url: https://nerima-lisp.github.io/cl-cc-runtime/
+
+repo_name: nerima-lisp/cl-cc-runtime
+repo_url: https://github.com/nerima-lisp/cl-cc-runtime
+edit_uri: edit/main/docs/src/
+
+docs_dir: src
+site_dir: ../site
+use_directory_urls: true
+
+copyright: Copyright &copy; nerima-lisp contributors -- MIT License
+
+# strict is set here as well as passed on the command line, so that
+# `mkdocs serve` applies the same gate and no call path can forget the flag.
+# Use `mkdocs serve --no-strict` while editing if warnings are in the way.
+strict: true
+
+theme:
+  name: material
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/memory
+  favicon: assets/favicon.svg
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/nerima-lisp/cl-cc-runtime
+      name: cl-cc-runtime on GitHub
+  generator: false
+
+# search only: every extra plugin has to be available inside the Nix sandbox
+# that builds packages.docs, and each one makes that build heavier.
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      # Resolved against the working directory mkdocs is invoked from, which
+      # is the repository root -- see the Build/Serve commands above.
+      base_path:
+        - "."
+      check_paths: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.keys
+  - pymdownx.smartsymbols
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+      title: On this page
+
+# Every page under docs/src/ must appear here: --strict fails the build on an
+# unlisted page, so the nav cannot silently fall behind the tree.
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: installation.md
+      - Quick Start: quick-start.md
+  - Guide:
+      - Core Concepts: core-concepts.md
+  - Reference:
+      - API Reference: api-reference.md
+      - Conditions: conditions.md
+  - Internals:
+      - Architecture: architecture.md
+  - Project:
+      - Development: development.md
+      - Changelog: changelog.md
+
+not_in_nav: |
+  notes/

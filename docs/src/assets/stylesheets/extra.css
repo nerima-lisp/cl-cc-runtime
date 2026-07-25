@@ -1,0 +1,22 @@
+/* cl-cc-runtime documentation -- brand-level polish on top of Material. */
+
+:root {
+  --md-primary-fg-color: #3f51b5;
+  --md-primary-fg-color--light: #5c6bc0;
+  --md-primary-fg-color--dark: #2c387e;
+  --md-accent-fg-color: #5c6bc0;
+}
+
+/* Lisp reads badly with programming ligatures: `->`, `>=` and `/=` appear all
+   over this API and a ligature font renders them as glyphs that no longer
+   match what has to be typed. */
+.md-typeset pre > code {
+  font-variant-ligatures: none;
+}
+
+/* The API reference is one long list of H3 symbol headings; a rule above each
+   one makes the boundaries visible while scanning. */
+.md-typeset h3 {
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+  padding-top: 0.6rem;
+}
