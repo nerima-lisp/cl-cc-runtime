@@ -50,11 +50,17 @@
 
 (defun %rt-core-compression-code (compression)
   (cond
-    ((or (null compression) (eq compression :none)) +rt-core-compression-none+)
-    ((or (eq compression t) (eq compression :zlib) (string-equal (string compression) "zlib")) +rt-core-compression-zlib+)
-    ((or (eq compression :gzip) (string-equal (string compression) "gzip")) +rt-core-compression-gzip+)
-    ((or (eq compression :lz4) (string-equal (string compression) "lz4")) +rt-core-compression-lz4+)
-    ((or (eq compression :zstd) (string-equal (string compression) "zstd")) +rt-core-compression-zstd+)
+    ((or (null compression) (eq compression :none))
+     +rt-core-compression-none+)
+    ((or (eq compression t) (eq compression :zlib)
+         (string-equal (string compression) "zlib"))
+     +rt-core-compression-zlib+)
+    ((or (eq compression :gzip) (string-equal (string compression) "gzip"))
+     +rt-core-compression-gzip+)
+    ((or (eq compression :lz4) (string-equal (string compression) "lz4"))
+     +rt-core-compression-lz4+)
+    ((or (eq compression :zstd) (string-equal (string compression) "zstd"))
+     +rt-core-compression-zstd+)
     (t (error "Unknown core compression: ~S" compression))))
 
 (defun %rt-core-rle-compress (bytes)
@@ -181,13 +187,17 @@
                   (let ((id (object-id object)))
                     (cond
                       ((consp object)
-                       (push (list :node id :cons (encode (car object)) (encode (cdr object))) nodes))
+                       (push (list :node id :cons
+                                   (encode (car object)) (encode (cdr object)))
+                             nodes))
                       ((vectorp object)
                        (push (list :node id :vector (map 'list #'encode object)) nodes))
                       ((hash-table-p object)
                        (let ((entries nil))
                          (maphash (lambda (k v) (push (list (encode k) (encode v)) entries)) object)
-                         (push (list :node id :hash (hash-table-test object) (nreverse entries)) nodes)))
+                         (push (list :node id :hash (hash-table-test object)
+                                     (nreverse entries))
+                               nodes)))
                       ((functionp object)
                        (push (list :node id :function (host-function-key object)) nodes))
                       ((typep object 'standard-object)
@@ -225,7 +235,9 @@
                          (:cons (cons nil nil))
                          (:vector (make-array (length (first payload))))
                          (:hash (make-hash-table :test (or (first payload) 'eql)))
-                         (:instance (allocate-instance (find-class (%rt-core-token-symbol (first payload)))))
+                         (:instance
+                          (allocate-instance
+                           (find-class (%rt-core-token-symbol (first payload)))))
                          (:function (let ((key (first payload)))
                                       (cond
                                         ((consp key) (symbol-function (%rt-core-token-symbol key)))
@@ -237,12 +249,15 @@
                                                ((lambda (missing-key)
                                                   (lambda (&rest args)
                                                     (declare (ignore args))
-                                                    (error "Saved host closure is unavailable: ~A" missing-key)))
+                                                    (error "Saved host closure is unavailable: ~A"
+                                                           missing-key)))
                                                 key)))))))
                          (otherwise nil)))))
              (resolve (form)
                (case (first form)
-                 (:immediate (if (eq (second form) :nil) nil (if (eq (second form) :t) t (second form))))
+                 (:immediate (if (eq (second form) :nil)
+                                 nil
+                                 (if (eq (second form) :t) t (second form))))
                  (:symbol (%rt-core-token-symbol (second form)))
                  (:ref (gethash (second form) objects))
                  (:unreadable nil)
@@ -295,7 +310,8 @@
                   (when (boundp sym)
                     (list (list (list :value (%rt-core-symbol-token sym)) (symbol-value sym))))
                   (when (fboundp sym)
-                    (list (list (list :function (%rt-core-symbol-token sym)) (symbol-function sym))))
+                    (list (list (list :function (%rt-core-symbol-token sym))
+                                (symbol-function sym))))
                   (list (list (list :plist (%rt-core-symbol-token sym)) (symbol-plist sym)))))))
 
 (defun %rt-core-restore-root (root)
@@ -427,7 +443,8 @@ function bindings, packages, and restore hooks."
                              (crc (%rt-image-crc32 compressed)))
                         (unless (= crc stored-crc)
                           (error "Bad core CRC: expected ~8,'0x, got ~8,'0x" stored-crc crc))
-                        (let* ((payload-bytes (%rt-core-decompress-bytes compressed compression-code))
+                        (let* ((payload-bytes
+                                (%rt-core-decompress-bytes compressed compression-code))
                                (payload (%rt-core-read-readable-bytes payload-bytes)))
                           (unless (= (length payload-bytes) uncompressed-size)
                             (error "Core payload size mismatch"))

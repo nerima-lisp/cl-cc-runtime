@@ -5,7 +5,7 @@
 ;;;; and Base64 (RFC 4648, standard and URL-safe alphabets). Operate on
 ;;;; (vector (unsigned-byte 8)) octet vectors unless noted otherwise.
 
-;;; ── Shared bit helpers ──────────────────────────────────────────────
+;;; ── Shared bit helpers ──
 ;;; SHA rotations are RIGHT ROTATIONS (ROTR), not plain shifts: the bits
 ;;; shifted off the low end wrap back into the high end. A plain (ash x -n)
 ;;; drops those bits and yields a different, incorrect digest.
@@ -22,7 +22,7 @@
   "SHA majority function: for each bit, the value held by at least two of X, Y, Z."
   (logxor (logand x y) (logand x z) (logand y z)))
 
-;;; ── SHA-256 constants and round functions (32-bit words) ────────────
+;;; ── SHA-256 constants and round functions (32-bit words) ──
 
 (defparameter +sha256-h+
   #(#x6a09e667 #xbb67ae85 #x3c6ef372 #xa54ff53a
@@ -125,7 +125,7 @@ Returns a fresh 32-byte (vector (unsigned-byte 8)) big-endian digest."
                 (aref r (+ (* i 4) 3)) (ldb (byte 8 0) wd))))
       r)))
 
-;;; ── SHA-512 constants and round functions (64-bit words) ────────────
+;;; ── SHA-512 constants and round functions (64-bit words) ──
 
 (defconstant +sha512-mask+ #xFFFFFFFFFFFFFFFF
   "64-bit truncation mask for SHA-512 modular word arithmetic.")
@@ -243,7 +243,7 @@ field, per FIPS 180-4."
             (setf (aref r (+ (* i 8) j)) (ldb (byte 8 (* 8 (- 7 j))) wd)))))
       r)))
 
-;;; ── Convenience and MAC constructions ───────────────────────────────
+;;; ── Convenience and MAC constructions ──
 
 (defun rt-sha256-string (string)
   "Compute the SHA-256 of STRING (each character taken as its char-code byte)
@@ -274,7 +274,7 @@ and return the digest as a 64-character lowercase hexadecimal string."
                             okp
                             (rt-sha256 (concatenate '(vector (unsigned-byte 8)) ikp msg))))))
 
-;;; ── Base64 (RFC 4648) ───────────────────────────────────────────────
+;;; ── Base64 (RFC 4648) ──
 
 (defparameter +b64-alpha+
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"

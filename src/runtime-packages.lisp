@@ -22,7 +22,8 @@ This avoids scanning every host package while still covering the small guest-fac
 surface that currently relies on `rt-fboundp` during bootstrapping and tests.")
 
 (defparameter *rt-bootstrap-package-names*
-  '(:cl :cl-user :keyword :cl-cc/bootstrap :cl-cc/runtime :cl-cc :cl-cc/vm :cl-cc/compile :cl-cc/expand
+  '(:cl :cl-user :keyword :cl-cc/bootstrap :cl-cc/runtime
+    :cl-cc :cl-cc/vm :cl-cc/compile :cl-cc/expand
     :cl-cc/parse :cl-cc/type :cl-cc/optimize :cl-cc/emit :cl-cc/ast)
   "Conservative bootstrap package seed for the runtime package registry.
 This avoids importing the full host package universe while preserving the packages
@@ -344,7 +345,7 @@ VM bridge registry.  PHP-CURRENT-CLOSURE, when bound, adds the PHP hook."
           (set-difference (gethash :exports pkg) syms :test #'eq))
     t))
 
-;;; ─── Extended Runtime Package Operations (ANSI CL Ch.11) ──────────────────
+;;; ─── Extended Runtime Package Operations (ANSI CL Ch.11) ───
 
 (defun rt-import (symbols &optional package)
   "Import SYMBOLS into PACKAGE, making them internal."
@@ -543,7 +544,7 @@ In runtime registry, search all package symbol tables."
   "Return the name string of SYMBOL."
   (string symbol))
 
-;;; ─── Bootstrap Hook Installation ──────────────────────────────────────────
+;;; ─── Bootstrap Hook Installation ───
 
 (defun %rt-install-bootstrap-hook (key value)
   "Install VALUE into the bootstrap hook symbol named by KEY when available."

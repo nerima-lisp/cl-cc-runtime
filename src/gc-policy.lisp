@@ -136,7 +136,8 @@ active policy."
         ((>= (rt-heap-occupancy-pct heap) (rt-heap-pressure-threshold-high heap)) :major)
         (t :minor))))
 
-;;; FR-341: GC Pause Time Goals / SLO — records GC pause duration and checks against *gc-max-pause-ms*
+;;; FR-341: GC Pause Time Goals / SLO — records GC pause duration and checks against
+;;; *gc-max-pause-ms*
 (defun %rt-gc-note-pause (heap start-tick)
   (let* ((ticks (- (get-internal-real-time) start-tick))
          (seconds (/ (float ticks 1.0d0) internal-time-units-per-second))
@@ -230,7 +231,8 @@ can defer non-critical mixed collection work."
         (funcall hook heap level occupancy)))
     level))
 
-;;; FR-085: Dynamic GC Age Threshold Tuning — adjusts *gc-tenuring-threshold* based on promotion ratio
+;;; FR-085: Dynamic GC Age Threshold Tuning — adjusts *gc-tenuring-threshold* based on promotion
+;;; ratio
 (defun rt-gc-dynamic-tenure (promotion-ratio)
   "Adjust *GC-TENURING-THRESHOLD* according to the last minor-GC promotion ratio."
   (cond
@@ -240,7 +242,8 @@ can defer non-critical mixed collection work."
      (setf *gc-tenuring-threshold* (min 3 (1+ *gc-tenuring-threshold*)))))
   *gc-tenuring-threshold*)
 
-;;; FR-333: Nursery Sizing Heuristics — adaptive young size based on promotion ratio and allocation rate
+;;; FR-333: Nursery Sizing Heuristics — adaptive young size based on promotion ratio and
+;;; allocation rate
 (defun %rt-gc-tune-nursery (promotion-ratio)
   "Adjust the default nursery size for subsequently created heaps."
   (let* ((now (get-internal-real-time))
@@ -264,7 +267,8 @@ can defer non-critical mixed collection work."
       (t
        (setf *rt-low-promotion-cycles* 0)))))
 
-;;; FR-331: Old-Space Free-List Allocation Reuse — first-fit/best-fit from sweep free-list before bump-pointer fallback
+;;; FR-331: Old-Space Free-List Allocation Reuse — first-fit/best-fit from sweep free-list before
+;;; bump-pointer fallback
 (defun %rt-gc-alloc-old-from-free-list (heap size)
   "First-fit old-space allocation from the sweep free-list."
   (multiple-value-bind (bin addr) (rt-free-list-find heap size)

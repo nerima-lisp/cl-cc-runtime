@@ -42,7 +42,8 @@
   (endpoint nil :type (or null string))
   (max-samples +rt-continuous-profile-default-max-samples+ :type integer)
   (sampler-thread nil)
-  (sample-ready-semaphore (rt-make-semaphore :name "cl-cc continuous-profile sample-ready" :count 0))
+  (sample-ready-semaphore
+   (rt-make-semaphore :name "cl-cc continuous-profile sample-ready" :count 0))
   (trace-id nil :type (or null string))
   (span-id nil :type (or null string))
   (perf-map nil :type list)
@@ -318,11 +319,14 @@ instrumentation; background sampling uses the same storage path."
                     (cons "name" (rt-continuous-profile-session-name session))
                     (cons "sampleType" "cpu")
                     (cons "periodType" "cpu")
-                    (cons "period" (truncate 1000000000
-                                             (rt-continuous-profile-session-sample-rate-hz session)))
-                    (cons "startTimeUnixNano" (rt-continuous-profile-session-started-at-nanos session))
-                    (cons "endTimeUnixNano" (or (rt-continuous-profile-session-stopped-at-nanos session)
-                                                (%rt-profile-now-nanos)))
+                    (cons "period"
+                          (truncate 1000000000
+                                    (rt-continuous-profile-session-sample-rate-hz session)))
+                    (cons "startTimeUnixNano"
+                          (rt-continuous-profile-session-started-at-nanos session))
+                    (cons "endTimeUnixNano"
+                          (or (rt-continuous-profile-session-stopped-at-nanos session)
+                              (%rt-profile-now-nanos)))
                     (cons "samples" (mapcar #'%rt-profile-sample->json samples)))))
            (scope-profile
              (json-kit:make-json-object
@@ -363,7 +367,8 @@ runtime leaf system."
                                     (list (cons "id" id)
                                           (cons "name" (rt-profile-frame-function frame))
                                           (cons "filename"
-                                                (%rt-json-scalar (rt-profile-frame-source-file frame)))))
+                                                (%rt-json-scalar
+                                                 (rt-profile-frame-source-file frame)))))
                                    functions)
                              id)))))
              (location-id (frame)
@@ -373,20 +378,23 @@ runtime leaf system."
                                 (rt-profile-frame-perf-symbol frame))))
                  (or (gethash key location-ids)
                      (setf (gethash key location-ids)
-                           (let ((id (1+ (hash-table-count location-ids)))
-                                 (fid (function-id frame)))
+                           (let* ((id (1+ (hash-table-count location-ids)))
+                                  (fid (function-id frame))
+                                  (line-json
+                                   (json-kit:make-json-object
+                                    (list (cons "functionId" fid)
+                                          (cons "line"
+                                                (%rt-json-scalar
+                                                 (rt-profile-frame-source-line frame)))))))
                              (push (json-kit:make-json-object
                                     (list (cons "id" id)
                                           (cons "address"
-                                                (%rt-json-scalar (rt-profile-frame-address frame)))
-                                          (cons "line"
-                                                (list (json-kit:make-json-object
-                                                       (list (cons "functionId" fid)
-                                                             (cons "line"
-                                                                   (%rt-json-scalar
-                                                                    (rt-profile-frame-source-line frame)))))))
+                                                (%rt-json-scalar
+                                                 (rt-profile-frame-address frame)))
+                                          (cons "line" (list line-json))
                                           (cons "perfSymbol"
-                                                (%rt-json-scalar (rt-profile-frame-perf-symbol frame)))))
+                                                (%rt-json-scalar
+                                                 (rt-profile-frame-perf-symbol frame)))))
                                    locations)
                              id))))))
       (let ((sample-json
@@ -397,8 +405,10 @@ runtime leaf system."
                                (cons "value" (list (rt-profile-sample-count sample)))
                                (cons "timeUnixNano" (rt-profile-sample-timestamp-nanos sample))
                                (cons "threadId" (rt-profile-sample-thread-id sample))
-                               (cons "traceId" (%rt-json-scalar (rt-profile-sample-trace-id sample)))
-                               (cons "spanId" (%rt-json-scalar (rt-profile-sample-span-id sample))))))
+                               (cons "traceId"
+                                     (%rt-json-scalar (rt-profile-sample-trace-id sample)))
+                               (cons "spanId"
+                                     (%rt-json-scalar (rt-profile-sample-span-id sample))))))
                       samples)))
         (json-kit:stringify
          (json-kit:make-json-object
@@ -420,8 +430,10 @@ runtime leaf system."
                 (cons "function" (nreverse functions))
                 (cons "stringTable" (list "")))))))))
 
-(defun rt-export-continuous-profile (session &key (format (rt-continuous-profile-session-format session))
-                                               (output (rt-continuous-profile-session-output session)))
+(defun rt-export-continuous-profile
+    (session
+     &key (format (rt-continuous-profile-session-format session))
+          (output (rt-continuous-profile-session-output session)))
   "Export SESSION to FORMAT (:OTEL-JSON or :PPROF-JSON) and OUTPUT.
 
 OUTPUT may be :STDOUT, NIL (return string only), or a pathname/string file.
@@ -449,10 +461,12 @@ over HTTP outside this leaf runtime system."
     (%rt-profile-with-lock (session)
       (loop for sample across (rt-continuous-profile-session-sample-log session)
             do (rt-otel-add-event "profile.sample"
-                                  :attributes `(("thread_id" . ,(rt-profile-sample-thread-id sample))
-                                                ("timestamp_nanos" . ,(rt-profile-sample-timestamp-nanos sample))
-                                                ("stack" . ,(%rt-profile-collapsed-stack
-                                                             (rt-profile-sample-stack sample)))
-                                                ("count" . ,(rt-profile-sample-count sample)))
+                                  :attributes
+                                  `(("thread_id" . ,(rt-profile-sample-thread-id sample))
+                                    ("timestamp_nanos"
+                                     . ,(rt-profile-sample-timestamp-nanos sample))
+                                    ("stack" . ,(%rt-profile-collapsed-stack
+                                                 (rt-profile-sample-stack sample)))
+                                    ("count" . ,(rt-profile-sample-count sample)))
                                   :span span)))
     (rt-otel-end-span span)))

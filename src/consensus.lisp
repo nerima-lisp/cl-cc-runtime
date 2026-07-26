@@ -206,7 +206,8 @@ Without APPLY-FUNCTION, commands are appended to the state-machine list."
                  (rt-raft-node-last-applied node) next-index))
   (rt-raft-node-state-machine node))
 
-(defun %rt-raft-handle-append-entries (leader follower cluster entries prev-index prev-term leader-commit)
+(defun %rt-raft-handle-append-entries (leader follower cluster entries
+                                       prev-index prev-term leader-commit)
   (cond
     ((< (rt-raft-node-current-term leader) (rt-raft-node-current-term follower)) nil)
     ((not (eql (%rt-raft-log-term-at follower prev-index) prev-term)) nil)

@@ -13,7 +13,8 @@
          (or (header-forwarding-p header)
              (%rt-gc-valid-header-p header)))))
 
-;;; FR-336: GC-NaN-Boxing Integration — uses val-pointer-p/decode-pointer for precise pointer identification during GC scanning
+;;; FR-336: GC-NaN-Boxing Integration — uses val-pointer-p/decode-pointer for precise pointer
+;;; identification during GC scanning
 (defun %rt-gc-pointer-address (heap value)
   "Return the heap address encoded by VALUE, or NIL when VALUE is not a pointer.
 
@@ -311,6 +312,11 @@ storage and are traced via the global/runtime registries instead."
     (setf (rt-heap-old-free heap) (+ addr size-words))
     addr))
 
+;; Hoisted to a parameter: inlined at its call site the control string alone
+;; runs past the 100-column limit, and it must stay one string literal.
+(defparameter +rt-young-space-oom-format+
+  "cl-cc/runtime: heap exhausted — ~D words requested, ~D words available in young space")
+
 (defun rt-gc-alloc (heap type-tag size-words)
   "Allocate SIZE-WORDS words in young from-space and return the word address.
    TYPE-TAG selects allocation policy/slab class.  Object headers are FR-266
@@ -348,7 +354,8 @@ storage and are traced via the global/runtime registries instead."
         (error ()
           ;; Slab exhausted — fall through to bump-pointer allocator
           nil)))
-    ;;; FR-086: Large Object Space (LOS) — objects exceeding threshold bypass nursery; allocated directly in large-object space
+    ;;; FR-086: Large Object Space (LOS) — objects exceeding threshold bypass nursery; allocated
+    ;;; directly in large-object space
     ((> size-words (rt-heap-large-obj-threshold heap))
       (let* ((addr (rt-heap-large-obj-free heap))
              (limit (+ (rt-heap-large-obj-base heap)
@@ -356,7 +363,8 @@ storage and are traced via the global/runtime registries instead."
         (when (> (+ addr size-words) limit)
           (if (fboundp 'rt-signal-oom)
               (rt-signal-oom size-words :heap heap :limit-words limit :used-words addr)
-              (error "cl-cc/runtime: large object space exhausted — ~D words requested" size-words)))
+              (error "cl-cc/runtime: large object space exhausted — ~D words requested"
+                     size-words)))
         (%rt-ensure-compressed-pointer-range addr size-words)
         (setf (rt-heap-large-obj-free heap) (+ addr size-words))
         (rt-gc-profile-sample (* size-words 8))
@@ -385,7 +393,7 @@ storage and are traced via the global/runtime registries instead."
           (when (> (+ addr size-words) limit)
             (if (fboundp 'rt-signal-oom)
                 (rt-signal-oom size-words :heap heap :limit-words limit :used-words addr)
-                (error "cl-cc/runtime: heap exhausted — ~D words requested, ~D words available in young space"
+                (error +rt-young-space-oom-format+
                        size-words (- limit addr)))))
         (%rt-ensure-compressed-pointer-range addr size-words)
         (setf (rt-heap-young-free heap) (+ addr size-words))

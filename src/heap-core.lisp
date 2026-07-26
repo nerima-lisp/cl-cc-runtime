@@ -7,7 +7,8 @@
 (defstruct (rt-heap (:constructor %make-rt-heap)
                     (:conc-name rt-heap-))
   (words           nil  :type simple-vector)
-  ;;; FR-087: rt-heap Field Reordering — young-free co-located with young-from-base/young-to-base/young-semi-size in same cache line
+  ;;; FR-087: rt-heap Field Reordering — young-free co-located with
+  ;;; young-from-base/young-to-base/young-semi-size in same cache line
   (young-from-base 0    :type fixnum)
   (young-to-base   0    :type fixnum)
   (young-semi-size 0    :type fixnum)
@@ -37,7 +38,8 @@
   (gc-state        :normal :type keyword)
   (total-alloc-words 0  :type fixnum)
   (age-hist        nil  :type simple-vector)
-  ;;; FR-086: Large Object Space (LOS) — objects exceeding threshold bypass nursery; allocated directly in large-object space
+  ;;; FR-086: Large Object Space (LOS) — objects exceeding threshold bypass nursery; allocated
+  ;;; directly in large-object space
   (large-obj-threshold 8192 :type fixnum)
   (large-obj-base  0    :type fixnum)
   (large-obj-size  0    :type fixnum)
@@ -73,7 +75,8 @@
     Checks cgroup v2 first (/sys/fs/cgroup/memory.max), then v1
     (/sys/fs/cgroup/memory/memory.limit_in_bytes).
     Returns NIL on failure (non-container environment or permission error)."
-  ;; FR-423: Container-Aware Heap Sizing — reads cgroup v1/v2 memory limits for Docker/Kubernetes compatibility
+  ;; FR-423: Container-Aware Heap Sizing — reads cgroup v1/v2 memory limits for Docker/Kubernetes
+  ;; compatibility
   (or (ignore-errors
         (with-open-file (f "/sys/fs/cgroup/memory.max"
                            :direction :input

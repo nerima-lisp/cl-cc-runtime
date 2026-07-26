@@ -1,4 +1,5 @@
-;;;; runtime-clos-dispatch — generic-function & method dispatch: specializers, applicable methods, method combination
+;;;; runtime-clos-dispatch — generic-function & method dispatch: specializers, applicable methods,
+;;;; method combination
 
 (in-package :cl-cc/runtime)
 

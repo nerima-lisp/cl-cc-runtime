@@ -24,7 +24,8 @@
          (old-base   (rt-heap-old-base heap))
          (old-free   (rt-heap-old-free heap))
          (num-cards  (length card-table)))
-    ;;; FR-084: Card Table Summarization — 1-level bitmask over card table blocks skips clean cards during minor GC
+    ;;; FR-084: Card Table Summarization — 1-level bitmask over card table blocks skips clean
+    ;;; cards during minor GC
     (loop with block = 0
           while (< (* block +gc-card-summary-block-size+) num-cards) do
             (if (rt-card-summary-clean-block-p heap block)
@@ -57,7 +58,8 @@
                                         (rt-heap-set heap slot-addr
                                                      (%rt-gc-rebox-pointer-like
                                                       val
-                                                       (%gc-ensure-copied heap from-addr to-free-cell
+                                                       (%gc-ensure-copied heap from-addr
+                                                                          to-free-cell
                                                                           promoted-list-cell
                                                                           in-source-p))))))
                                  (incf addr size)))

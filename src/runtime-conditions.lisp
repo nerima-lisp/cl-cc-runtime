@@ -1,4 +1,5 @@
-;;;; runtime-conditions.lisp — Method-dispatch context, handler/restart condition system, code cache
+;;;; runtime-conditions.lisp — Method-dispatch context, handler/restart condition system, code
+;;;; cache
 (in-package :cl-cc/runtime)
 
 (defvar *rt-method-context-stack* nil

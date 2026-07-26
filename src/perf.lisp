@@ -1,15 +1,15 @@
-;;; ─── Phase 139 Hardware Performance Counters ─────────────────────────
+;;; ─── Phase 139 Hardware Performance Counters ───
 ;;; FR-793: perf_event (Linux) / kpc (macOS) based HW counter access
 
 (in-package :cl-cc/runtime)
 
-;; ── Counter types ──────────────────────────────────────────────────────
+;; ── Counter types ──
 
 (defparameter *perf-event-names*
   '(:cycles :instructions :cache-misses :branch-mispredictions :tlb-misses)
   "Supported performance counter event names.")
 
-;; ── Internal counter state ─────────────────────────────────────────────
+;; ── Internal counter state ──
 
 (defvar *rt-perf-counters* (make-hash-table))
 
@@ -25,7 +25,7 @@
   (fd -1 :type fixnum)           ; OS file descriptor for perf_event_open
   (name nil :type (or null keyword)))
 
-;; ── OS backends ────────────────────────────────────────────────────────
+;; ── OS backends ──
 
 #+linux
 (defun %perf-open (event-id)
@@ -66,7 +66,7 @@
         (error () 0))
       0))
 
-;; ── Public API ─────────────────────────────────────────────────────────
+;; ── Public API ──
 
 (defun rt-perf-enable-counter (counter-type)
   "Enable a performance counter for COUNT-TYPE (:cycles, :instructions, etc.)
@@ -114,7 +114,7 @@ Returns the counter value or NIL if not enabled."
   (:report (lambda (c s) (declare (ignore c))
              (format s "Performance counters not supported on this platform"))))
 
-;; ── x86-64 Timestamp Counter ───────────────────────────────────────────
+;; ── x86-64 Timestamp Counter ──
 
 #+x86-64
 (defun rdtsc ()

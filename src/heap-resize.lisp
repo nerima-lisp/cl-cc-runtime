@@ -174,7 +174,8 @@ rather than a native address."
 
 ;;; ------------------------------------------------------------
 ;;; Off-Heap Native Memory (FR-378)
-;;; FR-378: Off-Heap Native Memory Management — FFI buffers allocated outside GC heap with allocation tracking
+;;; FR-378: Off-Heap Native Memory Management — FFI buffers allocated outside GC heap with
+;;; allocation tracking
 ;;; ------------------------------------------------------------
 
 (defparameter *rt-native-allocations* (make-hash-table :test #'eql)

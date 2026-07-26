@@ -2,7 +2,8 @@
 
 (defconstant +alloc-large-threshold+ 32768)
 (defparameter *alloc-size-classes* '(8 16 32 64 128 256 512 1024 2048 4096))
-(defun rt-alloc (size) (make-array (max size 1) :element-type '(unsigned-byte 8) :initial-element 0))
+(defun rt-alloc (size)
+  (make-array (max size 1) :element-type '(unsigned-byte 8) :initial-element 0))
 (defun rt-free (obj size) (declare (ignore obj size)) nil)
 (defun rt-size-class-for (size)
   "Return the smallest size class in *ALLOC-SIZE-CLASSES* that can hold SIZE
@@ -10,7 +11,7 @@ bytes, or +ALLOC-LARGE-THRESHOLD+ when SIZE exceeds every class."
   (or (find size *alloc-size-classes* :test #'<=) +alloc-large-threshold+))
 (defun rt-allocator-init () t)
 
-;;; ── FR-816 Arena allocator ─────────────────────────────────────────────
+;;; ── FR-816 Arena allocator ──
 
 (defstruct (rt-arena (:constructor %make-rt-arena))
   buffer
@@ -44,7 +45,7 @@ bytes, or +ALLOC-LARGE-THRESHOLD+ when SIZE exceeds every class."
   `(let ((,name (make-arena :size-hint ,size-hint)))
      ,@body))
 
-;;; ── FR-817 Object pool ─────────────────────────────────────────────────
+;;; ── FR-817 Object pool ──
 
 (defstruct (rt-object-pool (:constructor %make-rt-object-pool))
   name

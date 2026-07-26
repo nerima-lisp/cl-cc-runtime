@@ -110,7 +110,8 @@ choosing sliding addresses."
         (multiple-value-bind (new-addr new-free)
             (%gc-copy-object heap from-addr (cdr to-free-cell) promoted-list-cell)
           (setf (cdr to-free-cell) new-free)
-          (%rt-gc-copy-co-located-neighbor heap from-addr to-free-cell promoted-list-cell in-source-p)
+          (%rt-gc-copy-co-located-neighbor heap from-addr to-free-cell
+                                           promoted-list-cell in-source-p)
           new-addr)))))
 
 ;;; Minor GC (%gc-scan-dirty-cards, %gc-cheney-scan, %gc-update-promoted,

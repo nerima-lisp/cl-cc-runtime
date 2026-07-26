@@ -9,7 +9,7 @@
 
 (in-package :cl-cc/runtime)
 
-;; ── Lock wrappers (map to sync.lisp API) ─────────────────────────────────
+;; ── Lock wrappers (map to sync.lisp API) ──
 
 (defun rt-make-lock (&optional name)
   "Create a lock. Maps to rt-make-mutex from sync.lisp."

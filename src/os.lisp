@@ -140,7 +140,11 @@ CL-PROCESS-KIT:PROCESS-HANDLE used for portable process management."
   (%rt-sb-posix-call :execv path (coerce argv 'vector)))
 
 (defun rt-waitpid (pid &key nohang)
-  (let ((flags (if nohang (or (ignore-errors (symbol-value (find-symbol "WNOHANG" :sb-posix))) 0) 0)))
+  (let ((flags (if nohang
+                   (or (ignore-errors
+                        (symbol-value (find-symbol "WNOHANG" :sb-posix)))
+                       0)
+                   0)))
     (multiple-value-bind (wpid status)
         (%rt-sb-posix-call :waitpid pid flags)
       (make-rt-process-status :pid (or wpid -1) :status (or status 0)

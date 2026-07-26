@@ -16,7 +16,9 @@
     (if pending
         (cdr pending)
         (rt-with-mutex ((rt-mvcc-var-m var))
-          (let ((v (%rt-mvcc-visible-version var (if tx (rt-mvcc-tx-snapshot tx) *rt-mvcc-global-time*))))
+          (let ((v (%rt-mvcc-visible-version
+                    var
+                    (if tx (rt-mvcc-tx-snapshot tx) *rt-mvcc-global-time*))))
             (when (and v (not (rt-mvcc-version-deleted-p v)))
               (rt-mvcc-version-value v)))))))
 (defun rt-mvcc-write (var val &optional (tx *rt-current-mvcc-tx*))

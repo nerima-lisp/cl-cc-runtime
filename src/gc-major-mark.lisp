@@ -35,7 +35,8 @@ the same grey queue synchronously while preserving the four-phase protocol.")
 (defparameter *rt-concurrent-sweep-thread* nil
   "Host thread object for a concurrent old-space sweep worker, or NIL.")
 
-;;; FR-088: Incremental GC Marking — bounded mark steps interleaved with mutator work; 4-phase protocol (initial-mark, incremental-mark, final-remark, sweep)
+;;; FR-088: Incremental GC Marking — bounded mark steps interleaved with mutator work; 4-phase
+;;; protocol (initial-mark, incremental-mark, final-remark, sweep)
 (defparameter *gc-incremental-mark-enabled* nil
   "When true, major GC exposes its mark phase as bounded incremental steps.
 
@@ -45,7 +46,8 @@ RT-GC-MAJOR-COLLECT is organized as:
   Phase 3: final remark (STW SATB drain)
    Phase 4: sweep (STW in this foundation implementation).")
 
-;;; FR-468: GC Copy Order as Cache Warm-Up — biases free-list toward blocks adjacent to hot objects for cache-friendly placement
+;;; FR-468: GC Copy Order as Cache Warm-Up — biases free-list toward blocks adjacent to hot
+;;; objects for cache-friendly placement
 (defparameter *gc-profile-guided-placement* nil
   "When true, bias old-space free-list order toward blocks adjacent to hot objects.
 
@@ -54,7 +56,8 @@ move live objects; it reorders reclaimed blocks so future old-space allocation
 prefers holes near hot survivors, preserving a cache-friendly placement path for
 the future compacting collector.")
 
-;;; FR-340: Concurrent Sweeping — sweeps old space on-demand during allocation; lazy sweep with page-level granularity
+;;; FR-340: Concurrent Sweeping — sweeps old space on-demand during allocation; lazy sweep with
+;;; page-level granularity
 (defparameter *gc-lazy-sweep-enabled* nil
   "When true, major GC defers old-space sweeping and allocation sweeps pages on demand.")
 
@@ -306,7 +309,8 @@ Returns T if invariant holds, or (values nil violating-addr) if violated."
       (loop while (car queue-cell) do
         (%rt-gc-mark-one-grey heap queue-cell (pop (car queue-cell))))))
 
-;;; FR-088: Incremental GC Marking — bounded mark steps interleaved with mutator work; 4-phase protocol (initial-mark, incremental-mark, final-remark, sweep)
+;;; FR-088: Incremental GC Marking — bounded mark steps interleaved with mutator work; 4-phase
+;;; protocol (initial-mark, incremental-mark, final-remark, sweep)
 (defun rt-gc-incremental-mark-step (heap budget)
   "Process up to BUDGET grey old-space objects for an incremental major GC.
 

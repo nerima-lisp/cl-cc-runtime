@@ -41,7 +41,8 @@
           (rt-heap-lazy-sweep-limit heap) old-free)
     (incf (rt-heap-words-collected heap) freed)))
 
-;;; FR-340: Concurrent Sweeping — sweeps old space on-demand during allocation; lazy sweep with page-level granularity
+;;; FR-340: Concurrent Sweeping — sweeps old space on-demand during allocation; lazy sweep with
+;;; page-level granularity
 (defun rt-gc-lazy-sweep-step (heap region-start &key (page-words +gc-card-size-words+))
   "Sweep one old-space page starting at REGION-START and enqueue dead blocks."
   (check-type heap rt-heap)

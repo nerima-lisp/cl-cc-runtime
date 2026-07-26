@@ -85,7 +85,8 @@
    #:rt-stringp
    ;; Characters
    #:rt-char #:rt-char-code #:rt-code-char
-   #:rt-char-equal-cs #:rt-char-lt-cs #:rt-char-gt-cs #:rt-char-le-cs #:rt-char-ge-cs #:rt-char-ne-cs
+   #:rt-char-equal-cs #:rt-char-lt-cs #:rt-char-gt-cs
+   #:rt-char-le-cs #:rt-char-ge-cs #:rt-char-ne-cs
    #:rt-char-equal-ci #:rt-char-not-equal-ci #:rt-char-lessp-ci #:rt-char-greaterp-ci
    #:rt-char-not-lessp-ci #:rt-char-not-greaterp-ci
    #:rt-char-upcase #:rt-char-downcase
@@ -252,7 +253,8 @@
       ;; Heap growth/shrink policy (FR-391, FR-392)
       #:rt-heap-maybe-grow #:rt-heap-maybe-shrink
     ;; Sanitizer runtime controls (FR-489..493)
-     #:*rt-asan-enabled* #:*rt-msan-enabled* #:*rt-tsan-enabled* #:*rt-hwasan-enabled* #:*rt-ubsan-enabled*
+     #:*rt-asan-enabled* #:*rt-msan-enabled* #:*rt-tsan-enabled*
+     #:*rt-hwasan-enabled* #:*rt-ubsan-enabled*
     #:*rt-tsan-thread-id*
     #:rt-sanitizer-reset-state
     #:rt-sanitizer-poison-address #:rt-sanitizer-unpoison-address
@@ -394,7 +396,7 @@
      #:rt-gc-heap-dump-dot
   ;; Heap walk (FR-445)
   #:rt-gc-map-heap-objects
-   ;; ── Sync primitives (sync.lisp) ──────────────────────────────────
+   ;; ── Sync primitives (sync.lisp) ──
    #:rt-make-mutex #:rt-mutex-lock #:rt-mutex-unlock
    #:rt-make-condition-variable
    #:rt-make-semaphore #:rt-semaphore-wait #:rt-semaphore-signal
@@ -404,7 +406,7 @@
    #:rt-make-rwlock #:rt-rwlock-try-read-lock #:rt-rwlock-try-write-lock
    #:rt-with-read-lock #:rt-with-write-lock #:rt-condition-wait-until
    #:rt-semaphore-try-wait #:rt-barrier-reset #:rt-sync-init
-   ;; ── Green-thread scheduler (scheduler.lisp) ───────────────────────
+   ;; ── Green-thread scheduler (scheduler.lisp) ──
     #:rt-make-scheduler #:rt-scheduler-init #:rt-scheduler-run
     #:rt-spawn #:rt-yield #:rt-current-thread-id #:rt-sleep-task
     #:rt-green-thread #:rt-green-thread-p #:rt-green-thread-status
@@ -416,7 +418,7 @@
     #:rt-make-work-stealing-scheduler #:rt-work-stealing-init
     #:rt-work-stealing-submit #:rt-work-stealing-run #:rt-work-stealing-maybe-grow
     #:rt-scheduler-steal #:*rt-work-stealing-scheduler*
-    ;; ── Futures / promises (future.lisp) ─────────────────────────────
+    ;; ── Futures / promises (future.lisp) ──
      #:rt-make-future #:rt-future-resolve #:rt-future-await #:rt-future-done-p
      #:rt-future-then
      ;; ── Async / async generators (async.lisp, async-generators.lisp) ──
@@ -432,47 +434,47 @@
     #:rt-async-generator-state-error #:rt-async-generator-state-waiters
     #:rt-make-async-generator #:rt-async-yield #:rt-async-generator-next
     #:rt-async-generator-close #:rt-async-generator-fail #:rt-async-for
-    ;; ── Algebraic effects (effects.lisp) ─────────────────────────────
+    ;; ── Algebraic effects (effects.lisp) ──
     #:rt-effect #:rt-effect-p #:make-rt-effect #:rt-effect-name #:rt-effect-payload
     #:rt-perform #:rt-handle #:rt-handler-state #:rt-handler-state-p
     #:make-rt-handler-state #:rt-handler-state-handlers #:rt-with-handler
     #:rt-resume #:rt-current-handler #:rt-effect-state #:rt-effect-error
     #:rt-effect-read #:rt-effect-write #:*rt-handler-stack*
-    ;; ── CSP channels (channel.lisp) ──────────────────────────────────
+    ;; ── CSP channels (channel.lisp) ──
    #:rt-make-channel #:rt-channel-send #:rt-channel-recv #:rt-channel-close
-   ;; ── Actor model (actor.lisp) ─────────────────────────────────────
+   ;; ── Actor model (actor.lisp) ──
    #:rt-make-actor #:rt-actor-send #:rt-actor-receive
-   ;; ── STM (stm.lisp) ───────────────────────────────────────────────
+   ;; ── STM (stm.lisp) ──
     #:rt-tvar #:rt-tvar-p #:rt-make-tvar #:rt-read-tvar #:rt-write-tvar
     #:rt-atomically #:rt-retry #:rt-tvar-value-unsafe #:rt-tvar-version-unsafe
     #:rt-stm-transaction #:rt-stm-conflict #:rt-stm-retry #:opt-pass-stm
-    ;; ── Fibers / green threads (fiber.lisp) ───────────────────────────
+    ;; ── Fibers / green threads (fiber.lisp) ──
     #:rt-fiber #:rt-fiber-p #:rt-make-fiber #:rt-fiber-spawn #:rt-fiber-schedule
     #:rt-fiber-resume #:rt-fiber-yield #:rt-fiber-block #:rt-fiber-await
     #:rt-fiber-done-p #:rt-fiber-status-failed-p #:rt-run-fibers
     #:rt-fiber-local #:rt-fiber-async #:rt-green-thread-spawn #:rt-run-green-threads
-   ;; ── Lock-free data structures (lockfree.lisp) ────────────────────
+   ;; ── Lock-free data structures (lockfree.lisp) ──
    #:rt-make-lfstack #:rt-lfstack-push #:rt-lfstack-pop
    #:rt-make-lfqueue #:rt-make-lfhash-map
    #:rt-lfstack-empty-p #:rt-lfqueue-push #:rt-lfqueue-pop #:rt-lfqueue-empty-p
    #:rt-lfhash-get #:rt-lfhash-remove #:rt-lfhash-cas #:rt-lfhash-count #:rt-lockfree-init
-   ;; ── Epoch-based reclamation (ebr.lisp) ───────────────────────────
+   ;; ── Epoch-based reclamation (ebr.lisp) ──
    #:rt-ebr-init #:rt-ebr-register-thread #:rt-ebr-enter #:rt-ebr-leave
    #:rt-ebr-unregister-thread #:rt-with-ebr-critical #:rt-ebr-retire
    #:rt-ebr-collect #:rt-ebr-current-local
-   ;; ── Hazard pointers (hazard.lisp) ────────────────────────────────
+   ;; ── Hazard pointers (hazard.lisp) ──
    #:rt-hp-register-thread #:rt-hp-protect #:rt-hp-retire
    #:rt-hp-unregister-thread #:rt-hp-clear #:rt-hp-clear-all #:rt-hp-scan
    #:rt-hp-retire-object #:rt-hp-all-protected #:rt-hp-reclaim
    #:rt-hp-set-threshold #:rt-hp-init
-   ;; ── RCU (rcu.lisp) ───────────────────────────────────────────────
+   ;; ── RCU (rcu.lisp) ──
    #:rt-rcu-read-lock #:rt-rcu-synchronize
    #:rt-rcu-assign-pointer #:rt-rcu-dereference #:rt-with-rcu-read
    #:rt-rcu-call #:rt-rcu-init
-   ;; ── QSBR (qsbr.lisp) ─────────────────────────────────────────────
+   ;; ── QSBR (qsbr.lisp) ──
    #:rt-qsbr-init #:rt-qsbr-register-thread #:rt-qsbr-synchronize
    #:rt-qsbr-unregister-thread #:rt-qsbr-quiescent #:rt-qsbr-retire #:rt-qsbr-thread-count
-    ;; ── OS abstraction (os.lisp) ─────────────────────────────────────
+    ;; ── OS abstraction (os.lisp) ──
     #:rt-open #:rt-close #:rt-getenv #:rt-argv #:rt-exit
     #:rt-run-program #:rt-process #:rt-process-p #:rt-process-pid
     #:rt-process-status #:rt-process-exit-code #:rt-process-input
@@ -482,19 +484,19 @@
     #:rt-platform #:rt-platform-darwin-p #:rt-platform-linux-p
     #:rt-read #:rt-write #:rt-setenv #:rt-unsetenv #:rt-getcwd #:rt-chdir
     #:rt-sleep #:rt-gettime-real #:rt-gettime-monotonic #:rt-bootstrap-standalone
-    ;; ── Native threads (scheduler.lisp) ───────────────────────────────
+    ;; ── Native threads (scheduler.lisp) ──
     #:rt-native-thread #:rt-native-thread-p #:rt-make-thread
     #:rt-thread-join #:rt-thread-name #:rt-current-thread
     #:rt-thread-alive-p #:rt-all-threads #:rt-interrupt-thread
     #:rt-destroy-thread #:rt-thread-yield #:*rt-native-thread-registry*
-    ;; ── Signals (signals.lisp) ───────────────────────────────────────
+    ;; ── Signals (signals.lisp) ──
     #:+rt-sighup+ #:+rt-sigint+ #:+rt-sigterm+ #:+rt-sigusr1+
     #:+rt-sigusr2+ #:+rt-sigwinch+ #:rt-set-signal-handler
     #:rt-get-signal-handler #:rt-signal-mask #:rt-unblock-signal
     #:rt-with-signal-handler #:rt-process-pending-signals
     #:rt-clear-signal-handlers #:rt-signals-init
     #:*pending-signals* #:*shutdown-hooks* #:keyboard-interrupt
-     ;; ── Network (net.lisp) ───────────────────────────────────────────
+     ;; ── Network (net.lisp) ──
     #:+rt-af-inet+ #:+rt-af-inet6+ #:+rt-sock-stream+ #:+rt-sock-dgram+
     #:rt-socket-address #:make-rt-socket-address
     #:rt-socket-address-host #:rt-socket-address-port #:rt-socket-address-family
@@ -505,7 +507,7 @@
     #:+rt-socket-readable+ #:+rt-socket-writable+ #:+rt-socket-error+
     #:rt-set-nonblocking #:rt-select #:rt-epoll-create #:rt-epoll-ctl
     #:rt-epoll-wait #:rt-net-init
-    ;; ── mmap files (mmap.lisp) ───────────────────────────────────────
+    ;; ── mmap files (mmap.lisp) ──
     #:rt-mmap-region #:rt-mmap-region-p #:rt-mmap-region-length
     #:rt-mmap-region-address #:rt-mmap-region-released-p
     #:mmap-file #:mmap-array #:mmap-close #:with-mmap #:mmap-sync #:mmap-advice
@@ -513,26 +515,26 @@
     #:rt-mmap-raw #:rt-munmap-raw #:rt-mmap-ref #:rt-mmap-set
     #:rt-release-code-memory #:rt-allocate-anonymous-memory #:rt-mmap-init
     #:rt-mprotect #:rt-allocate-code-memory
-   ;; ── GC safe-region depth table (gc-data.lisp) ────────────────────
+   ;; ── GC safe-region depth table (gc-data.lisp) ──
    #:*rt-gc-safe-region-depths*
-   ;; ── Context propagation (context.lisp) ───────────────────────────
+   ;; ── Context propagation (context.lisp) ──
    #:rt-context-cancel #:rt-context-cancelled-p
    #:rt-with-context #:rt-context-get-deadline #:rt-context-value
    #:rt-context-spawn #:rt-with-context-value
-   ;; ── SPSC ring buffer (spsc.lisp) ─────────────────────────────────
+   ;; ── SPSC ring buffer (spsc.lisp) ──
    #:rt-make-spsc-queue #:rt-spsc-try-push #:rt-spsc-try-pop
    #:rt-spsc-capacity #:rt-spsc-size #:rt-spsc-empty-p #:rt-spsc-full-p
    #:rt-spsc-push #:rt-spsc-pop #:rt-spsc-reset #:rt-spsc-init
-    ;; ── Performance counters (perf.lisp) ─────────────────────────────
+    ;; ── Performance counters (perf.lisp) ──
     #:rt-perf-init #:rt-perf-enable-counter #:rt-with-perf-counters
     #:rdtsc #:rdtscp #:perf-counters-unsupported
     #:rt-perf-read-counter
-    ;; ── Metrics (metrics.lisp) ────────────────────────────────────────
+    ;; ── Metrics (metrics.lisp) ──
     #:rt-make-counter #:rt-counter-increment! #:rt-make-histogram
     #:rt-histogram-observe! #:rt-make-gauge #:rt-gauge-set!
     #:rt-register-metric #:rt-metrics-format-prometheus
     #:prometheus-text-format
-     ;; ── OpenTelemetry (otel.lisp) ────────────────────────────────────
+     ;; ── OpenTelemetry (otel.lisp) ──
      #:rt-otel-event #:make-rt-otel-event #:rt-otel-event-name
      #:rt-otel-event-time #:rt-otel-event-attributes
      #:rt-otel-span #:make-rt-otel-span #:rt-otel-span-name
@@ -543,7 +545,7 @@
      #:*rt-otel-span* #:rt-otel-start-span #:rt-otel-end-span
      #:rt-otel-set-attribute #:rt-otel-add-event #:rt-otel-set-status
      #:rt-otel-span-to-json #:rt-with-span #:rt-otel-init
-     ;; ── Continuous profiling (continuous-profile.lisp) ───────────────
+     ;; ── Continuous profiling (continuous-profile.lisp) ──
       #:rt-continuous-profile-session #:make-rt-continuous-profile-session
       #:rt-profile-frame #:make-rt-profile-frame
       #:rt-profile-frame-function #:rt-profile-frame-source-file
@@ -569,11 +571,11 @@
       #:rt-continuous-profile-to-otel-json
       #:rt-continuous-profile-to-pprof-json
       #:rt-export-continuous-profile
-    ;; ── Deadlock detector (deadlock.lisp) ────────────────────────────
+    ;; ── Deadlock detector (deadlock.lisp) ──
     #:*rt-dl-enabled* #:*rt-dl-thread-locks* #:*rt-dl-thread-waits*
     #:rt-deadlock-before-lock #:rt-deadlock-after-lock
     #:rt-deadlock-after-unlock #:rt-deadlock-detect #:rt-deadlock-init
-    ;; ── Consensus / Raft (consensus.lisp) ────────────────────────────
+    ;; ── Consensus / Raft (consensus.lisp) ──
     #:+raft-follower+ #:+raft-candidate+ #:+raft-leader+
     #:rt-raft-entry #:make-rt-raft-entry #:rt-raft-entry-term
     #:rt-raft-entry-index #:rt-raft-entry-command
@@ -589,58 +591,59 @@
     #:rt-raft-request-vote #:rt-raft-start-election #:rt-raft-append-entries
     #:rt-raft-tick #:rt-raft-advance-commit #:rt-raft-apply
     #:rt-raft-propose #:rt-raft-snapshot #:rt-consensus-init
-   ;; ── CRDTs (crdt.lisp) ────────────────────────────────────────────
+   ;; ── CRDTs (crdt.lisp) ──
    #:rt-make-gcounter #:rt-gcounter-increment #:rt-gcounter-value
    #:rt-make-pncounter #:rt-make-lwwregister
    #:rt-gcounter-merge #:rt-pncounter-increment #:rt-pncounter-decrement
    #:rt-pncounter-value #:rt-lwwregister-assign #:rt-lwwregister-read #:rt-crdt-init
-     ;; ── Parallel algorithms (parallel-algo.lisp) ─────────────────────
+     ;; ── Parallel algorithms (parallel-algo.lisp) ──
      #:rt-parallel-algo-init
      #:*rt-fork-join-pool* #:rt-parallel-sort #:rt-parallel-prefix-scan
      #:rt-parallel-reduce #:rt-parallel-map #:rt-parallel-for
-     ;; ── CPU / NUMA topology (topology.lisp) ───────────────────────────
+     ;; ── CPU / NUMA topology (topology.lisp) ──
      #:detect-cpu-cores #:detect-numa-topology
      #:get-cpu-affinity-mask #:set-cpu-affinity-mask
      #:memory-tier-info #:+rt-affinity-mask-bytes+
      #:rt-cpu-topology
      #:rt-thread-set-affinity #:rt-thread-get-affinity
-     ;; ── GPU compute (gpu.lisp) ────────────────────────────────────────
+     ;; ── GPU compute (gpu.lisp) ──
      #:rt-gpu-buffer #:rt-gpu-kernel
     #:rt-gpu-buffer-alloc #:rt-gpu-buffer-copy #:rt-gpu-buffer-free
     #:rt-gpu-kernel-compile #:rt-gpu-launch-kernel #:rt-gpu-launch-async
-    ;; ── Reactive Streams (reactive.lisp) ──────────────────────────────
+    ;; ── Reactive Streams (reactive.lisp) ──
     #:rt-subscription #:rt-subscriber
     #:rt-subscribe #:rt-on-subscribe #:rt-on-next #:rt-on-error #:rt-on-complete
     #:rt-request #:rt-cancel
     #:rt-publisher-from-list #:rt-publisher-map #:rt-publisher-filter
     #:rt-publisher-merge #:rt-publisher-zip
     #:rt-make-subscriber #:rt-subscriber-collect
-    ;; ── Async Generators (async-generators.lisp) ─────────────────────
+    ;; ── Async Generators (async-generators.lisp) ──
     #:rt-aiter #:rt-aiter-next #:rt-aiter-from-list
     #:rt-async-generator-state #:rt-make-async-generator
     #:rt-async-yield #:rt-async-generator-close #:rt-async-generator-fail
     #:rt-async-generator-next
     #:rt-aiter-map #:rt-aiter-filter #:rt-aiter-take #:rt-aiter-collect
-    ;; ── Effect system (effects.lisp) ───────────────────────────────────
+    ;; ── Effect system (effects.lisp) ──
     #:rt-effect #:rt-handler-state
     #:rt-current-handler #:rt-resume #:rt-perform #:rt-handle
     #:rt-effect-state #:rt-effect-error #:rt-effect-read #:rt-effect-write
-    ;; ── Structured logging (log.lisp, cl-log-kit used directly) ──────────
+    ;; ── Structured logging (log.lisp, cl-log-kit used directly) ──
     #:+level-debug+ #:+level-info+ #:+level-warn+ #:+level-error+ #:+level-fatal+
     #:*default-logger* #:make-logger #:set-default-logger #:with-default-logger
     #:logger-with #:derive-logger #:logger-child
     #:with-log-context #:with-log-span
     #:log-debug #:log-info #:log-warn #:log-error #:log-fatal
-    #:log-default-debug #:log-default-info #:log-default-warn #:log-default-error #:log-default-fatal
+    #:log-default-debug #:log-default-info #:log-default-warn
+    #:log-default-error #:log-default-fatal
     #:log-condition #:make-text-handler #:make-json-handler
     #:*rt-logger*
-    ;; ── Arena allocator (allocator.lisp) ────────────────────────────────
+    ;; ── Arena allocator (allocator.lisp) ──
     #:rt-arena #:make-arena #:with-arena
     #:arena-alloc #:arena-reset
     #:rt-arena-cursor
     #:rt-arena-block #:rt-arena-block-offset
     #:rt-alloc #:rt-free #:rt-size-class-for #:rt-allocator-init
-    ;; ── Object pool (allocator.lisp) ─────────────────────────────────────
+    ;; ── Object pool (allocator.lisp) ──
     #:rt-object-pool #:make-object-pool #:pool-acquire #:pool-release
     ;; ── Epsilon GC / colored pointers / SATB / regions (gc-advanced-129.lisp) ──
     #:*gc-epsilon-enabled* #:epsilon-gc-enabled-p #:enable-epsilon-gc
@@ -648,7 +651,7 @@
     #:satb-write-barrier #:satb-drain-queue #:*satb-queue*
     #:+gc-region-size+ #:gc-region #:make-gc-region #:*gc-regions*
     #:*gc-pause-target-ms* #:estimate-region-garbage-ratio
-    ;; ── Compressed pointers / SSO strings (value.lisp) ────────────────────
+    ;; ── Compressed pointers / SSO strings (value.lisp) ──
     #:+compressed-pointer-flag+ #:+compressed-pointer-offset-mask+
     #:+compressed-heap-region-bytes+ #:+compressed-heap-region-words+
     #:*compressed-pointers-enabled* #:*heap-base-address*
@@ -656,9 +659,9 @@
     #:encode-compressed-pointer #:decode-compressed-pointer
     #:+sso-string-base+ #:+sso-string-mask+ #:+sso-string-max-length+
     #:val-sso-string-p #:encode-sso-string #:decode-sso-string
-    ;; ── GC nursery config (heap-data.lisp) ───────────────────────────────
+    ;; ── GC nursery config (heap-data.lisp) ──
     #:*gc-nursery-size*
-    ;; ── Pinned arrays for FFI (FR-417) ──────────────────────────────────
+    ;; ── Pinned arrays for FFI (FR-417) ──
     #:rt-pin-unboxed-array #:rt-pinned-unboxed-array-buffer-p
     #:rt-pinned-unboxed-array-buffer-array
     #:rt-pinned-unboxed-array-buffer-length
@@ -667,32 +670,32 @@
     ;; ── Self-host portability facades (portable.lisp) ──
     #:rt-make-lock #:rt-with-lock #:rt-lock #:rt-unlock #:rt-try-lock
     #:rt-getenv
-    ;; ── Cluster / remote (cluster.lisp) ──────────────────────────────
+    ;; ── Cluster / remote (cluster.lisp) ──
     #:rt-cluster-init #:rt-cluster-join #:rt-cluster-leave
     #:rt-cluster-query-node-status #:rt-remote-send #:rt-make-remote-ref
-    ;; ── FFI (ffi.lisp) ───────────────────────────────────────────────
+    ;; ── FFI (ffi.lisp) ──
     #:rt-ffi-load-library #:rt-ffi-close-library #:rt-define-foreign-function
     #:rt-foreign-funcall #:rt-ffi-callback-invoke #:rt-define-foreign-struct
     #:rt-ffi-struct-size #:rt-ffi-struct-field-offset #:rt-ffi-init #:*rt-deopt-enabled*
-    ;; ── Image / hot reload (image.lisp) ──────────────────────────────
+    ;; ── Image / hot reload (image.lisp) ──
     #:rt-image-register-restore-hook #:rt-hot-reload #:rt-image-init
-    ;; ── io_uring async I/O (io-uring.lisp) ───────────────────────────
+    ;; ── io_uring async I/O (io-uring.lisp) ──
     #:rt-iouring-available-p #:rt-iouring-read #:rt-iouring-write
     #:rt-iouring-poll #:rt-iouring-close
-    ;; ── MVCC (mvcc.lisp) ─────────────────────────────────────────────
+    ;; ── MVCC (mvcc.lisp) ──
     #:rt-make-mvcc-var #:rt-mvcc-read #:rt-with-mvcc-transaction #:rt-mvcc-compact
-    ;; ── Rate limiting (ratelimit.lisp) ───────────────────────────────
+    ;; ── Rate limiting (ratelimit.lisp) ──
     #:rt-make-token-bucket #:rt-token-bucket-acquire
     #:rt-token-bucket-wait #:rt-token-bucket-stats
-    ;; ── Runtime core (runtime.lisp) ──────────────────────────────────
+    ;; ── Runtime core (runtime.lisp) ──
     #:rt-return-address-poisoned-p #:rt-gc-unload-code
-    ;; ── Runtime I/O / symbols (runtime-io.lisp) ──────────────────────
+    ;; ── Runtime I/O / symbols (runtime-io.lisp) ──
     #:rt-write-to-string-with-controls #:rt-unexport #:rt-shadowing-import
     #:rt-find-all-symbols #:rt-do-external-symbols #:rt-do-all-symbols
     #:rt-make-pathname-native #:rt-make-two-way-stream #:rt-make-synonym-stream
-    ;; ── Runtime dynamic binding (runtime-math-io.lisp) ───────────────
+    ;; ── Runtime dynamic binding (runtime-math-io.lisp) ──
     #:rt-with-dynamic-binding
-    ;; ── Arena regions (runtime-region.lisp) ──────────────────────────
+    ;; ── Arena regions (runtime-region.lisp) ──
     #:with-arena-region
     ;; ── Runtime pathnames / compound streams (runtime-pathnames.lisp) ──
     #:rt-merge-pathnames #:rt-namestring
@@ -701,7 +704,7 @@
     #:rt-directory #:rt-ensure-directories-exist #:rt-truename
     #:rt-make-broadcast-stream #:rt-make-concatenated-stream #:rt-make-echo-stream
     #:rt-read-sequence #:rt-write-sequence
-    ;; ── Zero-copy buffers (zerocopy.lisp) ────────────────────────────
+    ;; ── Zero-copy buffers (zerocopy.lisp) ──
     #:rt-register-buffer #:rt-unregister-buffer #:rt-splice
     #:rt-copy-buffer #:rt-zerocopy-init
     ;; ── Cryptographic primitives (crypto.lisp) ──

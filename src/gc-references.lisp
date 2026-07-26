@@ -16,8 +16,10 @@
   (enqueued nil :type boolean)
   queue)
 
+;;; FR-384: Reference Queue Processing — GC enqueues cleared refs; a dedicated
+;;; thread processes the callbacks independently.
 (defstruct (rt-reference-queue (:constructor make-rt-reference-queue))
-  "FR-384: Reference Queue Processing — GC enqueues cleared refs; dedicated thread processes callbacks independently"
+  "Queue of references cleared by GC, drained by the reference-queue thread."
   (entries nil :type list))
 
 (defvar *rt-reference-registry* nil)

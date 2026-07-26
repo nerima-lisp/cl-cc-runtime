@@ -1,9 +1,9 @@
-;;; ─── Phase 139 Runtime Metrics ────────────────────────────────────────
+;;; ─── Phase 139 Runtime Metrics ───
 ;;; FR-792: Prometheus-compatible counter/histogram/gauge metrics
 
 (in-package :cl-cc/runtime)
 
-;; ── Counter ────────────────────────────────────────────────────────────
+;; ── Counter ──
 
 (defstruct rt-counter
   "A monotonically increasing integer counter with optional labels."
@@ -19,7 +19,7 @@
   (incf (rt-counter-value counter) n)
   (rt-counter-value counter))
 
-;; ── Histogram ──────────────────────────────────────────────────────────
+;; ── Histogram ──
 
 (defstruct rt-histogram
   "A histogram tracking value distributions across configurable buckets."
@@ -55,7 +55,7 @@
     (incf (nth (1- (length counts)) counts))
     value))
 
-;; ── Gauge ──────────────────────────────────────────────────────────────
+;; ── Gauge ──
 
 (defstruct rt-gauge
   "A gauge representing a value that can go up and down."
@@ -68,7 +68,7 @@
 (defun rt-gauge-set! (gauge value)
   (setf (rt-gauge-value gauge) (float value 1d0)))
 
-;; ── Prometheus Text Format ─────────────────────────────────────────────
+;; ── Prometheus Text Format ──
 
 (defvar *rt-metrics-registry* (make-hash-table :test #'equal)
   "Global registry of all metric objects, keyed by name.")

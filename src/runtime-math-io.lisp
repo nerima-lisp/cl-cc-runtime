@@ -1,6 +1,8 @@
-;;;; packages/runtime/src/runtime-math-io.lisp - CL-CC Runtime: Symbols, Hash Tables, Conditions, Misc
+;;;; packages/runtime/src/runtime-math-io.lisp - CL-CC Runtime: Symbols, Hash Tables, Conditions,
+;;;; Misc
 ;;;
-;;; Contains: rt-symbol-*, rt-intern, rt-make-hash-table, rt-gethash/sethash/remhash/clrhash/maphash,
+;;; Contains: rt-symbol-*, rt-intern, rt-make-hash-table,
+;;; rt-gethash/sethash/remhash/clrhash/maphash,
 ;;;            rt-hash-count/test/size/rehash-size/rehash-threshold,
 ;;; rt-signal-error, rt-signal, rt-warn-fn, rt-cerror, rt-boundp/fboundp,
 ;;; rt-random, rt-coerce, rt-read-from-string, rt-read-sexp.
@@ -92,7 +94,9 @@ kept in *RT-GLOBAL-VAR-REGISTRY* rather than in thread-local dynamic frames."
       (prog1 (pop stack)
         (setf (gethash thread-id *rt-dynamic-binding-stacks*) stack)))))
 
-(defmacro rt-with-dynamic-binding ((sym value &optional (thread-id '*rt-current-binding-thread-id*)) &body body)
+(defmacro rt-with-dynamic-binding
+    ((sym value &optional (thread-id '*rt-current-binding-thread-id*))
+     &body body)
   "Execute BODY with SYM dynamically bound to VALUE for THREAD-ID."
   (let ((tid (gensym "THREAD-ID")))
     `(let ((,tid ,thread-id))
@@ -197,7 +201,8 @@ than by host weak tables, so the backing table is always strong."
 (defun rt-hash-table-p (x)
   (if (or (hash-table-p x) (rt-weak-hash-table-p x)) 1 0))
 
-(defun rt-make-hash-table (&key (test #'eql) size rehash-size rehash-threshold weakness &allow-other-keys)
+(defun rt-make-hash-table (&key (test #'eql) size rehash-size rehash-threshold
+                                weakness &allow-other-keys)
   "Create a runtime hash table with optional weak-key/value semantics."
   (unless (%rt-valid-hash-weakness-p weakness)
     (error "Unsupported hash-table weakness mode: ~S" weakness))

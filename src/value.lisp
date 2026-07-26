@@ -350,7 +350,7 @@ characters with codes above #xFF must use the heap string representation."
 ;;; encode-char, decode-char, encode-bool, cl-value->val, val->cl-value)
 ;;; are in value-codec.lisp (loaded next).
 
-;;; ── Pinned arrays for FFI (FR-417) ───────────────────────────────────────
+;;; ── Pinned arrays for FFI (FR-417) ──
 
 (defstruct (rt-pinned-unboxed-array-buffer (:constructor %make-pinned-buffer))
   (array nil :type (simple-array (unsigned-byte 8) (*)))

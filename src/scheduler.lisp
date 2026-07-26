@@ -367,8 +367,10 @@ the implementation portable while preserving the CAS-style try/fail API shape."
 
 (defun rt-thread-name (thread)
   (etypecase thread
-    (rt-native-thread (or (rt-native-thread-name thread)
-                          (ignore-errors (sb-thread:thread-name (rt-native-thread-host-thread thread)))))
+    (rt-native-thread
+     (or (rt-native-thread-name thread)
+         (ignore-errors
+          (sb-thread:thread-name (rt-native-thread-host-thread thread)))))
     (sb-thread:thread (sb-thread:thread-name thread))))
 
 (defun rt-current-thread ()
@@ -384,7 +386,9 @@ the implementation portable while preserving the CAS-style try/fail API shape."
                 (%rt-register-native-thread
                  (make-rt-native-thread :host-thread host-thread
                                         :name (ignore-errors (sb-thread:thread-name host-thread))
-                                        :state (if (sb-thread:thread-alive-p host-thread) :running :finished))
+                                        :state (if (sb-thread:thread-alive-p host-thread)
+                                                   :running
+                                                   :finished))
                  host-thread)))
           (sb-thread:list-all-threads)))
 

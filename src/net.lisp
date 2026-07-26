@@ -69,7 +69,9 @@
                  :protocol (if (eq protocol :udp) :udp :tcp)))
 
 (defun %rt-addr-key (addr)
-  (list (rt-socket-address-host addr) (rt-socket-address-port addr) (rt-socket-address-family addr)))
+  (list (rt-socket-address-host addr)
+        (rt-socket-address-port addr)
+        (rt-socket-address-family addr)))
 
 (defun %rt-socket-entry (fd)
   (or (gethash fd *rt-socket-registry*)
@@ -255,7 +257,10 @@
 
 (defun rt-select (read-fds write-fds error-fds &optional timeout)
   (when timeout (sleep (min timeout 0.001)))
-  (values (remove-if-not (lambda (fd) (plusp (fill-pointer (rt-socket-entry-rx-buffer (%rt-socket-entry fd))))) read-fds)
+  (values (remove-if-not (lambda (fd)
+                           (plusp (fill-pointer
+                                   (rt-socket-entry-rx-buffer (%rt-socket-entry fd)))))
+                         read-fds)
           (remove-if-not (lambda (fd) (gethash fd *rt-socket-registry*)) write-fds)
           (remove-if (lambda (fd) (gethash fd *rt-socket-registry*)) error-fds)))
 

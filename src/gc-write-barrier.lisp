@@ -205,7 +205,8 @@ Both NaN-boxed pointer values and canonical internal heap addresses are recogniz
         (rt-heap-set heap slot-addr new-val)))
     ;; Young-to-young writes cannot violate SATB or old->young remembered-set
     ;; invariants, so bypass all barrier bookkeeping.
-    ;;; FR-335: Write Barrier Young-to-Young Elision — skips SATB and card marking when both old and new values are in young space
+    ;;; FR-335: Write Barrier Young-to-Young Elision — skips SATB and card marking when both old
+    ;;; and new values are in young space
     (when (and (integerp obj-addr) (rt-young-addr-p heap obj-addr)
                (let ((target (%rt-gc-write-barrier-addr-p heap new-val)))
                  (and target (rt-young-addr-p heap target))))

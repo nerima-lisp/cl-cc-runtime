@@ -168,6 +168,11 @@ to old-space bump allocation without scanning larger bins.  Returns
   (declare (ignore type-tag))
   (car (find size-words *rt-slab-size-classes* :key #'cdr :test #'=)))
 
+;; Hoisted to a parameter: inlined at its call site the control string alone
+;; runs past the 100-column limit, and it must stay one string literal.
+(defparameter +rt-slab-page-oom-format+
+  "cl-cc/runtime: slab page allocation exhausted old space — ~D words requested")
+
 (defun %rt-slab-allocate-page (heap class-size)
   (let* ((slots (max 1 (floor +rt-slab-page-words+ class-size)))
          (page-words (* slots class-size))
@@ -175,8 +180,7 @@ to old-space bump allocation without scanning larger bins.  Returns
                    (let ((old-free (rt-heap-old-free heap)))
                      (when (> (+ old-free page-words)
                               (+ (rt-heap-old-base heap) (rt-heap-old-size heap)))
-                       (error "cl-cc/runtime: slab page allocation exhausted old space — ~D words requested"
-                              page-words))
+                       (error +rt-slab-page-oom-format+ page-words))
                      (setf (rt-heap-old-free heap) (+ old-free page-words))
                      old-free)))
          (limit (+ addr page-words))

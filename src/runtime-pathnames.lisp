@@ -1,7 +1,7 @@
 ;;;; runtime-pathnames.lisp — Native bignum arithmetic, pathnames, compound streams, LOAD
 (in-package :cl-cc/runtime)
 
-;;; ─── Native Bignum Support (ANSI CL Ch.12 Number Tower) ────────────────────
+;;; ─── Native Bignum Support (ANSI CL Ch.12 Number Tower) ───
 ;;;
 ;;; The native codegen calls these runtime helpers when integer arithmetic
 ;;; overflows fixnum range.  Bignums are represented as tagged cons cells
@@ -48,12 +48,14 @@
   (rt-native-integer->value
    (* (rt-native-bignum-to-integer a) (rt-native-bignum-to-integer b))))
 
-;;; ─── Pathname and File System Operations (Wave 4) ──────────────────────────
+;;; ─── Pathname and File System Operations (Wave 4) ───
 
 (defun rt-make-pathname (&key host device directory name type version defaults case)
   (declare (ignore host device version case))
   (let ((p (if defaults
-                (merge-pathnames (make-pathname :directory directory :name name :type type) defaults)
+                (merge-pathnames
+                 (make-pathname :directory directory :name name :type type)
+                 defaults)
                 (make-pathname :directory directory :name name :type type))))
     p))
 
@@ -114,7 +116,7 @@
 (defun rt-truename (pathname)
   (truename pathname))
 
-;;; ─── Compound Streams ───────────────────────────────────────────────────────
+;;; ─── Compound Streams ───
 
 (defun rt-make-broadcast-stream (&rest streams)
   (apply #'make-broadcast-stream streams))
@@ -131,7 +133,7 @@
 (defun rt-make-synonym-stream (symbol)
   (make-synonym-stream symbol))
 
-;;; ─── Sequence I/O ───────────────────────────────────────────────────────────
+;;; ─── Sequence I/O ───
 
 (defun rt-read-sequence (sequence stream &key start end)
   (read-sequence sequence stream :start (or start 0) :end (or end (length sequence))))
@@ -139,13 +141,13 @@
 (defun rt-write-sequence (sequence stream &key start end)
   (write-sequence sequence stream :start (or start 0) :end (or end (length sequence))))
 
-;;; ─── LOAD ───────────────────────────────────────────────────────────────────
+;;; ─── LOAD ───
 
 (defun rt-load (pathname &key verbose print if-does-not-exist external-format)
   (declare (ignore verbose print if-does-not-exist external-format))
   (load pathname))
 
-;;; ─── JIT-Callable Bignum Bridges (for native codegen slow path) ────────────
+;;; ─── JIT-Callable Bignum Bridges (for native codegen slow path) ───
 
 (sb-alien:define-alien-callable cl_cc_bignum_add
     sb-alien:long

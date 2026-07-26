@@ -195,7 +195,8 @@ Reports progress when *GC-PROBES-ENABLED* is true."
             (push item (svref buckets (mod i count))))
     (loop for i from 0 below count collect (nreverse (svref buckets i)))))
 
-;;; FR-338: Parallel GC Worker Threads (foundation) — distributes roots/mark/sweep work across workers when SB-THREAD available
+;;; FR-338: Parallel GC Worker Threads (foundation) — distributes roots/mark/sweep work across
+;;; workers when SB-THREAD available
 (defun rt-gc-parallel-root-scan (heap &optional (workers *gc-worker-count*))
   "Return root addresses using worker-partitioned scans when host threads exist."
   (let ((parts (%rt-gc-partition-list (rt-heap-roots heap) (max 1 workers))))
@@ -211,7 +212,8 @@ Reports progress when *GC-PROBES-ENABLED* is true."
                      parts))))
       (remove-duplicates (apply #'nconc per-worker-results) :test #'eql))))
 
-;;; FR-338: Parallel GC Worker Threads (foundation) — distributes roots/mark/sweep work across workers when SB-THREAD available
+;;; FR-338: Parallel GC Worker Threads (foundation) — distributes roots/mark/sweep work across
+;;; workers when SB-THREAD available
 (defun rt-gc-parallel-mark (heap &optional (workers *gc-worker-count*))
   "Drain the major-GC grey queue with FR-338 work-stealing worker queues.
 

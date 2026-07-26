@@ -125,15 +125,25 @@ Input is an alist of (absolute-offset . kind).  Output is an alist of
 
 (defun rt-gc-map-section-documentation ()
   "Return documentation for the native `.gc_map` section format."
-  "`.gc_map` records are delta encoded: u32 frame-id-delta, u16 slot-count, then slot-count repetitions of sleb128 frame-offset-delta plus u8 slot-kind. Slot kind 1 denotes :OBJECT; scalar kinds are ignored by GC. The loader expands records and calls RT-GC-REGISTER-STACKMAP before code execution.")
+  ;; Assembled from parts so that no source line exceeds 100 columns; the
+  ;; returned string is unchanged.
+  (concatenate 'string
+               "`.gc_map` records are delta encoded: u32 frame-id-delta, "
+               "u16 slot-count, then slot-count repetitions of sleb128 "
+               "frame-offset-delta plus u8 slot-kind. Slot kind 1 denotes "
+               ":OBJECT; scalar kinds are ignored by GC. The loader expands "
+               "records and calls RT-GC-REGISTER-STACKMAP before code "
+               "execution."))
 
-(defmacro with-gc-function-entry-safepoint ((heap &optional (thread-id '*rt-current-thread-id*)) &body body)
+(defmacro with-gc-function-entry-safepoint
+    ((heap &optional (thread-id '*rt-current-thread-id*)) &body body)
   "Run BODY after polling a function-entry safepoint."
   `(progn
      (rt-gc-safepoint-check ,heap :kind :function-entry :thread-id ,thread-id)
      ,@body))
 
-(defmacro with-gc-loop-backedge-safepoint ((heap &optional (thread-id '*rt-current-thread-id*)) &body body)
+(defmacro with-gc-loop-backedge-safepoint
+    ((heap &optional (thread-id '*rt-current-thread-id*)) &body body)
   "Run BODY after polling a loop-back-edge safepoint."
   `(progn
      (rt-gc-safepoint-check ,heap :kind :loop-back-edge :thread-id ,thread-id)

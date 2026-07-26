@@ -134,7 +134,7 @@
   (setf *rt-ffi-next-callback-id* 0)
   t)
 
-;;; ── C embedding API (FR-812) ───────────────────────────────────────────────
+;;; ── C embedding API (FR-812) ──
 
 (defstruct cl-cc-error
   "Last embedding error visible through cl-cc-last-error."

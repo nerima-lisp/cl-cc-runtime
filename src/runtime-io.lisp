@@ -31,7 +31,9 @@
   "Native-callable simple write-to-string. Uses current CL print-control variables."
   (write-to-string obj))
 
-(defun rt-write-to-string-with-controls (obj &key base radix escape level length circle pretty case readably gensym array)
+(defun rt-write-to-string-with-controls (obj &key base radix escape level length
+                                                  circle pretty case readably
+                                                  gensym array)
   "Native-callable write-to-string with full ANSI print-control keyword support."
   (let ((*print-base*   (or base *print-base*))
         (*print-radix*  (or radix *print-radix*))
