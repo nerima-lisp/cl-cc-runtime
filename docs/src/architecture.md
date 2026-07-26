@@ -92,6 +92,10 @@ cl-weave's `it-sequential` and `expect`. That shim exists so that suites
 carried over from the cl-cc monorepo needed only an `in-package` change; new
 tests can use either vocabulary.
 
-Test files are currently named `<subject>-tests.lisp` rather than the org's
-`<source>-test.lisp`. Renaming them is deferred: it touches all 66 files and
-is worth doing as its own change.
+Test files are named `<source>-test.lisp` after the `src/` file they cover, as
+CODING_STANDARD.md requires. Where one source needs several angles the name
+carries the angle too: `frame-test.lisp` and `frame-boundary-test.lisp` both
+cover `src/frame.lisp`, and `gc-major-sweep-test.lisp` and
+`gc-major-sweep-incremental-test.lisp` both cover `src/gc-major-sweep.lisp`.
+`gc-requirements-test.lisp` is the one file named for what it verifies rather
+than for a single source: it is FR evidence spanning the whole collector.
