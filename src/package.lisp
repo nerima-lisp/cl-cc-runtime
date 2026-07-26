@@ -1,7 +1,7 @@
 ;;;; packages/runtime/src/package.lisp - CL-CC Runtime Library Package
 
-(defpackage :cl-cc/runtime
-  (:use :cl)
+(defpackage #:cl-cc/runtime
+  (:use #:cl)
   (:shadow #:make-hash-table)
   (:import-from #:log-kit
    #:+level-debug+ #:+level-info+ #:+level-warn+ #:+level-error+ #:+level-fatal+
