@@ -427,17 +427,59 @@
   (assert-signals error
     (cl-cc/runtime::rt-install-stack-guard 0 4096)))
 
-(deftest fr-376-madvise-requires-native-backend
-  "Heap and mmap advice fail explicitly until native madvise support exists."
-  (let ((heap (cl-cc/runtime::make-rt-heap :young-size 64 :old-size 64)))
-    (assert-signals error
-      (cl-cc/runtime::rt-heap-madvise-sequential heap 0 8))
-    (assert-signals error
-      (cl-cc/runtime::rt-heap-madvise-willneed heap 0 8))
-    (assert-signals error
-      (cl-cc/runtime::rt-heap-madvise-hugepage heap)))
-  (assert-signals error
-    (cl-cc/runtime::mmap-advice nil :sequential)))
+(progn
+  (deftest fr-376-heap-madvise-requires-native-backend
+    "Heap advice still fails until native heap addressing is available."
+    (let ((heap (cl-cc/runtime::make-rt-heap :young-size 64 :old-size 64)))
+      (assert-signals error
+        (cl-cc/runtime::rt-heap-madvise-sequential heap 0 8))
+      (assert-signals error
+        (cl-cc/runtime::rt-heap-madvise-willneed heap 0 8))
+      (assert-signals error
+        (cl-cc/runtime::rt-heap-madvise-hugepage heap))))
+
+  (deftest fr-869-native-anonymous-mmap
+    "Anonymous mmap exposes native bytes, protection, advice, and release state."
+    (let ((region (cl-cc/runtime::rt-allocate-anonymous-memory 4096)))
+      (unwind-protect
+           (progn
+             (assert-true (plusp (cl-cc/runtime::rt-mmap-region-address region)))
+             (assert-equal 37 (cl-cc/runtime::rt-mmap-set region 0 37))
+             (assert-equal 37 (cl-cc/runtime::rt-mmap-ref region 0))
+             (assert-true (cl-cc/runtime::mmap-advice region :sequential))
+             (assert-true
+              (cl-cc/runtime::rt-mprotect
+               region 4096 cl-cc/runtime::+rt-prot-read+))
+             (assert-signals error
+               (cl-cc/runtime::rt-mmap-set region 0 99)))
+        (unless (cl-cc/runtime::rt-mmap-region-released-p region)
+          (cl-cc/runtime::rt-munmap region)))
+      (assert-signals error
+        (cl-cc/runtime::rt-mmap-ref region 0))))
+
+  (deftest fr-869-shared-mmap-sync-is-file-visible
+    "A shared mapping flushes compatibility-array writes through native msync."
+    (let ((path (merge-pathnames
+                 (format nil "cl-cc-runtime-mmap-~A.bin" (gensym))
+                 (uiop:temporary-directory))))
+      (unwind-protect
+           (progn
+             (with-open-file (out path :direction :output
+                                       :if-exists :supersede
+                                       :element-type (quote (unsigned-byte 8)))
+               (write-sequence (make-array 4096
+                                           :element-type (quote (unsigned-byte 8))
+                                           :initial-element 0)
+                               out))
+             (cl-cc/runtime::with-mmap
+                 (region path :protection :read-write :flags :shared)
+               (setf (aref (cl-cc/runtime::mmap-array region) 0) 42)
+               (assert-true (cl-cc/runtime::mmap-sync region))
+               (with-open-file (in path :direction :input
+                                        :element-type (quote (unsigned-byte 8)))
+                 (assert-equal 42 (read-byte in)))))
+        (when (probe-file path)
+          (delete-file path))))))
 
 (deftest fr-623-huge-pages-require-native-backend
   "FR-623: huge-page mmap requires a native backend."
