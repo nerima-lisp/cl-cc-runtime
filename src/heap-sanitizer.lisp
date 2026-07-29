@@ -28,11 +28,16 @@
 (defparameter *rt-heap-tag-map* (make-hash-table :test #'eql)
   "Address -> 4-bit heap tag (HWASan-like metadata).")
 
-(defparameter *rt-heap-access-map* (make-hash-table :test #'eql)
-  "Address -> (thread-id . mode) access history used by conservative TSan checks.")
+(progn
+  (defparameter *rt-heap-access-map* (make-hash-table :test #'eql)
+    "Address -> vector-clock access history used by TSan checks.")
+  (defparameter *rt-tsan-thread-clocks* (make-hash-table :test #'eql))
+  (defparameter *rt-tsan-sync-clocks* (make-hash-table :test #'eq))
+  (defparameter *rt-tsan-host-thread-ids* (make-hash-table :test #'eq))
+  (defparameter *rt-tsan-next-thread-id* 1))
 
-(defparameter *rt-tsan-thread-id* 0
-  "Current logical thread id used by TSan checks in this runtime simulation.")
+(defparameter *rt-tsan-thread-id* nil
+  "Optional logical thread id override; NIL assigns a stable host-thread id.")
 
 (defun %rt-sanitizer-sb-thread-function (name)
   "Return the SB-THREAD function named NAME, or NIL when unavailable."
@@ -68,7 +73,11 @@
     (clrhash *rt-heap-poison-map*)
     (clrhash *rt-heap-init-map*)
     (clrhash *rt-heap-tag-map*)
-    (clrhash *rt-heap-access-map*))
+    (clrhash *rt-heap-access-map*)
+    (clrhash *rt-tsan-thread-clocks*)
+    (clrhash *rt-tsan-sync-clocks*)
+    (clrhash *rt-tsan-host-thread-ids*)
+    (setf *rt-tsan-next-thread-id* 1))
   t)
 
 (defun rt-sanitizer-poison-address (index)
@@ -103,16 +112,86 @@
       (when (null (gethash index *rt-heap-init-map*))
         (error "MSan: read from uninitialized heap address ~D" index)))))
 
-(defun %rt-tsan-check-access (index mode)
-  (when *rt-tsan-enabled*
-    (%rt-with-sanitizer-map-lock ()
-      (let ((prev (gethash index *rt-heap-access-map*)))
-        (when (and prev
-                   (/= (car prev) *rt-tsan-thread-id*)
-                   (or (eq mode :write) (eq (cdr prev) :write)))
-          (error "TSan: data race at heap address ~D between thread ~D (~A) and ~D (~A)"
-                 index (car prev) (cdr prev) *rt-tsan-thread-id* mode))
-        (setf (gethash index *rt-heap-access-map*) (cons *rt-tsan-thread-id* mode))))))
+(progn
+  (defun %rt-tsan-current-thread-id ()
+    (or *rt-tsan-thread-id*
+        (let ((thread sb-thread:*current-thread*))
+          (or (gethash thread *rt-tsan-host-thread-ids*)
+              (setf (gethash thread *rt-tsan-host-thread-ids*)
+                    (prog1 *rt-tsan-next-thread-id*
+                      (incf *rt-tsan-next-thread-id*)))))))
+
+  (defun %rt-tsan-clock (thread-id)
+    (or (gethash thread-id *rt-tsan-thread-clocks*)
+        (setf (gethash thread-id *rt-tsan-thread-clocks*)
+              (make-hash-table :test #'eql))))
+
+  (defun %rt-tsan-copy-clock (clock)
+    (let ((copy (make-hash-table :test #'eql)))
+      (maphash (lambda (thread-id value) (setf (gethash thread-id copy) value)) clock)
+      copy))
+
+  (defun %rt-tsan-tick (thread-id clock)
+    (setf (gethash thread-id clock) (1+ (gethash thread-id clock 0))))
+
+  (defun %rt-tsan-merge-clock (clock other)
+    (maphash (lambda (thread-id value)
+               (setf (gethash thread-id clock) (max value (gethash thread-id clock 0))))
+             other))
+
+  (defun %rt-tsan-happens-before-p (event clock)
+    (destructuring-bind (thread-id event-clock mode) event
+      (declare (ignore mode))
+      (<= (gethash thread-id event-clock 0) (gethash thread-id clock 0))))
+
+  (defun %rt-tsan-race (index previous thread-id mode)
+    (error "TSan: data race at heap address ~D between thread ~D (~A) and ~D (~A)"
+           index (first previous) (third previous) thread-id mode))
+
+  (defun rt-tsan-acquire (object)
+    (when *rt-tsan-enabled*
+      (%rt-with-sanitizer-map-lock ()
+        (let* ((thread-id (%rt-tsan-current-thread-id))
+               (clock (%rt-tsan-clock thread-id))
+               (released (gethash object *rt-tsan-sync-clocks*)))
+          (when released (%rt-tsan-merge-clock clock released))
+          (%rt-tsan-tick thread-id clock))))
+    t)
+
+  (defun rt-tsan-release (object)
+    (when *rt-tsan-enabled*
+      (%rt-with-sanitizer-map-lock ()
+        (let* ((thread-id (%rt-tsan-current-thread-id))
+               (clock (%rt-tsan-clock thread-id)))
+          (%rt-tsan-tick thread-id clock)
+          (setf (gethash object *rt-tsan-sync-clocks*) (%rt-tsan-copy-clock clock)))))
+    t)
+
+  (defun %rt-tsan-check-event (index event clock thread-id mode)
+    (when (and event
+               (/= (first event) thread-id)
+               (not (%rt-tsan-happens-before-p event clock)))
+      (%rt-tsan-race index event thread-id mode)))
+
+  (defun %rt-tsan-check-access (index mode)
+    (when *rt-tsan-enabled*
+      (%rt-with-sanitizer-map-lock ()
+        (let* ((thread-id (%rt-tsan-current-thread-id))
+               (clock (%rt-tsan-clock thread-id))
+               (state (or (gethash index *rt-heap-access-map*)
+                          (setf (gethash index *rt-heap-access-map*)
+                                (cons nil (make-hash-table :test #'eql))))))
+          (%rt-tsan-tick thread-id clock)
+          (%rt-tsan-check-event index (car state) clock thread-id mode)
+          (when (eq mode :write)
+            (maphash (lambda (reader-id event)
+                       (declare (ignore reader-id))
+                       (%rt-tsan-check-event index event clock thread-id mode))
+                     (cdr state)))
+          (let ((event (list thread-id (%rt-tsan-copy-clock clock) mode)))
+            (if (eq mode :write)
+                (progn (setf (car state) event) (clrhash (cdr state)))
+                (setf (gethash thread-id (cdr state)) event))))))))
 
 (defun %rt-hwasan-check-address (index expected-tag)
   (when *rt-hwasan-enabled*
