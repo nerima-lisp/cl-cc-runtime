@@ -103,62 +103,24 @@
 (defparameter *max-stack-size* (* 64 1024 1024)
   "Maximum copying-stack size before RT-STACK-OVERFLOW is signaled.")
 
-(defstruct (stack-segment (:constructor make-stack-segment
-                            (&key (base 0) (size *stack-segment-size*) next prev
-                                  (used 0) guard-page-p)))
-  "Logical/native stack segment descriptor for green-thread stacks."
-  base
-  (size *stack-segment-size* :type integer)
-  next
-  prev
-  (used 0 :type integer)
-  guard-page-p)
+(defstruct (stack-segment (:constructor %make-stack-segment (&key base size region next prev (used 0)))) (base 0 :type integer) (size *stack-segment-size* :type integer) region next prev (used 0 :type integer))
 
 (defvar *stack-segment-pool* nil
   "Reusable stack segments retired by green threads.")
 
-(defun %reuse-or-make-stack-segment (&key prev (size *stack-segment-size*))
-  (let ((segment (or (pop *stack-segment-pool*)
-                     (make-stack-segment :size size))))
-    (setf (stack-segment-size segment) size
-          (stack-segment-used segment) 0
-          (stack-segment-prev segment) prev
-          (stack-segment-next segment) nil)
-    (when prev
-      (setf (stack-segment-next prev) segment))
-    segment))
+(defun %allocate-stack-segment (size) (let* ((mapped-size (rt-page-align (max *stack-segment-size* size))) (region (rt-allocate-anonymous-memory mapped-size))) (%make-stack-segment :base (rt-mmap-region-address region) :size mapped-size :region region)))
 
-(defun grow-stack-segment (segment &key (size *stack-segment-size*))
-  "Return a fresh/reused segment linked after SEGMENT."
-  (%reuse-or-make-stack-segment :prev segment :size size))
+(defun %reuse-or-make-stack-segment (&key prev (size *stack-segment-size*)) (let* ((requested-size (max *stack-segment-size* size)) (segment (find-if (lambda (candidate) (>= (stack-segment-size candidate) requested-size)) *stack-segment-pool*))) (if segment (setf *stack-segment-pool* (delete segment *stack-segment-pool* :test #'eq)) (setf segment (%allocate-stack-segment requested-size))) (setf (stack-segment-used segment) 0 (stack-segment-prev segment) prev (stack-segment-next segment) nil) (when prev (setf (stack-segment-next prev) segment)) segment))
 
-(defun release-stack-segment (segment)
-  "Detach SEGMENT and put it back into *STACK-SEGMENT-POOL*."
-  (when segment
-    (let ((prev (stack-segment-prev segment))
-          (next (stack-segment-next segment)))
-      (when prev (setf (stack-segment-next prev) next))
-      (when next (setf (stack-segment-prev next) prev))
-      (setf (stack-segment-next segment) nil
-            (stack-segment-prev segment) nil
-            (stack-segment-used segment) 0)
-      (push segment *stack-segment-pool*)))
-  segment)
+(defun grow-stack-segment (segment &key (size *stack-segment-size*)) "Return a fresh/reused mmap segment linked after SEGMENT." (%reuse-or-make-stack-segment :prev segment :size size))
 
-(defun stack-segment-ensure-space (segment bytes)
-  "Ensure SEGMENT has BYTES free, growing a new segment when necessary."
-  (check-type bytes (integer 0 *))
-  (let ((current (or segment (%reuse-or-make-stack-segment))))
-    (if (> (+ (stack-segment-used current) bytes)
-           (stack-segment-size current))
-        (grow-stack-segment current)
-        current)))
+(defun release-stack-segment (segment) "Detach SEGMENT and return it to the reusable mmap pool." (when segment (let ((prev (stack-segment-prev segment)) (next (stack-segment-next segment))) (when prev (setf (stack-segment-next prev) next)) (when next (setf (stack-segment-prev next) prev)) (setf (stack-segment-next segment) nil (stack-segment-prev segment) nil (stack-segment-used segment) 0) (pushnew segment *stack-segment-pool* :test #'eq))) segment)
 
-(defun stack-segment-note-frame (segment bytes)
-  "Account for BYTES in SEGMENT and return the segment that owns the frame."
-  (let ((current (stack-segment-ensure-space segment bytes)))
-    (incf (stack-segment-used current) bytes)
-    current))
+(defun stack-segment-ensure-space (segment bytes) "Ensure the downward-growing stack pointer remains above its segment limit." (check-type bytes (integer 0 *)) (let* ((current (or segment (%reuse-or-make-stack-segment))) (stack-pointer (- (+ (stack-segment-base current) (stack-segment-size current)) (stack-segment-used current))) (limit (stack-segment-base current))) (if (< (- stack-pointer bytes) limit) (grow-stack-segment current :size bytes) current)))
+
+(defun stack-segment-note-frame (segment bytes) "Account for BYTES and return the mmap segment that owns the frame." (let ((current (stack-segment-ensure-space segment bytes))) (incf (stack-segment-used current) bytes) current))
+
+(defun stack-segment-release-frame (segment bytes) "Release BYTES from SEGMENT and retire an empty non-root segment." (check-type bytes (integer 0 *)) (unless segment (error "Cannot release a frame without a stack segment")) (when (> bytes (stack-segment-used segment)) (error "Frame size ~D exceeds segment usage ~D" bytes (stack-segment-used segment))) (decf (stack-segment-used segment) bytes) (if (and (zerop (stack-segment-used segment)) (stack-segment-prev segment)) (let ((previous (stack-segment-prev segment))) (release-stack-segment segment) previous) segment))
 
 (defun relocate-stack-pointers (frames old-base new-base)
   "Relocate pointer-like integer slots in FRAMES from OLD-BASE to NEW-BASE."
