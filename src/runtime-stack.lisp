@@ -114,7 +114,54 @@
 
 (defun grow-stack-segment (segment &key (size *stack-segment-size*)) "Return a fresh/reused mmap segment linked after SEGMENT." (%reuse-or-make-stack-segment :prev segment :size size))
 
-(defun release-stack-segment (segment) "Detach SEGMENT and return it to the reusable mmap pool." (when segment (let ((prev (stack-segment-prev segment)) (next (stack-segment-next segment))) (when prev (setf (stack-segment-next prev) next)) (when next (setf (stack-segment-prev next) prev)) (setf (stack-segment-next segment) nil (stack-segment-prev segment) nil (stack-segment-used segment) 0) (pushnew segment *stack-segment-pool* :test #'eq))) segment)
+(defun release-stack-segment (segment)
+  "Detach SEGMENT and return it to the reusable mmap pool."
+  (when segment
+    (let ((prev (stack-segment-prev segment))
+          (next (stack-segment-next segment)))
+      (when prev (setf (stack-segment-next prev) next))
+      (when next (setf (stack-segment-prev next) prev))
+      (setf (stack-segment-next segment) nil
+            (stack-segment-prev segment) nil
+            (stack-segment-used segment) 0)
+      (pushnew segment *stack-segment-pool* :test #'eq)))
+  segment)
+
+(defun release-stack-segment-chain (segment)
+  "Release SEGMENT and every predecessor, returning NIL."
+  (loop for current = segment then previous
+        while current
+        for previous = (stack-segment-prev current)
+        do (release-stack-segment current))
+  nil)
+
+(defun stack-segment-snapshot (segment)
+  "Return detached root-to-current (SIZE USED) metadata for SEGMENT."
+  (loop for current = segment then (stack-segment-prev current)
+        while current
+        collect (list (stack-segment-size current)
+                      (stack-segment-used current)) into reversed
+        finally (return (nreverse reversed))))
+
+(defun stack-segment-restore (snapshot)
+  "Allocate an independent segment chain described by SNAPSHOT."
+  (let ((current nil))
+    (handler-case
+        (dolist (entry snapshot current)
+          (destructuring-bind (size used) entry
+            (check-type size (integer 1 *))
+            (check-type used (integer 0 *))
+            (when (> used size)
+              (error "Stack segment usage ~D exceeds size ~D" used size))
+            (let ((next (%reuse-or-make-stack-segment :size size)))
+              (setf (stack-segment-prev next) current)
+              (when current
+                (setf (stack-segment-next current) next))
+              (setf (stack-segment-used next) used
+                    current next))))
+      (error (condition)
+        (release-stack-segment-chain current)
+        (error condition)))))
 
 (defun stack-segment-ensure-space (segment bytes) "Ensure the downward-growing stack pointer remains above its segment limit." (check-type bytes (integer 0 *)) (let* ((current (or segment (%reuse-or-make-stack-segment))) (stack-pointer (- (+ (stack-segment-base current) (stack-segment-size current)) (stack-segment-used current))) (limit (stack-segment-base current))) (if (< (- stack-pointer bytes) limit) (grow-stack-segment current :size bytes) current)))
 
