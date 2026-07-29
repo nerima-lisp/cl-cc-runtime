@@ -75,11 +75,6 @@
         (setf (rt-mutex-owner m) (%rt-current-thread))
         t)
     (error () nil)))
-(defun rt-mutex-try-lock (m)
-  "Try to acquire M without blocking. Returns true on success, NIL if already locked."
-  (handler-case (sb-thread:grab-mutex (rt-mutex-host-mutex m) :waitp nil)
-    (error () nil)))
-
 (defmacro rt-with-try-mutex ((m) &body body)
   `(when (rt-mutex-try-lock ,m)
      (unwind-protect (progn ,@body)
