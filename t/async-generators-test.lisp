@@ -68,6 +68,7 @@
         (push x acc))
       (expect (nreverse acc) :to-equal '(:a :b :c)))))
 
+progn
 (describe "async generators (async-generators.lisp)"
   (it "a fresh generator is not done"
     (let ((g (cl-cc/runtime::rt-make-async-generator)))
@@ -134,3 +135,24 @@
       (expect (handler-case (progn (cl-cc/runtime::rt-async-generator-next g) nil)
                 (error () t))
               :to-be-truthy))))
+(describe "lowered coroutines (async-generators.lisp)"
+  (it "resumes stackless steps in order"
+    (let ((coroutine (cl-cc/runtime:rt-lower-coroutine
+                      (list (lambda () :first) (lambda () :second)))))
+      (expect (cl-cc/runtime:rt-coroutine-strategy coroutine) :to-be :stackless)
+      (multiple-value-bind (value done) (cl-cc/runtime:rt-coroutine-resume coroutine)
+        (expect value :to-be :first)
+        (expect done :to-be-null))
+      (multiple-value-bind (value done) (cl-cc/runtime:rt-coroutine-resume coroutine)
+        (expect value :to-be :second)
+        (expect done :to-be-null))
+      (multiple-value-bind (value done) (cl-cc/runtime:rt-coroutine-resume coroutine)
+        (expect value :to-be-null)
+        (expect done :to-be-truthy))))
+  (it "selects stackful lowering for deep yield on call/cc targets"
+    (let ((coroutine (cl-cc/runtime:rt-lower-coroutine
+                      (list (lambda () :yielded))
+                      :supports-call/cc-p t
+                      :deep-yield-p t)))
+      (expect (cl-cc/runtime:rt-coroutine-strategy coroutine) :to-be :stackful))))
+

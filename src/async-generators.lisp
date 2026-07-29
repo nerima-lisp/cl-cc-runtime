@@ -138,6 +138,7 @@ otherwise queue ITEM for a later RT-ASYNC-GENERATOR-NEXT call."
           (return (%rt-resolved-future (nreverse items))))
         (push item items)))))
 
+progn
 (defmacro rt-async-for ((var aiter) &body body)
   "Await each item from AITER, bind it to VAR, and evaluate BODY."
   (let ((aiter-var (gensym "AITER"))
@@ -149,3 +150,34 @@ otherwise queue ITEM for a later RT-ASYNC-GENERATOR-NEXT call."
            (when ,done-var
              (return nil))
            ,@body)))))
+
+(defstruct (rt-coroutine (:constructor %make-rt-coroutine))
+  (strategy :stackless :type keyword)
+  (steps #() :type vector)
+  (program-counter 0 :type fixnum)
+  (done-p nil))
+
+(defun rt-lower-coroutine (steps &key supports-call/cc deep-yield-p)
+  "Lower STEPS into a resumable coroutine with an explicit program counter.
+Stackful mode is selected when call/cc or deep yields require it."
+  (%make-rt-coroutine
+   :strategy (if (or supports-call/cc deep-yield-p) :stackful :stackless)
+   :steps (coerce steps (quote vector))))
+
+(defun rt-coroutine-resume (coroutine)
+  "Run one lowered coroutine state and return VALUE and DONE-P."
+  (check-type coroutine rt-coroutine)
+  (if (rt-coroutine-done-p coroutine)
+      (values nil t)
+      (let ((pc (rt-coroutine-program-counter coroutine))
+            (steps (rt-coroutine-steps coroutine)))
+        (if (>= pc (length steps))
+            (progn
+              (setf (rt-coroutine-done-p coroutine) t)
+              (values nil t))
+            (multiple-value-prog1
+                (values (funcall (aref steps pc)) nil)
+              (incf (rt-coroutine-program-counter coroutine))
+              (when (>= (rt-coroutine-program-counter coroutine) (length steps))
+                (setf (rt-coroutine-done-p coroutine) t)))))))
+

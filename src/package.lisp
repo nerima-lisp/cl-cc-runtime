@@ -433,7 +433,7 @@
     #:rt-async-generator-state-items #:rt-async-generator-state-done-p
     #:rt-async-generator-state-error #:rt-async-generator-state-waiters
     #:rt-make-async-generator #:rt-async-yield #:rt-async-generator-next
-    #:rt-async-generator-close #:rt-async-generator-fail #:rt-async-for
+    #:rt-async-generator-close #:rt-async-generator-fail #:rt-async-for #:rt-coroutine #:rt-coroutine-p #:rt-coroutine-strategy #:rt-lower-coroutine #:rt-coroutine-resume #:rt-coroutine-done-p
     ;; ── Algebraic effects (effects.lisp) ──
     #:rt-effect #:rt-effect-p #:make-rt-effect #:rt-effect-name #:rt-effect-payload
     #:rt-perform #:rt-handle #:rt-handler-state #:rt-handler-state-p
@@ -441,13 +441,13 @@
     #:rt-resume #:rt-current-handler #:rt-effect-state #:rt-effect-error
     #:rt-effect-read #:rt-effect-write #:*rt-handler-stack*
     ;; ── CSP channels (channel.lisp) ──
-   #:rt-make-channel #:rt-channel-send #:rt-channel-recv #:rt-channel-close
+   #:rt-make-channel #:rt-channel-send #:rt-channel-recv #:rt-channel-close #:rt-channel-select #:rt-channel-try-send #:rt-channel-try-recv
    ;; ── Actor model (actor.lisp) ──
    #:rt-make-actor #:rt-actor-send #:rt-actor-receive
    ;; ── STM (stm.lisp) ──
     #:rt-tvar #:rt-tvar-p #:rt-make-tvar #:rt-read-tvar #:rt-write-tvar
     #:rt-atomically #:rt-retry #:rt-tvar-value-unsafe #:rt-tvar-version-unsafe
-    #:rt-stm-transaction #:rt-stm-conflict #:rt-stm-retry #:opt-pass-stm
+    #:rt-stm-transaction #:rt-stm-conflict #:rt-stm-retry #:opt-pass-stm #:rt-stm-current-effects #:rt-stm-current-cache-hits
     ;; ── Fibers / green threads (fiber.lisp) ──
     #:rt-fiber #:rt-fiber-p #:rt-make-fiber #:rt-fiber-spawn #:rt-fiber-schedule
     #:rt-fiber-resume #:rt-fiber-yield #:rt-fiber-block #:rt-fiber-await

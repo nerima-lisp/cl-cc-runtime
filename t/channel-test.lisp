@@ -153,6 +153,7 @@ all items arrive in FIFO order across two real OS threads."
 
 ;;; ─── Property: buffered channel preserves FIFO order ─────────────────────────
 
+progn
 (cl-weave:it-property "buffered channel drains in the order values were sent"
     ((values (cl-weave:gen-list (cl-weave:gen-integer :min 0 :max 100)
                                 :min-length 0 :max-length 12)))
@@ -161,3 +162,63 @@ all items arrive in FIFO order across two real OS threads."
     (equal values
            (loop repeat (length values)
                  collect (cl-cc/runtime::rt-channel-try-recv ch)))))
+progn
+(deftest channel-unbuffered-send-rendezvous
+  "A zero-capacity send completes only after a receiver accepts its value."
+  (let* ((ch (cl-cc/runtime:rt-make-channel))
+         (completed nil)
+         (sender (sb-thread:make-thread
+                  (lambda ()
+                    (cl-cc/runtime:rt-channel-send ch :handoff)
+                    (setf completed t))
+                  :name "unbuffered-sender")))
+    (sleep 0.02)
+    (assert-null completed)
+    (multiple-value-bind (value ok) (cl-cc/runtime:rt-channel-recv ch)
+      (assert-eq :handoff value)
+      (assert-true ok))
+    (sb-thread:join-thread sender)
+    (assert-true completed)))
+(deftest channel-select-rendezvous-commits-one-sender
+  "Select registers as a receiver and commits exactly one competing handoff."
+  (let* ((c1 (cl-cc/runtime:rt-make-channel))
+         (c2 (cl-cc/runtime:rt-make-channel))
+         (done1 nil)
+         (done2 nil)
+         (s1 (sb-thread:make-thread
+              (lambda ()
+                (cl-cc/runtime:rt-channel-send c1 :one)
+                (setf done1 t))
+              :name "select-sender-1"))
+         (s2 (sb-thread:make-thread
+              (lambda ()
+                (cl-cc/runtime:rt-channel-send c2 :two)
+                (setf done2 t))
+              :name "select-sender-2")))
+    (multiple-value-bind (value selected ok)
+        (cl-cc/runtime:rt-channel-select (list c1 c2) :timeout 1.0)
+      (assert-true ok)
+      (assert-true (or (and (eq value :one) (eq selected c1))
+                       (and (eq value :two) (eq selected c2))))
+      (sleep 0.02)
+      (assert-true (not (and done1 done2)))
+      (if (eq selected c1)
+          (multiple-value-bind (remaining remaining-ok)
+              (cl-cc/runtime:rt-channel-recv c2 :timeout 1.0)
+            (assert-eq :two remaining)
+            (assert-true remaining-ok))
+          (multiple-value-bind (remaining remaining-ok)
+              (cl-cc/runtime:rt-channel-recv c1 :timeout 1.0)
+            (assert-eq :one remaining)
+            (assert-true remaining-ok))))
+    (sb-thread:join-thread s1)
+    (sb-thread:join-thread s2)
+    (assert-true done1)
+    (assert-true done2)))
+
+(deftest channel-unbuffered-try-send-needs-receiver
+  "A non-blocking zero-capacity send cannot buffer a value."
+  (assert-null
+   (cl-cc/runtime:rt-channel-try-send
+    (cl-cc/runtime:rt-make-channel) :unreceived)))
+

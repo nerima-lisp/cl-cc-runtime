@@ -18,6 +18,9 @@
   (read-log nil)
   (write-log nil)
   (retry-tvars nil)
+  (hot-cell-cache (make-hash-table :test (function eq)))
+  (effects nil)
+  (cache-hits 0 :type integer)
   (attempt 0 :type integer))
 
 (define-condition rt-stm-conflict (error)
@@ -65,23 +68,38 @@
     (pushnew tv (rt-stm-transaction-retry-tvars *rt-stm-current-transaction*) :test #'eq)))
 
 (defun rt-read-tvar (tv)
-  "Read TV from the current transaction, recording its version for validation."
+  "Read TV from the current transaction, using its thread-local hot-cell cache."
   (check-type tv rt-tvar)
-  (let ((pending (assoc tv (%rt-stm-write-log) :test #'eq)))
+  (when *rt-stm-current-transaction*
+    (pushnew :read (rt-stm-transaction-effects *rt-stm-current-transaction*)))
+  (let ((pending (assoc tv (%rt-stm-write-log) :test (function eq))))
     (if pending
         (cdr pending)
-        (let ((value nil) (version nil))
-          (rt-with-mutex ((rt-tvar-lock tv))
-            (setf value (rt-tvar-value tv)
-                  version (rt-tvar-version tv)))
-          (pushnew (cons tv version) (%rt-stm-read-log) :key #'car :test #'eq)
-          (%rt-stm-record-retry-tvar tv)
-          value))))
+        (multiple-value-bind (cached present-p)
+            (if *rt-stm-current-transaction*
+                (gethash tv (rt-stm-transaction-hot-cell-cache *rt-stm-current-transaction*))
+                (values nil nil))
+          (if present-p
+              (progn
+                (incf (rt-stm-transaction-cache-hits *rt-stm-current-transaction*))
+                (car cached))
+              (let ((value nil) (version nil))
+                (rt-with-mutex ((rt-tvar-lock tv))
+                  (setf value (rt-tvar-value tv)
+                        version (rt-tvar-version tv)))
+                (pushnew (cons tv version) (%rt-stm-read-log) :key (function car) :test (function eq))
+                (%rt-stm-record-retry-tvar tv)
+                (when *rt-stm-current-transaction*
+                  (setf (gethash tv (rt-stm-transaction-hot-cell-cache *rt-stm-current-transaction*))
+                        (cons value version)))
+                value))))))
 
 (defun rt-write-tvar (tv value)
-  "Stage VALUE as TV's new value in the current transaction."
+  "Stage VALUE as TV new value and record the write effect."
   (check-type tv rt-tvar)
-  (let ((cell (assoc tv (%rt-stm-write-log) :test #'eq)))
+  (when *rt-stm-current-transaction*
+    (pushnew :write (rt-stm-transaction-effects *rt-stm-current-transaction*)))
+  (let ((cell (assoc tv (%rt-stm-write-log) :test (function eq))))
     (if cell
         (setf (cdr cell) value)
         (push (cons tv value) (%rt-stm-write-log))))
@@ -158,7 +176,25 @@
   (rt-with-mutex ((rt-tvar-lock tv))
     (rt-tvar-version tv)))
 
-(defun opt-pass-stm (form)
-  "Runtime registration hook for STM-aware compiler pipelines.
-Currently preserves FORM; compiler passes can recognize RT-ATOMICALLY."
-  form)
+progn
+
+(defun rt-stm-current-effects ()
+  "Return the effects recorded by the current transaction."
+  (when *rt-stm-current-transaction*
+    (reverse (copy-list (rt-stm-transaction-effects *rt-stm-current-transaction*)))))
+
+(defun rt-stm-current-cache-hits ()
+  "Return the current transaction hot-cell cache hit count."
+  (if *rt-stm-current-transaction*
+      (rt-stm-transaction-cache-hits *rt-stm-current-transaction*)
+      0))
+
+(defun opt-pass-stm (form &key pure-p)
+  "Lower a proven-pure RT-ATOMICALLY form by eliminating transaction setup.
+Impure or unknown forms retain their runtime transaction boundary."
+  (if (and pure-p
+           (consp form)
+           (eq (car form) (quote rt-atomically)))
+      (cons (quote progn) (cdr form))
+      form))
+

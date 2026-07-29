@@ -113,6 +113,7 @@ STM conflict/retry machinery guarantees the final value is exactly N*M."
 
 ;;; ─── Property: atomic transfer preserves the total ──────────────────────────
 
+progn
 (cl-weave:it-property "atomic transfers between two TVars conserve the total"
     ((amounts (cl-weave:gen-list (cl-weave:gen-integer :min 0 :max 50)
                                  :min-length 0 :max-length 10)))
@@ -126,3 +127,21 @@ STM conflict/retry machinery guarantees the final value is exactly N*M."
             (cl-cc/runtime::rt-write-tvar to (+ (cl-cc/runtime::rt-read-tvar to) amt))))))
     (= 1000 (+ (cl-cc/runtime::rt-tvar-value-unsafe from)
                (cl-cc/runtime::rt-tvar-value-unsafe to)))))
+(deftest stm-hot-cache-and-effects
+  "Repeated reads use the transaction-local cache and effects are recorded."
+  (let* ((tv (cl-cc/runtime:rt-make-tvar 10))
+         (result (cl-cc/runtime:rt-atomically
+                   (cl-cc/runtime:rt-read-tvar tv)
+                   (cl-cc/runtime:rt-read-tvar tv)
+                   (cl-cc/runtime:rt-write-tvar tv 11)
+                   (list (cl-cc/runtime:rt-stm-current-cache-hits)
+                         (cl-cc/runtime:rt-stm-current-effects)))))
+    (assert-= 1 (first result))
+    (assert-equal (quote (:read :write)) (second result))))
+(deftest stm-opt-pass-elides-pure-transaction
+  "The compiler hook removes atomically only when purity is explicit."
+  (assert-equal (quote (progn (+ 1 2)))
+                (cl-cc/runtime:opt-pass-stm
+                 (quote (cl-cc/runtime:rt-atomically (+ 1 2)))
+                 :pure-p t)))
+
