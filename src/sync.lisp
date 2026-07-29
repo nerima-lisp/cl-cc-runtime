@@ -67,6 +67,8 @@
                  nil)))))
 (defstruct rt-once (done-p nil) (m (rt-make-mutex)))
 (defun rt-make-once () (make-rt-once))
+
+(defun rt-once-call (o fn) (rt-with-mutex ((rt-once-m o)) (unless (rt-once-done-p o) (setf (rt-once-done-p o) (cons t (funcall fn))))) (cdr (rt-once-done-p o)))
 (defun rt-mutex-try-lock (m)
   "Try to acquire M without blocking. Returns true on success, NIL if already locked."
   (handler-case
