@@ -7,7 +7,7 @@ primitives, then the observability and platform layers.
 
 !!! note "Coverage"
 
-    `cl-cc/runtime` exports 1434 symbols. This page documents the entry points
+    `cl-cc/runtime` exports roughly 1480 symbols. This page documents the entry points
     of each subsystem -- the names you call to get in, plus the accessors and
     constants needed to use them. Struct accessors, internal-facing hooks and
     the per-feature tuning variables are not listed individually; the complete
@@ -342,9 +342,24 @@ Runtime counterpart of `restart-case`. `rt-restart-bind` is the counterpart of
 
 ### `rt-make-mutex`
 
-Creates a mutex. `rt-mutex-lock` and `rt-mutex-unlock` operate on it, and
+Creates a mutex. `rt-with-mutex` is the scoped form and the preferred way to
+use one: it releases the mutex on every exit path, including a non-local
+one, and -- with `:timeout` -- runs its body at all only if the lock was
+actually acquired in time. `rt-mutex-lock`, `rt-mutex-try-lock` and
+`rt-mutex-unlock` are the manual operations `rt-with-mutex` is built on, and
 `rt-make-recursive-mutex` plus `rt-with-recursive-mutex` give the reentrant
 variant.
+
+### `rt-with-remaining-timeout`
+
+`(rt-with-remaining-timeout (remaining-fn timeout) &body body)`. Binds
+`remaining-fn` to a function returning the seconds left before `timeout`
+elapses, recomputed on every call (or `nil`, unbounded, when `timeout` is
+`nil`). For writing a retry loop whose wait call needs a shrinking duration
+each iteration rather than the original `timeout` re-armed every time --
+the shape `rt-mutex-lock`, `rt-semaphore-wait`, `rt-barrier-wait`,
+`rt-rwlock-read-lock`/`-write-lock`, `rt-channel-send`/`-recv` and
+`rt-future-await` all use internally.
 
 ### `rt-make-rwlock`
 
@@ -364,7 +379,10 @@ until all arrive; `rt-barrier-reset` reuses it.
 
 ### `rt-make-condition-variable`
 
-Creates a condition variable. `rt-condition-wait-until` waits with a predicate.
+Creates a condition variable. `rt-condition-wait` blocks until notified (or
+`:timeout` elapses); `rt-condition-notify` and `rt-condition-notify-all`
+wake one or every waiter. `rt-condition-wait-until` wraps `rt-condition-wait`
+in a loop against a predicate, to tolerate spurious wakeups.
 
 ### `rt-make-once`
 
@@ -432,7 +450,10 @@ Closes a channel.
 ### `rt-make-actor`
 
 Creates an actor with a mailbox. `rt-actor-send` posts a message and
-`rt-actor-receive` takes the next one.
+`rt-actor-receive` takes the next one; both take `:timeout`. With
+`:mailbox-limit`, `rt-actor-send` blocks for room rather than growing the
+mailbox without bound once it holds that many messages; the default `nil`
+keeps the mailbox unbounded.
 
 ### `rt-make-future`
 
@@ -636,7 +657,12 @@ Reads a value from the context map. `rt-with-context-value` binds one.
 
 ### `rt-context-spawn`
 
-Spawns a green thread that inherits the current context.
+Spawns a green thread that inherits the current context, and also carries
+the calling thread's cl-log-kit structured-logging context and span id into
+it, via `capture-log-context`/`with-captured-log-context` -- the same
+propagation cl-log-kit documents for `sb-thread:make-thread`, applied here
+because `rt-spawn`'s queued thunk runs from a different point on the call
+stack than the spawning call.
 
 ## Platform and OS
 

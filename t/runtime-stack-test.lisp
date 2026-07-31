@@ -2,31 +2,36 @@
 ;;;; OOM / GC-pressure conditions (src/runtime-stack.lisp).
 (in-package :cl-cc-runtime/test)
 
-(describe "return-address poisoning (runtime-stack.lisp)"
-  (it "poison then unpoison is the identity"
+(describe
+  "return-address poisoning (runtime-stack.lisp)"
+  (it
+    "poison then unpoison is the identity"
     (dolist (n '(0 1 42 #x1234 #xdeadbeef #xfffffffffffff))
-      (expect (cl-cc/runtime::rt-unpoison-return-address
-               (cl-cc/runtime::rt-poison-return-address n))
-              :to-be n)))
-
-  (it "a poisoned address is recognised as poisoned"
-    (expect (cl-cc/runtime::rt-return-address-poisoned-p
-             (cl-cc/runtime::rt-poison-return-address 0))
-            :to-be-truthy))
-
-  (it "a raw small address is not flagged as poisoned"
+      (expect
+        (cl-cc/runtime::rt-unpoison-return-address
+          (cl-cc/runtime::rt-poison-return-address n))
+        :to-be
+        n)))
+  (it
+    "a poisoned address is recognised as poisoned"
+    (expect
+      (cl-cc/runtime::rt-return-address-poisoned-p
+        (cl-cc/runtime::rt-poison-return-address 0))
+      :to-be-truthy))
+  (it
+    "a raw small address is not flagged as poisoned"
     (expect (cl-cc/runtime::rt-return-address-poisoned-p 4096) :to-be-null))
-
-  (it "poisoning a non-integer signals a type error"
-    (expect (handler-case (progn (cl-cc/runtime::rt-poison-return-address :not-an-int) nil)
-              (type-error () t))
-            :to-be-truthy))
-
-  (it-property "poison/unpoison round-trips arbitrary addresses"
-      ((addr (gen-integer :min 0 :max #xffffffffffff)))
-    (expect (cl-cc/runtime::rt-unpoison-return-address
-             (cl-cc/runtime::rt-poison-return-address addr))
-            :to-be addr)))
+  (it
+    "poisoning a non-integer signals a type error"
+    (signals type-error (cl-cc/runtime::rt-poison-return-address :not-an-int)))
+  (it-property
+    "poison/unpoison round-trips arbitrary addresses"
+    ((addr (gen-integer :min 0 :max #xffffffffffff)))
+    (expect
+      (cl-cc/runtime::rt-unpoison-return-address
+        (cl-cc/runtime::rt-poison-return-address addr))
+      :to-be
+      addr)))
 
 (describe "stack-overflow guard (runtime-stack.lisp)"
   (it "rt-check-stack-overflow returns the depth when below the limit"
@@ -35,9 +40,7 @@
 
   (it "rt-check-stack-overflow signals at the limit"
     (let ((cl-cc/runtime::*max-call-stack-depth* 5))
-      (expect (handler-case (progn (cl-cc/runtime::rt-check-stack-overflow 5) nil)
-                (cl-cc/runtime::rt-stack-overflow () t))
-              :to-be-truthy)))
+      (signals cl-cc/runtime::rt-stack-overflow (cl-cc/runtime::rt-check-stack-overflow 5))))
 
   (it "the signalled condition carries the offending depth and limit"
     (let ((cl-cc/runtime::*max-call-stack-depth* 7))
@@ -57,20 +60,23 @@
     (let ((cl-cc/runtime::*max-call-stack-depth* 4)
           (cl-cc/runtime::*rt-call-stack-depth* 0))
       (labels ((recurse () (cl-cc/runtime::rt-with-call-stack-guard () (recurse))))
-        (expect (handler-case (progn (recurse) nil)
-                  (cl-cc/runtime::rt-stack-overflow () t))
-                :to-be-truthy)))))
+        (signals cl-cc/runtime::rt-stack-overflow (recurse))))))
 
-(describe "out-of-memory signalling (runtime-stack.lisp)"
-  (it "rt-signal-oom raises rt-oom-condition carrying the supplied words"
-    (expect (handler-case (cl-cc/runtime::rt-signal-oom 100 :limit-words 1000 :used-words 500)
-              (cl-cc/runtime::rt-oom-condition (c)
-                (list (cl-cc/runtime::rt-oom-requested-words c)
-                      (cl-cc/runtime::rt-oom-limit-words c)
-                      (cl-cc/runtime::rt-oom-used-words c))))
-            :to-equal '(100 1000 500)))
-
-  (it "rt-signal-oom derives limit and used words from a heap"
+(describe
+  "out-of-memory signalling (runtime-stack.lisp)"
+  (it
+    "rt-signal-oom raises rt-oom-condition carrying the supplied words"
+    (expect
+      (handler-case (cl-cc/runtime::rt-signal-oom 100 :limit-words 1000 :used-words 500)
+        (cl-cc/runtime::rt-oom-condition (c)
+          (list
+            (cl-cc/runtime::rt-oom-requested-words c)
+            (cl-cc/runtime::rt-oom-limit-words c)
+            (cl-cc/runtime::rt-oom-used-words c))))
+      :to-equal
+      '(100 1000 500)))
+  (it
+    "rt-signal-oom derives limit and used words from a heap"
     (let ((heap (cl-cc/runtime::make-rt-heap)))
       (handler-case (cl-cc/runtime::rt-signal-oom 8 :heap heap)
         (cl-cc/runtime::rt-oom-condition (c)
@@ -103,33 +109,58 @@
       (expect warned :to-be 3))))
 
 (describe "segmented native stack"
-  (it "maps 8KB and grows only when the downward stack pointer crosses its limit"
+  (it "maps a page-aligned segment and grows only when the downward stack pointer crosses its limit"
     (let ((cl-cc/runtime::*stack-segment-pool* nil))
-      (let* ((root (cl-cc/runtime::stack-segment-note-frame nil 8192))
-             (next (cl-cc/runtime::stack-segment-note-frame root 64)))
-        (expect (cl-cc/runtime::stack-segment-size root) :to-be 8192)
+      (let ((root (cl-cc/runtime::stack-segment-note-frame nil 8192)))
+        ;; The mmap region is rounded up to the host's native page size, which
+        ;; is 4KB on the x86_64-linux CI runner but 16KB on aarch64-darwin, so
+        ;; the expectation is derived rather than a magic number.
+        (expect (cl-cc/runtime::stack-segment-size root)
+                :to-be (cl-cc/runtime::rt-page-align 8192))
         (expect (> (cl-cc/runtime::stack-segment-base root) 0) :to-be-truthy)
-        (expect (cl-cc/runtime::stack-segment-prev next) :to-be root)
-        (expect (cl-cc/runtime::stack-segment-release-frame next 64) :to-be root)
-        (expect (cl-cc/runtime::stack-segment-used next) :to-be 0)
-        (expect (cl-cc/runtime::stack-segment-next next) :to-be-null))))
+        ;; One byte past ROOT's remaining capacity, so this frame overflows
+        ;; it and grows a new linked segment regardless of the host's native
+        ;; page size.
+        (let* ((overflow (1+ (- (cl-cc/runtime::stack-segment-size root)
+                                 (cl-cc/runtime::stack-segment-used root))))
+               (next (cl-cc/runtime::stack-segment-note-frame root overflow)))
+          (expect (cl-cc/runtime::stack-segment-prev next) :to-be root)
+          (expect (cl-cc/runtime::stack-segment-release-frame next overflow) :to-be root)
+          (expect (cl-cc/runtime::stack-segment-used next) :to-be 0)
+          (expect (cl-cc/runtime::stack-segment-next next) :to-be-null)))))
   (it "maps an oversize frame safely and resets pooled linkage"
     (let ((cl-cc/runtime::*stack-segment-pool* nil))
-      (let* ((root (cl-cc/runtime::stack-segment-note-frame nil 64))
-             (large (cl-cc/runtime::stack-segment-note-frame root 9000)))
-        (expect (>= (cl-cc/runtime::stack-segment-size large) 9000) :to-be-truthy)
-        (cl-cc/runtime::stack-segment-release-frame large 9000)
-        (let ((reused (cl-cc/runtime::stack-segment-note-frame root 64)))
-          (expect reused :to-be large)
-          (expect (cl-cc/runtime::stack-segment-prev reused) :to-be root)
-          (expect (cl-cc/runtime::stack-segment-next reused) :to-be-null)
-          (expect (cl-cc/runtime::stack-segment-used reused) :to-be 64)))))
+      (let* ((root (cl-cc/runtime::stack-segment-note-frame nil 64)))
+        ;; A request that FITS increments ROOT's own USED (ROOT is returned
+        ;; unchanged); only a request that OVERFLOWS grows a new segment.
+        ;; ROOT's USED never decreases once set, so filling it down to
+        ;; exactly 63 bytes free makes every 64-byte request below overflow
+        ;; it, regardless of the host's native page size.
+        (cl-cc/runtime::stack-segment-note-frame
+         root (- (cl-cc/runtime::stack-segment-size root)
+                 (cl-cc/runtime::stack-segment-used root) 63))
+        (let ((large (cl-cc/runtime::stack-segment-note-frame root 64)))
+          (expect (cl-cc/runtime::stack-segment-prev large) :to-be root)
+          (expect (>= (cl-cc/runtime::stack-segment-size large) 64) :to-be-truthy)
+          (cl-cc/runtime::stack-segment-release-frame large 64)
+          ;; ROOT still has only 63 bytes free, so this request overflows it
+          ;; again and reclaims LARGE from the pool instead of growing a
+          ;; fresh segment.
+          (let ((reused (cl-cc/runtime::stack-segment-note-frame root 64)))
+            (expect reused :to-be large)
+            (expect (cl-cc/runtime::stack-segment-prev reused) :to-be root)
+            (expect (cl-cc/runtime::stack-segment-next reused) :to-be-null)
+            (expect (cl-cc/runtime::stack-segment-used reused) :to-be 64))))))
   (it "snapshots metadata and restores independently owned chains"
     (let ((cl-cc/runtime::*stack-segment-pool* nil))
       (expect (cl-cc/runtime::stack-segment-snapshot nil) :to-equal nil)
       (expect (cl-cc/runtime::stack-segment-restore nil) :to-be-null)
       (let* ((root (cl-cc/runtime::stack-segment-note-frame nil 128))
-             (current (cl-cc/runtime::stack-segment-note-frame root 9000))
+             ;; One byte past ROOT's actual mapped capacity, so CURRENT is
+             ;; forced onto a second, distinct segment regardless of the
+             ;; host's native page size.
+             (oversize (1+ (cl-cc/runtime::stack-segment-size root)))
+             (current (cl-cc/runtime::stack-segment-note-frame root oversize))
              (snapshot (cl-cc/runtime::stack-segment-snapshot current))
              (first (cl-cc/runtime::stack-segment-restore snapshot))
              (second (cl-cc/runtime::stack-segment-restore snapshot)))
@@ -148,8 +179,7 @@
         (cl-cc/runtime::release-stack-segment-chain current))))
   (it "cleans a partially restored chain when snapshot validation fails"
     (let ((cl-cc/runtime::*stack-segment-pool* nil))
-      (assert-signals error
-        (cl-cc/runtime::stack-segment-restore '((8192 32) (16 17))))
+      (signals error (cl-cc/runtime::stack-segment-restore '((8192 32) (16 17))))
       (expect (length cl-cc/runtime::*stack-segment-pool*) :to-be 1)
       (let ((released (first cl-cc/runtime::*stack-segment-pool*)))
         (expect (cl-cc/runtime::stack-segment-prev released) :to-be-null)

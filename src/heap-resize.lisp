@@ -202,12 +202,6 @@ rather than a native address."
       (remhash handle *rt-native-allocations*)
       t)))
 
-(defun rt-gc-register-external-memory (bytes)
-  "Notify the GC that BYTES of external (non-GC-heap) memory is in use.
-   This increases GC pressure tracking, causing more frequent collections
-   when large amounts of external memory are held."
-  (incf *rt-total-native-bytes* bytes))
-
 ;;; ------------------------------------------------------------
 ;;; Container-Aware Heap Sizing (FR-423) — implemented above at line 48
 ;;; ------------------------------------------------------------

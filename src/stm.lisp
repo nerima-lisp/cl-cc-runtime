@@ -23,12 +23,12 @@
   (cache-hits 0 :type integer)
   (attempt 0 :type integer))
 
-(define-condition rt-stm-conflict (error)
+(define-condition rt-stm-conflict (rt-runtime-error)
   ((tvar :initarg :tvar :reader rt-stm-conflict-tvar))
   (:report (lambda (c s)
              (format s "STM conflict~@[ on TVar ~A~]" (rt-stm-conflict-tvar c)))))
 
-(define-condition rt-stm-retry (condition) ())
+(define-condition rt-stm-retry (rt-runtime-condition) ())
 
 (defvar *rt-stm-current-transaction* nil)
 (defvar *rt-stm-read-log* nil)
@@ -175,8 +175,6 @@
   (check-type tv rt-tvar)
   (rt-with-mutex ((rt-tvar-lock tv))
     (rt-tvar-version tv)))
-
-progn
 
 (defun rt-stm-current-effects ()
   "Return the effects recorded by the current transaction."

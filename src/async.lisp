@@ -36,17 +36,30 @@
   `(rt-async-submit (lambda () ,@body)))
 
 (defun rt-await* (future &key timeout)
-  "Await FUTURE, yielding the current green thread/fiber while possible."
-  (loop until (rt-future-done-p future)
-        do (progn
-             (when (and (boundp '*rt-current-fiber*)
-                        (symbol-value '*rt-current-fiber*)
-                        (fboundp 'rt-fiber-yield))
-               (rt-fiber-yield))
-             (when *rt-current-green-thread* (rt-yield))
-             (when *rt-global-scheduler* (rt-scheduler-run :once t))
-             (sleep 0.0005)))
-  (rt-future-await future :timeout timeout))
+  "Await FUTURE, yielding the current green thread/fiber while possible, and
+return its values once resolved. With TIMEOUT (seconds), give up once that
+much time has elapsed without a resolution. The polling loop below used to
+check only (RT-FUTURE-DONE-P FUTURE), ignoring TIMEOUT entirely -- it would
+spin forever no matter what was passed, since the deadline was checked only
+inside the final RT-FUTURE-AWAIT call below, unreachable until the loop
+already exited by FUTURE resolving on its own."
+  (let ((deadline (and timeout (+ (get-internal-real-time)
+                                  (round (* timeout internal-time-units-per-second))))))
+    (loop until (or (rt-future-done-p future)
+                    (and deadline (>= (get-internal-real-time) deadline)))
+          do (progn
+               (when (and (boundp '*rt-current-fiber*)
+                          (symbol-value '*rt-current-fiber*)
+                          (fboundp 'rt-fiber-yield))
+                 (rt-fiber-yield))
+               (when *rt-current-green-thread* (rt-yield))
+               (when *rt-global-scheduler* (rt-scheduler-run :once t))
+               (sleep 0.0005)))
+    (rt-future-await future
+                      :timeout (if deadline
+                                   (max 0.0 (/ (- deadline (get-internal-real-time))
+                                              (float internal-time-units-per-second)))
+                                   timeout))))
 
 (defmacro rt-await (future-form &key timeout)
   `(rt-await* ,future-form :timeout ,timeout))
@@ -64,11 +77,23 @@
 (defun %rt-await-form-p (form)
   (and (consp form) (eq (car form) 'rt-await)))
 
+(defun %rt-async-cps-expand-cond (clauses)
+  "Desugar a COND's CLAUSES into nested IF/PROGN, for RT-ASYNC-CPS-TRANSFORM.
+A clause with no body returns its own test, matching CL's COND — this is only
+exact when the test is side-effect-free, since the conservative transform
+below re-evaluates it rather than binding it once."
+  (if (endp clauses)
+      nil
+      (destructuring-bind (test &body body) (first clauses)
+        `(if ,test ,(if body `(progn ,@body) test)
+             ,(%rt-async-cps-expand-cond (rest clauses))))))
+
 (defun rt-async-cps-transform (form continuation)
   "Transform a small async expression FORM into continuation-passing style.
 This helper is intentionally conservative: it handles atoms, PROGN, LET, IF,
-and RT-AWAIT forms, and leaves other function calls in direct style after their
-arguments have been transformed by the compiler front-end."
+WHEN, UNLESS, COND, and RT-AWAIT forms, and leaves other function calls in
+direct style after their arguments have been transformed by the compiler
+front-end."
   (cond
     ((%rt-await-form-p form)
      `(rt-future-then ,(second form) ,continuation))
@@ -92,6 +117,14 @@ arguments have been transformed by the compiler front-end."
        `(if ,test
             ,(rt-async-cps-transform then continuation)
             ,(rt-async-cps-transform else continuation))))
+    ((eq (car form) 'when)
+     (destructuring-bind (test &body body) (cdr form)
+       (rt-async-cps-transform `(if ,test (progn ,@body)) continuation)))
+    ((eq (car form) 'unless)
+     (destructuring-bind (test &body body) (cdr form)
+       (rt-async-cps-transform `(if ,test nil (progn ,@body)) continuation)))
+    ((eq (car form) 'cond)
+     (rt-async-cps-transform (%rt-async-cps-expand-cond (cdr form)) continuation))
     ((eq (car form) 'let)
      (destructuring-bind (bindings &body body) (cdr form)
        `(let ,bindings

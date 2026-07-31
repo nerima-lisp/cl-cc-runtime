@@ -1,80 +1,6 @@
+;;;; gc-policy.lisp — GC pause/pacer policy, dynamic tenuring, and call-frame
+;;;; allocation. Object pinning for FFI is in gc-pinning.lisp.
 (in-package :cl-cc/runtime)
-
-(defun %rt-pinned-table (heap &key create)
-  (or (gethash heap *rt-pinned-objects*)
-      (when create
-        (setf (gethash heap *rt-pinned-objects*)
-              (make-hash-table :test #'eql)))))
-
-(defun %rt-normalize-pin-address (addr)
-  (if (and (integerp addr) (val-pointer-p addr))
-      (decode-pointer addr)
-      addr))
-
-(defun rt-object-pinned-p (heap addr)
-  "Return true when ADDR is pinned in HEAP.
-
-Pinned objects are relocation barriers for compaction; compaction must preserve
-their addresses and avoid sliding other objects through them."
-  (let ((table (%rt-pinned-table heap)))
-    (and table (gethash (%rt-normalize-pin-address addr) table))))
-
-;;; FR-212: Object Pinning — prevents GC from relocating pinned objects; essential for FFI safety
-(defun rt-pin-object (heap addr)
-  "Pin object address ADDR in HEAP and return the normalized address.
-
-Pinning prevents old-space compaction from moving the object.  Young pinned
-objects encountered by minor GC are forced into the promotion path so roots do
-not retain addresses in the inactive semi-space after a flip."
-  (check-type heap rt-heap)
-  (let ((normalized (%rt-normalize-pin-address addr)))
-    (unless (integerp normalized)
-      (error "cl-cc/runtime: cannot pin non-address value ~S" addr))
-    (setf (gethash normalized (%rt-pinned-table heap :create t)) t)
-    normalized))
-
-(defun rt-unpin-object (heap addr)
-  "Remove ADDR from HEAP's pin set and return the normalized address."
-  (check-type heap rt-heap)
-  (let ((normalized (%rt-normalize-pin-address addr))
-        (table (%rt-pinned-table heap)))
-    (when table
-      (remhash normalized table))
-    normalized))
-
-;;; FR-212: Object Pinning — prevents GC from relocating pinned objects; essential for FFI safety
-(defmacro with-pinned-objects (bindings &body body)
-  "Evaluate BODY with objects pinned for its dynamic extent.
-
-Each binding is either (VAR OBJ), using *RT-CURRENT-PINNING-HEAP*, or
-(VAR HEAP OBJ), using an explicit heap expression.  VAR receives OBJ's value.
-All pinned objects are unpinned by UNWIND-PROTECT.  Pinning documents a hard
-relocation barrier: compaction must not move pinned objects."
-  (let ((pins (gensym "PINS")))
-    (labels ((parse-binding (binding)
-               (destructuring-bind (var &rest rest) binding
-                 (ecase (length rest)
-                   (1 (values var '*rt-current-pinning-heap* (first rest)))
-                   (2 (values var (first rest) (second rest)))))))
-      (let ((lets nil)
-            (pin-forms nil))
-        (dolist (binding bindings)
-          (multiple-value-bind (var heap-form obj-form) (parse-binding binding)
-            (push `(,var ,obj-form) lets)
-            (push `(let ((heap ,heap-form))
-                     (unless heap
-                       (error "cl-cc/runtime: WITH-PINNED-OBJECTS requires a heap for ~S" ',var))
-                     (rt-pin-object heap ,var)
-                     (push (cons heap ,var) ,pins))
-                  pin-forms)))
-        `(let ,(nreverse lets)
-           (let ((,pins nil))
-             (unwind-protect
-                  (progn
-                    ,@(nreverse pin-forms)
-                    ,@body)
-               (dolist (pin ,pins)
-                 (rt-unpin-object (car pin) (cdr pin))))))))))
 
 (defun rt-gc-inhibit-p (heap)
   (rt-heap-gc-inhibit heap))
@@ -163,22 +89,6 @@ active policy."
   "Return true when the pacer should defer non-critical GC work."
   (and (plusp *gc-throughput-target*)
        (> (rt-gc-throughput-ratio heap) *gc-throughput-target*)))
-
-(defun rt-gc-size-collection-set (heap pause-budget-words)
-  "Estimate a bounded collection-set size for future mixed GC work.
-
-The estimate is capped by old-space allocation, fragmentation, and pacer state.
-When GC has already exceeded its throughput target, this returns 0 so callers
-can defer non-critical mixed collection work."
-  (check-type pause-budget-words integer)
-  (let* ((old-used (- (rt-heap-old-free heap) (rt-heap-old-base heap)))
-          (fragmented-words (loop for (size . nil) in (rt-heap-free-list-blocks heap) sum size))
-         (effective-budget (max 0 pause-budget-words)))
-    (if (rt-gc-defer-non-critical-work-p heap)
-        0
-        (min old-used
-             effective-budget
-             (max effective-budget fragmented-words)))))
 
 (defun %rt-gc-note-allocation-rate (heap)
   "Update HEAP's allocation-rate EMA in words per second."

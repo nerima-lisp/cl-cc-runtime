@@ -125,7 +125,11 @@ is available; unsupported platforms signal an explicit error."
   (rt-munmap (rt-xom-region-mmap region) (rt-xom-region-size region)))
 
 (defun rt-allocate-code-memory-xom-aware (size)
-  "Allocate code memory through the XOM path when enabled, otherwise use legacy mmap."
+  "Allocate code memory through the XOM path when *XOM-ENABLED* is true,
+otherwise through the standard non-execute-only RT-ALLOCATE-CODE-MEMORY path.
+Both are current, supported allocation modes -- XOM trades a slower,
+hardware-gated path for execute-only code pages; this is not a
+deprecated/legacy fallback."
   (if *xom-enabled*
       (rt-allocate-xom-code-memory size)
       (rt-allocate-code-memory size)))

@@ -11,7 +11,7 @@
   "Dynamic handler frame. HANDLERS is an alist of effect-name to function."
   (handlers nil))
 
-(define-condition rt-effect-condition (error)
+(define-condition rt-effect-condition (rt-runtime-error)
   ((effect :initarg :effect :reader rt-effect-condition-effect))
   (:report (lambda (condition stream)
               (format stream "Unhandled runtime effect: ~S"

@@ -26,11 +26,19 @@
 (defun rt-context-set-value (key val &optional (ctx *rt-current-context*))
   (when ctx (push (cons key val) (rt-context-values ctx)) val))
 (defun rt-context-spawn (thunk &key (priority :normal))
-  (let ((ctx (rt-context-copy)))
+  "Spawn THUNK as a green thread that inherits the current RT-CONTEXT and the
+current cl-log-kit structured-logging context/span id. RT-SPAWN's queued
+thunk runs from a different point on the call stack than this call, and a
+worker thread would not inherit either dynamic binding on its own -- that is
+the same cross-execution-boundary problem CAPTURE-LOG-CONTEXT documents for
+SB-THREAD:MAKE-THREAD, so this carries both forward together."
+  (let ((ctx (rt-context-copy))
+        (log-snapshot (capture-log-context)))
     (funcall (symbol-function 'rt-spawn)
              (lambda ()
                (let ((*rt-current-context* ctx))
-                 (funcall thunk)))
+                 (with-captured-log-context (log-snapshot)
+                   (funcall thunk))))
              :priority priority)))
 (defmacro rt-with-context-value ((key value) &body body)
   `(let ((*rt-current-context* (or (rt-context-copy) (make-rt-context))))

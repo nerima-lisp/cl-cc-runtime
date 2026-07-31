@@ -1,19 +1,21 @@
 ;;;; t/allocator-test.lisp — arena / object-pool / size-class allocators (src/allocator.lisp).
 (in-package :cl-cc-runtime/test)
 
-(describe "arena allocator (allocator.lisp)"
-  (it "a fresh arena has a zero cursor"
+(describe
+  "arena allocator (allocator.lisp)"
+  (it
+    "a fresh arena has a zero cursor"
     (let ((a (cl-cc/runtime::make-arena :size-hint 16)))
       (expect (cl-cc/runtime::rt-arena-cursor a) :to-be 0)))
-
-  (it "arena-alloc returns a block whose offset is the pre-alloc cursor"
+  (it
+    "arena-alloc returns a block whose offset is the pre-alloc cursor"
     (let ((a (cl-cc/runtime::make-arena :size-hint 64)))
       (let ((b (cl-cc/runtime::arena-alloc a 8)))
         (expect (cl-cc/runtime::rt-arena-block-offset b) :to-be 0)
         (expect (cl-cc/runtime::rt-arena-block-size b) :to-be 8)
         (expect (cl-cc/runtime::rt-arena-cursor a) :to-be 8))))
-
-  (it "sequential allocations bump the cursor and hand out contiguous offsets"
+  (it
+    "sequential allocations bump the cursor and hand out contiguous offsets"
     (let ((a (cl-cc/runtime::make-arena :size-hint 64)))
       (let ((b0 (cl-cc/runtime::arena-alloc a 4))
             (b1 (cl-cc/runtime::arena-alloc a 6))
@@ -22,34 +24,41 @@
         (expect (cl-cc/runtime::rt-arena-block-offset b1) :to-be 4)
         (expect (cl-cc/runtime::rt-arena-block-offset b2) :to-be 10)
         (expect (cl-cc/runtime::rt-arena-cursor a) :to-be 12))))
-
-  (it "arena-alloc grows the backing buffer when the request exceeds size-hint"
+  (it
+    "arena-alloc grows the backing buffer when the request exceeds size-hint"
     (let ((a (cl-cc/runtime::make-arena :size-hint 4)))
       (cl-cc/runtime::arena-alloc a 100)
       (expect (>= (length (cl-cc/runtime::rt-arena-buffer a)) 100) :to-be-truthy)
       (expect (cl-cc/runtime::rt-arena-cursor a) :to-be 100)))
-
-  (it "arena-reset rewinds the cursor to zero and reuses offsets"
+  (it
+    "arena-reset rewinds the cursor to zero and reuses offsets"
     (let ((a (cl-cc/runtime::make-arena :size-hint 32)))
       (cl-cc/runtime::arena-alloc a 10)
       (cl-cc/runtime::arena-reset a)
       (expect (cl-cc/runtime::rt-arena-cursor a) :to-be 0)
-      (expect (cl-cc/runtime::rt-arena-block-offset (cl-cc/runtime::arena-alloc a 3))
-              :to-be 0)))
-
-  (it "with-arena binds a usable arena for the dynamic extent of the body"
-    (cl-cc/runtime::with-arena (arena :size-hint 8)
+      (expect
+        (cl-cc/runtime::rt-arena-block-offset (cl-cc/runtime::arena-alloc a 3))
+        :to-be
+        0)))
+  (it
+    "with-arena binds a usable arena for the dynamic extent of the body"
+    (cl-cc/runtime::with-arena
+      (arena :size-hint 8)
       (expect (cl-cc/runtime::rt-arena-p arena) :to-be-truthy)
-      (expect (cl-cc/runtime::rt-arena-block-size (cl-cc/runtime::arena-alloc arena 5))
-              :to-be 5)))
-
-  (it-property "the cursor equals the running sum of every allocation size"
-      ((sizes (gen-list (gen-integer :min 1 :max 64) :max-length 30)))
+      (expect
+        (cl-cc/runtime::rt-arena-block-size (cl-cc/runtime::arena-alloc arena 5))
+        :to-be
+        5)))
+  (it-property
+    "the cursor equals the running sum of every allocation size"
+    ((sizes (gen-list (gen-integer :min 1 :max 64) :max-length 30)))
     (let ((a (cl-cc/runtime::make-arena :size-hint 8))
           (running 0))
       (dolist (s sizes)
-        (expect (cl-cc/runtime::rt-arena-block-offset (cl-cc/runtime::arena-alloc a s))
-                :to-be running)
+        (expect
+          (cl-cc/runtime::rt-arena-block-offset (cl-cc/runtime::arena-alloc a s))
+          :to-be
+          running)
         (incf running s))
       (expect (cl-cc/runtime::rt-arena-cursor a) :to-be running))))
 

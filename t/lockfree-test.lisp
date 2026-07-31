@@ -3,11 +3,13 @@
 
 (defun %drain-lfstack (s)
   (loop for res = (multiple-value-list (rt-lfstack-pop s))
-        while (second res) collect (first res)))
+        while (second res)
+        collect (first res)))
 
 (defun %drain-lfqueue (q)
   (loop for res = (multiple-value-list (rt-lfqueue-pop q))
-        while (second res) collect (first res)))
+        while (second res)
+        collect (first res)))
 
 (describe "lock-free stack"
   (it "starts empty and reports empty-p"
@@ -82,37 +84,39 @@
       (dolist (th threads) (sb-thread:join-thread th))
       (expect (length (%drain-lfqueue q)) :to-be (* nthreads per)))))
 
-(describe "lock-free hash map"
-  (it "get on a missing key returns the default and a nil flag"
+(describe
+  "lock-free hash map"
+  (it
+    "get on a missing key returns the default and a nil flag"
     (let ((m (rt-make-lfhash-map)))
       (multiple-value-bind (v found) (rt-lfhash-get m :missing :fallback)
         (expect v :to-be :fallback)
         (expect found :to-be-null))))
-
-  (it "put then get round-trips a value"
+  (it
+    "put then get round-trips a value"
     (let ((m (rt-make-lfhash-map)))
       (cl-cc/runtime::rt-lfhash-put m :k 99)
       (multiple-value-bind (v found) (rt-lfhash-get m :k)
         (expect v :to-be 99)
         (expect found :to-be-truthy))
       (expect (rt-lfhash-count m) :to-be 1)))
-
-  (it "put overwrites an existing key without growing the count"
+  (it
+    "put overwrites an existing key without growing the count"
     (let ((m (rt-make-lfhash-map)))
       (cl-cc/runtime::rt-lfhash-put m :k 1)
       (cl-cc/runtime::rt-lfhash-put m :k 2)
       (expect (rt-lfhash-get m :k) :to-be 2)
       (expect (rt-lfhash-count m) :to-be 1)))
-
-  (it "remove marks the key deleted and decrements the count"
+  (it
+    "remove marks the key deleted and decrements the count"
     (let ((m (rt-make-lfhash-map)))
       (cl-cc/runtime::rt-lfhash-put m :k 5)
       (expect (rt-lfhash-remove m :k) :to-be-truthy)
       (expect (nth-value 1 (rt-lfhash-get m :k)) :to-be-null)
       (expect (rt-lfhash-count m) :to-be 0)
       (expect (rt-lfhash-remove m :missing) :to-be-null)))
-
-  (it "cas inserts when absent-and-old-is-nil, updates on match, rejects mismatch"
+  (it
+    "cas inserts when absent-and-old-is-nil, updates on match, rejects mismatch"
     (let ((m (rt-make-lfhash-map)))
       (expect (rt-lfhash-cas m :k nil 10) :to-be-truthy)
       (expect (rt-lfhash-get m :k) :to-be 10)
@@ -120,19 +124,25 @@
       (expect (rt-lfhash-get m :k) :to-be 20)
       (expect (rt-lfhash-cas m :k 999 30) :to-be-null)
       (expect (rt-lfhash-get m :k) :to-be 20)))
-
-  (it-property "every distinct key put is retrievable and counted once"
-      ((pairs (gen-list (gen-tuple (gen-integer :min 0 :max 5000)
-                                   (gen-integer :min -1000 :max 1000))
-                        :max-length 30)))
-    (let ((m (rt-make-lfhash-map)) (ref (make-hash-table)))
+  (it-property
+    "every distinct key put is retrievable and counted once"
+    ((pairs
+        (gen-list
+          (gen-tuple (gen-integer :min 0 :max 5000) (gen-integer :min -1000 :max 1000))
+          :max-length
+          30)))
+    (let ((m (rt-make-lfhash-map))
+          (ref (make-hash-table)))
       (dolist (p pairs)
         (destructuring-bind (k v) p
           (cl-cc/runtime::rt-lfhash-put m k v)
           (setf (gethash k ref) v)))
-      (maphash (lambda (k v) (expect (rt-lfhash-get m k) :to-be v)) ref)
+      (maphash
+        (lambda (k v)
+          (expect (rt-lfhash-get m k) :to-be v))
+        ref)
       (expect (rt-lfhash-count m) :to-be (hash-table-count ref)))))
 
-(describe "lockfree init"
-  (it "rt-lockfree-init returns t"
-    (expect (rt-lockfree-init) :to-be-truthy)))
+(describe
+  "lockfree init"
+  (it "rt-lockfree-init returns t" (expect (rt-lockfree-init) :to-be-truthy)))

@@ -43,22 +43,12 @@
                         :element-type '(unsigned-byte 8)
                         :initial-element 0))))
 
-(defun rt-los-card-dirty-p (heap old-addr)
-  "Return true if OLD-ADDR's card contains an old->LOS pointer."
-  (not (zerop (aref (%rt-los-ensure-card-table heap)
-                    (rt-card-index heap old-addr)))))
-
 (defun rt-los-card-mark-dirty (heap old-addr)
   "Mark OLD-ADDR's card as containing an old->LOS pointer."
   (setf (aref (%rt-los-ensure-card-table heap)
               (rt-card-index heap old-addr))
         1)
   old-addr)
-
-(defun rt-los-card-clear-all (heap)
-  "Clear all old->LOS card marks for HEAP."
-  (fill (%rt-los-ensure-card-table heap) 0)
-  t)
 
 (defun rt-los-alloc (heap size-words)
   "Allocate SIZE-WORDS words in Large Object Space and return a stable address.
@@ -98,18 +88,3 @@ never moved by copying or compacting collectors."
       (rt-gc-profile-sample (* size-words 8))
       addr)))
 
-(defun rt-los-note-write (heap obj-addr new-val)
-  "Record an old->LOS pointer in the LOS card table when NEW-VAL targets LOS."
-  (when (and (integerp obj-addr)
-             (rt-old-addr-p heap obj-addr))
-    (let ((target (cond
-                    ((and (integerp new-val) (val-pointer-p new-val))
-                     (decode-pointer new-val))
-                    ((integerp new-val) new-val)
-                    (t nil))))
-      (when (and target (rt-large-obj-addr-p heap target))
-        (rt-los-card-mark-dirty heap obj-addr)))))
-
-(defun rt-los-allocation-descriptors (heap)
-  "Return LOS allocation descriptors for HEAP."
-  (copy-list (gethash heap *rt-los-allocations*)))

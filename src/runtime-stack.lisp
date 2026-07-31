@@ -7,7 +7,7 @@
 (defvar *rt-call-stack-depth* 0
   "Current logical runtime call depth for stack guard instrumentation.")
 
-(define-condition rt-stack-overflow (storage-condition)
+(define-condition rt-stack-overflow (storage-condition rt-runtime-error)
   ((depth :initarg :depth :reader rt-stack-overflow-depth)
    (limit :initarg :limit :reader rt-stack-overflow-limit))
   (:report (lambda (c s)
@@ -15,7 +15,7 @@
                      (rt-stack-overflow-depth c)
                      (rt-stack-overflow-limit c)))))
 
-(define-condition rt-oom-condition (storage-condition)
+(define-condition rt-oom-condition (storage-condition rt-runtime-error)
   ((requested-words :initarg :requested-words :reader rt-oom-requested-words)
    (limit-words :initarg :limit-words :reader rt-oom-limit-words)
    (used-words :initarg :used-words :reader rt-oom-used-words))
@@ -25,7 +25,7 @@
                      (rt-oom-used-words c)
                      (rt-oom-limit-words c)))))
 
-(define-condition rt-gc-pressure-warning (warning)
+(define-condition rt-gc-pressure-warning (warning rt-runtime-condition)
   ((heap :initarg :heap :reader rt-gc-pressure-warning-heap)
    (occupancy :initarg :occupancy :reader rt-gc-pressure-warning-occupancy)
    (threshold :initarg :threshold :reader rt-gc-pressure-warning-threshold))
@@ -180,10 +180,3 @@
                (t value))))
     (mapcar #'relocate frames)))
 
-(defun copying-stack-grow (frames current-size)
-  "Double stack size, copy FRAMES, and relocate frame-pointer-like values."
-  (let ((new-size (* 2 current-size)))
-    (when (> new-size *max-stack-size*)
-      (error 'rt-stack-overflow :depth new-size :limit *max-stack-size*))
-    (values (relocate-stack-pointers (copy-tree frames) 0 current-size)
-            new-size)))

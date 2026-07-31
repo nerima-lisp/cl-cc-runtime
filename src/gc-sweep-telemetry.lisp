@@ -83,89 +83,9 @@
   "Fraction of idle time to dedicate to background GC work (FR-439).
    Default 0.5 = 50% of idle time. Set to 0 to disable.")
 
-(defun rt-gc-maybe-periodic-collect (heap)
-  "Trigger a minor GC if the periodic interval has elapsed since the last one.
-    Call this from the main loop or from rt-gc-alloc periodically."
-  (when (and (plusp *gc-periodic-interval-ms*)
-             (not (rt-gc-defer-non-critical-work-p heap)))
-    (let* ((now (get-internal-real-time))
-           (elapsed-ms (* (/ (- now *gc-last-periodic-gc-time*)
-                              internal-time-units-per-second)
-                          1000)))
-      (when (>= elapsed-ms *gc-periodic-interval-ms*)
-        (setf *gc-last-periodic-gc-time* now)
-        (rt-gc-minor-collect heap)))))
-
-(defun rt-gc-idle-work (heap &key (budget 64))
-  "Perform background GC work during idle time (FR-439).
-   Processes up to BUDGET SATB queue entries and sweeps a portion
-   of old space if major GC is in concurrent mode.
-   Returns the number of work units completed."
-  (if (rt-gc-defer-non-critical-work-p heap)
-      0
-      (let ((work-done 0))
-        (when (eq (rt-heap-gc-state heap) :major-gc-concurrent)
-          (incf work-done (rt-gc-concurrent-assist heap :budget budget)))
-        work-done)))
-
 ;;; ------------------------------------------------------------
 ;;; FR-369: Prometheus Metrics Export
 ;;; ------------------------------------------------------------
-
-(defun rt-gc-prometheus-metrics (heap)
-  "Return a string containing GC metrics in Prometheus exposition format.
-
-Output lines follow the Prometheus text-based format:
-  # HELP <name> <description>
-  # TYPE <name> <type>
-  <name>{<label>=\"<value>\"} <value>
-
-Metrics exported:
-  gc_pause_seconds{type=\"minor\"}
-  gc_pause_seconds{type=\"major\"}
-  gc_collections_total{type=\"minor\"}
-  gc_collections_total{type=\"major\"}
-  heap_used_bytes
-  heap_available_bytes
-  gc_promoted_bytes"
-  (check-type heap rt-heap)
-  (let* ((stats (rt-gc-stats heap))
-         (minor-pause (/ (float (getf stats :gc-pause-total) 1.0d0) 2.0d0)) ; rough split
-         (major-pause (max 0.0d0 (- (getf stats :gc-pause-total) minor-pause)))
-         (young-used (- (rt-heap-young-free heap) (rt-heap-young-from-base heap)))
-         (old-used (- (rt-heap-old-free heap) (rt-heap-old-base heap)))
-         (large-used (- (rt-heap-large-obj-free heap) (rt-heap-large-obj-base heap)))
-         (total-used (* (+ young-used old-used large-used) 8))
-         (young-capacity (rt-heap-young-semi-size heap))
-         (old-capacity (rt-heap-old-size heap))
-         (large-capacity (rt-heap-large-obj-size heap))
-         (total-capacity (* (+ young-capacity old-capacity large-capacity) 8)))
-    (format nil "~{~a~%~}"
-            (list
-             "# HELP gc_pause_seconds Time spent in GC pauses (cumulative)"
-             "# TYPE gc_pause_seconds gauge"
-             (format nil "gc_pause_seconds{type=\"minor\"} ~,6f" minor-pause)
-             (format nil "gc_pause_seconds{type=\"major\"} ~,6f" major-pause)
-             ""
-             "# HELP gc_collections_total Total number of GC collections"
-             "# TYPE gc_collections_total counter"
-             (format nil "gc_collections_total{type=\"minor\"} ~D"
-                     (getf stats :minor-gc-count))
-             (format nil "gc_collections_total{type=\"major\"} ~D"
-                     (getf stats :major-gc-count))
-             ""
-             "# HELP heap_used_bytes Currently used heap memory in bytes"
-             "# TYPE heap_used_bytes gauge"
-             (format nil "heap_used_bytes ~D" total-used)
-             ""
-             "# HELP heap_available_bytes Total managed heap capacity in bytes"
-             "# TYPE heap_available_bytes gauge"
-             (format nil "heap_available_bytes ~D" total-capacity)
-             ""
-             "# HELP gc_promoted_bytes Bytes promoted from young to old generation"
-             "# TYPE gc_promoted_bytes counter"
-             (format nil "gc_promoted_bytes ~D"
-                     (* (getf stats :words-promoted) 8))))))
 
 ;;; ------------------------------------------------------------
 ;;; FR-367: DTrace/eBPF Tracing Stubs

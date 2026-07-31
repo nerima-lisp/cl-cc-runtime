@@ -3,17 +3,20 @@
 ;;;; test calls rt-hp-init first to reset the world.
 (in-package :cl-cc-runtime/test)
 
-(describe "hazard pointer registration and protection"
-  (it "protecting an object marks it protected across a scan"
+(describe
+  "hazard pointer registration and protection"
+  (it
+    "protecting an object marks it protected across a scan"
     (rt-hp-init)
     (rt-hp-register-thread 4)
-    (let ((a 101) (b 202))
+    (let ((a 101)
+          (b 202))
       (rt-hp-protect 0 a)
       (expect (rt-hp-scan (list a b)) :to-equal (list b))
       (expect (member a (rt-hp-all-protected)) :not :to-be nil))
     (rt-hp-unregister-thread))
-
-  (it "clearing a slot releases protection"
+  (it
+    "clearing a slot releases protection"
     (rt-hp-init)
     (rt-hp-register-thread 4)
     (let ((a 11))
@@ -22,36 +25,40 @@
       (rt-hp-clear 2)
       (expect (rt-hp-scan (list a)) :to-equal (list a)))
     (rt-hp-unregister-thread))
-
-  (it "clear-all releases every slot"
+  (it
+    "clear-all releases every slot"
     (rt-hp-init)
     (rt-hp-register-thread 4)
-    (rt-hp-protect 0 1) (rt-hp-protect 1 2) (rt-hp-protect 2 3)
+    (rt-hp-protect 0 1)
+    (rt-hp-protect 1 2)
+    (rt-hp-protect 2 3)
     (rt-hp-clear-all)
     (expect (rt-hp-all-protected) :to-equal '())
     (rt-hp-unregister-thread))
-
-  (it "protect on an unregistered thread is a no-op that returns the index"
+  (it
+    "protect on an unregistered thread is a no-op that returns the index"
     (rt-hp-init)
     (expect (rt-hp-protect 0 :x) :to-be 0)
     (expect (rt-hp-all-protected) :to-equal '()))
-
-  (it "an out-of-range slot index clamps to the last slot without error"
+  (it
+    "an out-of-range slot index clamps to the last slot without error"
     (rt-hp-init)
     (rt-hp-register-thread 2)
     (expect (rt-hp-protect 99 :clamped) :to-be 99)
     (expect (member :clamped (rt-hp-all-protected)) :not :to-be nil)
     (rt-hp-unregister-thread))
-
-  (it-property "scan returns exactly the unprotected candidates in order"
-      ((raw (gen-list (gen-integer :min 0 :max 300) :max-length 20))
-       (k (gen-integer :min 0 :max 20)))
+  (it-property
+    "scan returns exactly the unprotected candidates in order"
+    ((raw (gen-list (gen-integer :min 0 :max 300) :max-length 20))
+      (k (gen-integer :min 0 :max 20)))
     (rt-hp-init)
     (let* ((all (remove-duplicates raw))
            (kk (min k (length all)))
            (protected (subseq all 0 kk)))
       (rt-hp-register-thread (max 1 (length all)))
-      (loop for obj in protected for i from 0 do (rt-hp-protect i obj))
+      (loop for obj in protected
+            for i from 0
+            do (rt-hp-protect i obj))
       (expect (rt-hp-scan all) :to-equal (subseq all kk))
       (rt-hp-unregister-thread))))
 

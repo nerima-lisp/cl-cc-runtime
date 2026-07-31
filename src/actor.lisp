@@ -2,11 +2,16 @@
 (defstruct rt-actor
   (id (gensym "ACTOR-")) (name nil) (mailbox nil) (behavior nil)
   (task nil) (links nil) (monitors nil) (supervisor nil) (children nil)
-  (status :created) (m (rt-make-mutex)) (c (rt-make-condition-variable)))
+  (status :created) (m (rt-make-mutex)) (c (rt-make-condition-variable))
+  (mailbox-limit nil))
 (defstruct rt-supervisor (strategy :one-for-one) (children nil) (restarts 0))
 (defvar *rt-actor-registry* (make-hash-table :test #'equal))
-(defun rt-make-actor (behavior &key name supervisor)
-  (let ((a (make-rt-actor :behavior behavior :name name :supervisor supervisor)))
+(defun rt-make-actor (behavior &key name supervisor mailbox-limit)
+  "Create an actor running BEHAVIOR. With MAILBOX-LIMIT, RT-ACTOR-SEND blocks
+once the mailbox holds that many messages rather than growing it without
+bound; NIL (the default) preserves the original unbounded mailbox."
+  (let ((a (make-rt-actor :behavior behavior :name name :supervisor supervisor
+                          :mailbox-limit mailbox-limit)))
     (when name (setf (gethash name *rt-actor-registry*) a))
     (when supervisor (push a (rt-supervisor-children supervisor)))
     a))
@@ -15,16 +20,37 @@
   (setf (rt-actor-name actor) name
         (gethash name *rt-actor-registry*) actor))
 (defun rt-actor-unregister (name) (remhash name *rt-actor-registry*))
-(defun rt-actor-send (a msg)
-  (rt-with-mutex ((rt-actor-m a))
-    (push msg (rt-actor-mailbox a))
-    (rt-condition-notify (rt-actor-c a)))
+(defun rt-actor-send (a msg &key timeout)
+  "Send MSG to A's mailbox and return MSG. When A has a MAILBOX-LIMIT (see
+RT-MAKE-ACTOR) and the mailbox is already at that limit, blocks for room to
+free up -- bounded by TIMEOUT, returning NIL rather than growing the
+mailbox without bound when TIMEOUT elapses first with no room freed."
+  (rt-with-remaining-timeout (remaining timeout)
+    (rt-with-mutex ((rt-actor-m a) :timeout timeout)
+      (let ((limit (rt-actor-mailbox-limit a)))
+        (loop while (and limit (>= (length (rt-actor-mailbox a)) limit))
+              do (let ((r (remaining)))
+                   (when (and timeout (<= r 0)) (return-from rt-actor-send nil))
+                   (unless (rt-condition-wait (rt-actor-c a) (rt-actor-m a) :timeout r)
+                     (return-from rt-actor-send nil)))))
+      (push msg (rt-actor-mailbox a))
+      (rt-condition-notify-all (rt-actor-c a))))
   msg)
 (defun rt-actor-receive (a &key timeout)
-  (rt-with-mutex ((rt-actor-m a) :timeout timeout)
-    (loop until (or (eq (rt-actor-status a) :stopped) (rt-actor-mailbox a))
-          do (rt-condition-wait (rt-actor-c a) (rt-actor-m a) :timeout timeout))
-    (when (rt-actor-mailbox a) (pop (rt-actor-mailbox a)))))
+  "Pop and return the next message from A's mailbox, blocking until one
+arrives or A stops. With TIMEOUT and nothing received in time, returns NIL."
+  (rt-with-remaining-timeout (remaining timeout)
+    (rt-with-mutex ((rt-actor-m a) :timeout timeout)
+      (loop until (or (eq (rt-actor-status a) :stopped) (rt-actor-mailbox a))
+            do (let ((r (remaining)))
+                 (when (and timeout (<= r 0)) (return-from rt-actor-receive nil))
+                 (unless (rt-condition-wait (rt-actor-c a) (rt-actor-m a) :timeout r)
+                   (return-from rt-actor-receive nil))))
+      (when (rt-actor-mailbox a)
+        (prog1 (pop (rt-actor-mailbox a))
+          ;; Wakes a sender blocked on MAILBOX-LIMIT room as well as any
+          ;; other receiver, since both wait on this same condition variable.
+          (rt-condition-notify-all (rt-actor-c a)))))))
 (defun rt-actor-link (a b) (pushnew b (rt-actor-links a)) (pushnew a (rt-actor-links b)) b)
 (defun rt-actor-monitor (watcher target) (pushnew watcher (rt-actor-monitors target)) target)
 (defun rt-make-supervisor (&key (strategy :one-for-one)) (make-rt-supervisor :strategy strategy))

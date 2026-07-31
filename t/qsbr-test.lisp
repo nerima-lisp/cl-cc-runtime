@@ -1,16 +1,18 @@
 ;;;; t/qsbr-test.lisp — quiescent-state-based reclamation (src/qsbr.lisp).
 (in-package :cl-cc-runtime/test)
 
-(describe "qsbr thread tracking"
-  (it "register / unregister adjusts the thread count"
+(describe
+  "qsbr thread tracking"
+  (it
+    "register / unregister adjusts the thread count"
     (rt-qsbr-init)
     (expect (rt-qsbr-thread-count) :to-be 0)
     (rt-qsbr-register-thread)
     (expect (rt-qsbr-thread-count) :to-be 1)
     (rt-qsbr-unregister-thread)
     (expect (rt-qsbr-thread-count) :to-be 0))
-
-  (it "quiescent keeps a registered thread tracked"
+  (it
+    "quiescent keeps a registered thread tracked"
     (rt-qsbr-init)
     (rt-qsbr-register-thread)
     (rt-qsbr-quiescent)

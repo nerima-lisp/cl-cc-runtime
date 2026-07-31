@@ -24,9 +24,20 @@
   `(unwind-protect (progn (rt-rcu-read-lock) ,@body)
      (rt-rcu-read-unlock)))
 (defun rt-rcu-synchronize (&key timeout)
-  (rt-with-mutex (*rt-rcu-mutex* :timeout timeout)
-    (loop while (> (hash-table-count *rt-rcu-readers*) 0)
-          do (rt-condition-wait *rt-rcu-cond* *rt-rcu-mutex* :timeout timeout)))
+  "Block until every RCU reader active when this was called has exited its
+read-side critical section (RT-RCU-READ-UNLOCK), so memory
+RT-RCU-ASSIGN-POINTER made unreachable is then safe to reclaim. With
+TIMEOUT and readers still active once it elapses, returns NIL rather than
+blocking forever. The wait loop used to re-pass the original TIMEOUT to
+every RT-CONDITION-WAIT instead of a shrinking remaining duration -- see
+RT-BARRIER-WAIT's docstring in sync.lisp for why that matters."
+  (rt-with-remaining-timeout (remaining timeout)
+    (rt-with-mutex (*rt-rcu-mutex* :timeout timeout)
+      (loop while (> (hash-table-count *rt-rcu-readers*) 0)
+            do (let ((r (remaining)))
+                 (when (and timeout (<= r 0)) (return-from rt-rcu-synchronize nil))
+                 (unless (rt-condition-wait *rt-rcu-cond* *rt-rcu-mutex* :timeout r)
+                   (return-from rt-rcu-synchronize nil))))))
   t)
 (defun rt-rcu-call (fn &rest args)
   (rt-rcu-synchronize)

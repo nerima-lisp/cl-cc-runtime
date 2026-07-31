@@ -6,6 +6,16 @@
     # release tests pass, so it is less likely to land a broken build.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+    # The org's shared Nix/ASDF-derivation library. One `mkPackageFlake` call
+    # below generates this repository's whole packages/checks/apps/devShells/
+    # formatter/overlays output table, so it cannot drift from the other 20
+    # repositories the way the ~320-line hand-rolled version of this file
+    # used to.
+    cl-nix-forge = {
+      url = "github:nerima-lisp/cl-nix-forge/v0.4.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Every sibling is pinned to a release tag. A bare
     # `github:nerima-lisp/cl-log-kit` follows that repository's default branch,
     # so an upstream push to main would break this repository's CI without
@@ -13,50 +23,41 @@
     #
     # `inputs.nixpkgs.follows` is on every input: without it each one locks its
     # own nixpkgs, which inflates flake.lock and rebuilds SBCL once per copy.
+    # `inputs.cl-nix-forge.follows` is on every sibling that itself takes a
+    # cl-nix-forge input: without it, two different cl-nix-forge revisions'
+    # `ancestry` shapes can disagree and the dependency walk in
+    # `lib/core/dedup.nix` fails with "attribute 'ancestry' missing" trying to
+    # merge a subtree built by the other one.
     #
-    # cl-cc-runtime sits at depth 3, the deepest point in the org, so the
-    # sibling flakes below also depend on each other. Each shared input is
-    # redirected at this level too. Without those extra `follows` the lock
-    # carries 75 nodes -- four different cl-weave revisions, four paredit-cli
-    # revisions and eleven copies of rust-overlay -- for a library that has
-    # three dependencies. The rule is the same one nixpkgs.follows encodes:
-    # one version of a thing per lock file.
+    # cl-boundary-kit is NOT listed here even though cl-process-kit's own
+    # `.asd` depends on it: cl-process-kit's own package output already
+    # carries its build of cl-boundary-kit in its dependency closure
+    # (`ancestry`), and `lispDerivation`'s registry walk is transitive, so
+    # listing cl-process-kit as a `lispDependencies` entry below is
+    # sufficient -- see cl-process-kit's own flake.nix, where cl-boundary-kit
+    # is built once and threaded through, never re-derived by a downstream
+    # consumer.
     cl-weave = {
-      url = "github:nerima-lisp/cl-weave/v1.0.0";
+      url = "github:nerima-lisp/cl-weave/v1.1.0";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs.cl-nix-forge.follows = "cl-nix-forge";
     };
     cl-log-kit = {
-      url = "github:nerima-lisp/cl-log-kit/v1.0.0";
+      url = "github:nerima-lisp/cl-log-kit/v2.0.0";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.cl-json-kit.follows = "cl-json-kit";
-      inputs.cl-process-kit.follows = "cl-process-kit";
-      inputs.cl-weave.follows = "cl-weave";
-      inputs.paredit-cli.follows = "cl-weave/paredit-cli";
+      inputs.cl-nix-forge.follows = "cl-nix-forge";
     };
     cl-json-kit = {
-      url = "github:nerima-lisp/cl-json-kit/v1.0.0";
+      url = "github:nerima-lisp/cl-json-kit/v1.0.1";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.cl-weave.follows = "cl-weave";
-      inputs.treefmt-nix.follows = "treefmt-nix";
-    };
-    # Not a direct dependency of cl-cc-runtime: cl-process-kit's own .asd
-    # declares it, so ASDF cannot resolve "cl-process-kit" unless
-    # cl-boundary-kit is on the source registry too. v0.6.0 is what
-    # cl-process-kit v1.0.0 itself pins, so the two agree.
-    cl-boundary-kit = {
-      url = "github:nerima-lisp/cl-boundary-kit/v0.6.0";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.cl-json-kit.follows = "cl-json-kit";
-      inputs.cl-log-kit.follows = "cl-log-kit";
-      inputs.cl-process-kit.follows = "cl-process-kit";
-      inputs.cl-weave.follows = "cl-weave";
+      # No `cl-nix-forge.follows`: this tag predates cl-json-kit's own
+      # migration to mkPackageFlake, so its flake.nix declares no
+      # cl-nix-forge input of its own to redirect.
     };
     cl-process-kit = {
-      url = "github:nerima-lisp/cl-process-kit/v1.0.1";
+      url = "github:nerima-lisp/cl-process-kit/v2.0.0";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.cl-boundary-kit.follows = "cl-boundary-kit";
-      inputs.cl-log-kit.follows = "cl-log-kit";
-      inputs.cl-weave.follows = "cl-weave";
+      inputs.cl-nix-forge.follows = "cl-nix-forge";
     };
 
     treefmt-nix = {
@@ -66,16 +67,15 @@
   };
 
   outputs =
-    inputs@{
+    {
       self,
       nixpkgs,
+      cl-nix-forge,
       cl-weave,
       cl-log-kit,
       cl-json-kit,
-      cl-boundary-kit,
       cl-process-kit,
       treefmt-nix,
-      ...
     }:
     let
       # Only the two platforms that are actually verified are declared.
@@ -88,232 +88,114 @@
         "x86_64-linux"
         "aarch64-darwin"
       ];
-      forAllSystems = nixpkgs.lib.genAttrs systems;
+    in
+    # `mkPackageFlake` spans systems -- it obtains a `pkgs` and its own
+    # cl-nix-forge instance per entry in `systems` -- so the per-system `lib`
+    # this function is taken from contributes nothing but the function itself.
+    cl-nix-forge.lib.${builtins.head systems}.mkPackageFlake {
+      inherit self systems nixpkgs;
 
-      # One variable instead of the five CL_CC_RUNTIME_<NAME>_ROOT variables
-      # this flake used to export: run-tests.lisp registers the checkout and
-      # inherits the rest from here, so a new dependency is one entry, not two.
-      sourceRegistry = "${cl-boundary-kit}//:${cl-json-kit}//:${cl-log-kit}//:${cl-process-kit}//:${cl-weave}//:${self}//";
-
-      # Reads the first `:version` form out of an ASDF system definition. Nix
-      # regexes are anchored to the whole string and `.` never spans newlines,
-      # so the file is split into lines and matched line by line rather than
-      # with one multi-line match. The anchoring is also what stops a
-      # `:depends-on ((:version "asdf" "3.3.1"))` line from being read as the
-      # system's own version: such a line does not match end to end.
-      asdVersion =
-        asd:
-        let
-          lines = nixpkgs.lib.splitString "\n" (builtins.readFile asd);
-          versionLine = builtins.head (
-            builtins.filter (line: builtins.match "[[:space:]]*:version \"[^\"]*\"" line != null) lines
-          );
-        in
-        builtins.head (builtins.match "[[:space:]]*:version \"([^\"]*)\"" versionLine);
+      pname = "cl-cc-runtime";
 
       # Single source of truth for the version: the `:version` form in
       # cl-cc-runtime.asd. A release edits that one line and the packages, the
-      # docs site and release.yml's tag check all follow. This flake used to
-      # hardcode "0.1.0" as well, which is how cl-cc ended up carrying three
-      # version numbers that disagreed with each other.
-      version = asdVersion ./cl-cc-runtime.asd;
+      # docs site and release.yml's tag check all follow. There is
+      # deliberately no `version` argument to pass.
+      asd = ./cl-cc-runtime.asd;
 
-      # Sibling versions are read out of each pinned source's own .asd for the
-      # same reason: a copy of the number in this file goes stale silently.
-      clBoundaryKitVersion = asdVersion "${cl-boundary-kit}/cl-boundary-kit.asd";
-      clJsonKitVersion = asdVersion "${cl-json-kit}/cl-json-kit.asd";
-      clLogKitVersion = asdVersion "${cl-log-kit}/cl-log-kit.asd";
-      clProcessKitVersion = asdVersion "${cl-process-kit}/cl-process-kit.asd";
+      # Spelled out rather than left to the documented default of `self`,
+      # because that default does not evaluate: a flake's `self` is an
+      # attrset carrying an `outPath`, and `lib.fileset` refuses a
+      # string-like value for its root. `./.` is the same directory as a
+      # path literal.
+      root = ./.;
 
-      # treefmt drives `nix fmt` and the `checks.<system>.formatting` gate.
-      # Scope is Nix only: nixfmt is a low-diff, zero-footgun formatter,
-      # whereas a YAML formatter mangles the GitHub Actions `on:` key and
-      # reformatting Markdown would churn the whole docs tree.
-      treefmtEval = forAllSystems (
-        system:
-        treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} {
-          projectRootFile = "flake.nix";
-          programs.nixfmt.enable = true;
-        }
-      );
+      meta = {
+        description = "cl-cc runtime library: rt-* primitives, GC, heap, frame, value codec, and concurrency";
+        homepage = "https://github.com/nerima-lisp/cl-cc-runtime";
+        license = nixpkgs.lib.licenses.mit;
+        platforms = nixpkgs.lib.platforms.unix;
+      };
+
+      # Real runtime dependencies (see cl-cc-runtime.asd's `:depends-on`):
+      # each sibling's own flake builds its ASDF system, so this is an
+      # ordinary `lispDependencies` entry rather than a hand-rolled registry
+      # string.
+      #
+      # cl-log-kit v2.0.0 and cl-process-kit v2.0.0 already build themselves
+      # with cl-nix-forge (`mkPackageFlake` and `lispDerivation` respectively),
+      # so their package outputs carry cl-nix-forge's own dependency-ancestry
+      # metadata as-is. cl-json-kit v1.0.1 still predates its own migration,
+      # so it needs `fromDerivation` leaf-wrapping until a `mkPackageFlake`
+      # release is tagged upstream -- without it, `dedup.nix` cannot merge its
+      # ancestry-less output into this package's own dependency tree; drop
+      # the wrapping once a migrated cl-json-kit release is tagged.
+      #
+      # cl-process-kit v2.0.0 itself still pins cl-boundary-kit at v1.0.0 and
+      # cl-log-kit at v1.0.0 as ITS OWN inputs (see its flake.nix) -- that
+      # choice is baked into its released package output and this flake
+      # cannot override it. That means the resolved CL_SOURCE_REGISTRY below
+      # carries two different cl-log-kit source trees: this flake's own
+      # direct v2.0.0 pin, and the v1.0.0 copy embedded in cl-process-kit's
+      # closure. `lib/core/dedup.nix` only collapses dependencies that share
+      # a source-tree identity, so the two do NOT merge, and ASDF resolves
+      # the duplicate system name by registry order -- which this preset
+      # builds from Nix attrset iteration and is therefore not something a
+      # flake author controls. This is safe here specifically because
+      # cl-log-kit v2.0.0's changelog states no exported symbol from v1.0.0
+      # was removed, cl-cc-runtime's own `:import-from` list (verified
+      # against v2.0.0's `package.lisp`) only names symbols present in both,
+      # and cl-cc-runtime does not call `rotating-file-handler`, the one
+      # symbol whose behaviour changed. Whichever copy ASDF picks, the build
+      # and test suite are unaffected. Revisit if cl-process-kit ever bumps
+      # its own cl-log-kit pin, at which point this whole paragraph -- and
+      # the duplicate -- disappears.
+      lispDependencies = ctx: [
+        cl-log-kit.packages.${ctx.system}.cl-log-kit
+        cl-process-kit.packages.${ctx.system}.cl-process-kit
+        (ctx.cl.fromDerivation { drv = cl-json-kit.packages.${ctx.system}.cl-json-kit; })
+      ];
+
+      # cl-weave is a dependency of cl-cc-runtime/test and of nothing else
+      # (see cl-cc-runtime.asd), so it is a CHECK dependency: it must not
+      # enter the library's own closure or the overlay's `pkgs.cl-cc-runtime`.
+      # cl-weave v1.1.0 already builds itself with `mkPackageFlake`, so its
+      # package output carries cl-nix-forge's ancestry metadata as-is and
+      # needs no `fromDerivation` wrapping.
+      lispCheckDependencies = ctx: [
+        cl-weave.packages.${ctx.system}.cl-weave
+      ];
+
+      # Drives BOTH `checks.default` and `apps.test`, from this one number, so
+      # the command a contributor runs by hand and the gate CI runs cannot
+      # drift apart. 600s, not the preset's own 600s default left implicit:
+      # spelled out because it is a deliberate choice, not an accident of the
+      # default -- this suite starts real threads for the lock-free, STM,
+      # scheduler and consensus tests, so it is not a pure-library suite and a
+      # shorter budget would make CI flaky under load.
+      timeoutSeconds = 600;
 
       # The site is built from the repository root rather than from docs/,
       # because docs/src/changelog.md pulls in the root CHANGELOG.md through a
       # pymdownx.snippets include whose base_path is ".".
-      mkDocs =
-        pkgs:
-        pkgs.stdenvNoCC.mkDerivation {
-          pname = "cl-cc-runtime-docs";
-          inherit version;
-          src = pkgs.lib.fileset.toSource {
-            root = ./.;
-            fileset = pkgs.lib.fileset.unions [
-              ./docs/mkdocs.yml
-              ./docs/src
-              ./CHANGELOG.md
-            ];
-          };
-          nativeBuildInputs = [ pkgs.python3Packages.mkdocs-material ];
-          # Builds fully offline: Material for MkDocs bundles its own assets,
-          # so no network access is needed inside the Nix sandbox. --strict
-          # promotes broken links and unlisted pages to build failures.
-          buildPhase = ''
-            runHook preBuild
-            mkdocs build --strict --config-file docs/mkdocs.yml --site-dir "$out"
-            runHook postBuild
-          '';
-          dontInstall = true;
-          meta = {
-            description = "Rendered MkDocs (Material) documentation for cl-cc-runtime";
-            homepage = "https://github.com/nerima-lisp/cl-cc-runtime";
-            license = pkgs.lib.licenses.mit;
-          };
-        };
-    in
-    {
-      packages = forAllSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
+      docs = {
+        root = ./.;
+        fileset = nixpkgs.lib.fileset.unions [
+          ./docs/mkdocs.yml
+          ./docs/src
+          ./CHANGELOG.md
+        ];
+        mkdocsYmlName = "docs/mkdocs.yml";
+      };
 
-          # The siblings are rebuilt here from their pinned sources rather than
-          # taken from each repository's own `packages.default`: that would tie
-          # this build to their flake outputs instead of to their .asd files,
-          # and nothing in nixpkgs packages them.
-          clLogKit = pkgs.sbcl.buildASDFSystem {
-            pname = "cl-log-kit";
-            version = clLogKitVersion;
-            src = cl-log-kit;
-            systems = [ "cl-log-kit" ];
-          };
-          clJsonKit = pkgs.sbcl.buildASDFSystem {
-            pname = "cl-json-kit";
-            version = clJsonKitVersion;
-            src = cl-json-kit;
-            systems = [ "cl-json-kit" ];
-          };
-          clBoundaryKit = pkgs.sbcl.buildASDFSystem {
-            pname = "cl-boundary-kit";
-            version = clBoundaryKitVersion;
-            src = cl-boundary-kit;
-            systems = [ "cl-boundary-kit" ];
-            lispLibs = [ clLogKit ];
-          };
-          clProcessKit = pkgs.sbcl.buildASDFSystem {
-            pname = "cl-process-kit";
-            version = clProcessKitVersion;
-            src = cl-process-kit;
-            systems = [ "cl-process-kit" ];
-            lispLibs = [
-              clBoundaryKit
-              clLogKit
-            ];
-          };
-        in
-        rec {
-          cl-cc-runtime = pkgs.sbcl.buildASDFSystem {
-            pname = "cl-cc-runtime";
-            inherit version;
-            src = self;
-            systems = [ "cl-cc-runtime" ];
-            lispLibs = [
-              clJsonKit
-              clLogKit
-              clProcessKit
-            ];
-          };
-          default = cl-cc-runtime;
-
-          docs = mkDocs pkgs;
-        }
-      );
-
-      # `nix fmt` entry point.
-      formatter = forAllSystems (system: treefmtEval.${system}.config.build.wrapper);
-
-      # Granularity lives here, NOT in extra GitHub Actions jobs: `nix flake
-      # check` evaluates each attribute as its own derivation, in parallel,
-      # with build caching. Add a check here rather than a job in ci.yml.
-      checks = forAllSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-        in
-        {
-          # Compiles the whole system on the way to running the suite, so this
-          # subsumes the compile-only derivation that used to be
-          # `packages.default`. The timeout is 600s rather than the 120s the
-          # org template uses: the suite starts real threads for the lock-free,
-          # STM, scheduler and consensus tests, so it is not a pure-library
-          # suite and a 120s budget would make CI flaky under load.
-          default =
-            pkgs.runCommand "cl-cc-runtime-tests"
-              {
-                nativeBuildInputs = [
-                  pkgs.sbcl
-                  pkgs.coreutils
-                ];
-                CL_SOURCE_REGISTRY = sourceRegistry;
-              }
-              ''
-                export HOME="$TMPDIR/home"
-                mkdir -p "$HOME" "$out"
-                timeout 600 sbcl --script ${self}/run-tests.lisp
-                touch "$out/passed"
-              '';
-
-          # Fails `nix flake check` when any tracked Nix file is unformatted,
-          # turning the formatter into an enforced gate rather than a habit.
-          formatting = treefmtEval.${system}.config.build.check self;
-
-          # packages.docs runs `mkdocs build --strict`, so a broken link or a
-          # page missing from the nav fails here. Without this check the site
-          # is only ever built by docs.yml, which runs after a merge to main --
-          # so a break would surface as a failed deploy rather than as a failed
-          # pull request.
-          docs = self.packages.${system}.docs;
-        }
-      );
-
-      apps = forAllSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-          test = pkgs.writeShellApplication {
-            name = "cl-cc-runtime-test";
-            runtimeInputs = [
-              pkgs.sbcl
-              pkgs.coreutils
-            ];
-            text = ''
-              export CL_SOURCE_REGISTRY="${sourceRegistry}"
-              exec timeout 600 sbcl --script ${self}/run-tests.lisp
-            '';
-          };
-        in
-        {
-          default = {
-            type = "app";
-            program = "${test}/bin/cl-cc-runtime-test";
-          };
-          test = {
-            type = "app";
-            program = "${test}/bin/cl-cc-runtime-test";
-          };
-        }
-      );
-
-      devShells = forAllSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-        in
-        {
-          default = pkgs.mkShell {
-            packages = [ pkgs.sbcl ];
-            CL_SOURCE_REGISTRY = sourceRegistry;
-          };
-        }
-      );
+      # ONE treefmt evaluation drives both `nix fmt` and the
+      # `checks.formatting` gate, so the formatter and CI cannot disagree
+      # about what "formatted" means. `evalModule` is passed in rather than
+      # closed over so this repository picks its own treefmt-nix version.
+      # Scope stays the preset's default of Nix only: nixfmt is a low-diff,
+      # zero-footgun formatter, whereas a YAML formatter mangles the GitHub
+      # Actions `on:` key and reformatting Markdown would churn the whole
+      # docs tree.
+      treefmt.evalModule = treefmt-nix.lib.evalModule;
     };
 }

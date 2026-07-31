@@ -209,21 +209,3 @@ to old-space bump allocation without scanning larger bins.  Returns
            (addr (pop (rt-slab-free-list slab))))
       addr)))
 
-(defun rt-slab-free (heap size-class addr)
-  "Return ADDR to SIZE-CLASS slab free list and clear its words."
-  (check-type heap rt-heap)
-  (check-type addr integer)
-  (let* ((class-size (or (cdr (assoc size-class *rt-slab-size-classes*))
-                         (and (integerp size-class) size-class)))
-         (slab (find-if (lambda (s)
-                          (and (= (rt-slab-class-size s) class-size)
-                               (<= (rt-slab-slab-base s) addr)
-                               (< addr (rt-slab-slab-limit s))))
-                        (gethash size-class (rt-heap-slab-pools heap)))))
-    (unless slab
-      (error "cl-cc/runtime: address ~D is not in slab class ~S" addr size-class))
-    (loop for i from addr below (+ addr class-size) do
-      (rt-heap-set heap i 0))
-    (rt-heap-set-header heap addr (make-rt-header class-size 0 :gc-bits 0))
-    (pushnew addr (rt-slab-free-list slab) :test #'eql)
-    addr))

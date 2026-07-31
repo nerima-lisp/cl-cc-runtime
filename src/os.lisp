@@ -110,16 +110,39 @@ CL-PROCESS-KIT:PROCESS-HANDLE used for portable process management."
     (close stream)
     t))
 
-(defun rt-getenv (name) (sb-ext:posix-getenv name))
+(defun %rt-environment-variable-name-p (name)
+  "True when NAME is a syntactically valid POSIX environment variable name: a
+non-empty string containing neither `=' nor NUL, the two characters that
+corrupt the process environment block if passed through to
+setenv(3)/unsetenv(3). POSIX's environ(7) name grammar is a fixed spec, so
+this check is duplicated from cl-host-kit's
+HOST-KIT::%ENVIRONMENT-VARIABLE-NAME-P rather than taken as a dependency, per
+DEPENDENCY_POLICY.md's rule to prefer a small duplication over a new org
+dependency when the spec being duplicated will not change."
+  (and (stringp name)
+       (plusp (length name))
+       (not (find #\= name))
+       (not (find #\Null name))))
+
+(defun %rt-check-environment-variable-name (name)
+  (unless (%rt-environment-variable-name-p name)
+    (error "invalid environment variable name: ~S" name))
+  name)
+
+(defun rt-getenv (name)
+  (%rt-check-environment-variable-name name)
+  (sb-ext:posix-getenv name))
 (defun %rt-sb-posix-call (name &rest args)
   (let ((symbol (find-symbol (string name) :sb-posix)))
     (when (and symbol (fboundp symbol))
       (apply (symbol-function symbol) args))))
 
 (defun rt-setenv (name value &key overwrite)
+  (%rt-check-environment-variable-name name)
   (%rt-sb-posix-call :setenv name value (if overwrite 1 0)))
 
 (defun rt-unsetenv (name)
+  (%rt-check-environment-variable-name name)
   (%rt-sb-posix-call :unsetenv name))
 (defun rt-argv () (or *rt-saved-argv* sb-ext:*posix-argv*))
 (defun rt-exit (&optional (code 0)) (sb-ext:exit :code code))

@@ -61,10 +61,6 @@ FRAMES.  The descriptor is returned and retained in *GC-THREADS*."
     (setf (rt-heap-gc-pending heap) t))
   reason)
 
-(defun rt-gc-preemption-request (&optional (pending t))
-  "Set cooperative preemption request state observed by safepoints."
-  (setf *rt-preemption-pending* pending))
-
 (defun rt-gc-safepoint-check (heap &key (kind :poll) (thread-id *rt-current-thread-id*))
   "Poll a GC/preemption safepoint.
 
@@ -135,20 +131,6 @@ Input is an alist of (absolute-offset . kind).  Output is an alist of
                "records and calls RT-GC-REGISTER-STACKMAP before code "
                "execution."))
 
-(defmacro with-gc-function-entry-safepoint
-    ((heap &optional (thread-id '*rt-current-thread-id*)) &body body)
-  "Run BODY after polling a function-entry safepoint."
-  `(progn
-     (rt-gc-safepoint-check ,heap :kind :function-entry :thread-id ,thread-id)
-     ,@body))
-
-(defmacro with-gc-loop-backedge-safepoint
-    ((heap &optional (thread-id '*rt-current-thread-id*)) &body body)
-  "Run BODY after polling a loop-back-edge safepoint."
-  `(progn
-     (rt-gc-safepoint-check ,heap :kind :loop-back-edge :thread-id ,thread-id)
-     ,@body))
-
 (defun %rt-gc-thread-id (thread-state)
   "Return the logical thread id for THREAD-STATE."
   (cond
@@ -176,26 +158,6 @@ Input is an alist of (absolute-offset . kind).  Output is an alist of
   "Return THREAD-ID's current safe-region nesting depth."
   (gethash thread-id *rt-gc-safe-region-depths* 0))
 
-(defun rt-gc-all-threads-safe-p ()
-  "Return true when every registered runtime thread is in a safe region.
-
-An empty thread list is treated as safe.  The default runtime registers :MAIN in
-*GC-THREADS*, so a collector can use this predicate before starting cooperative
-stop-the-world work."
-  (every (lambda (thread-state)
-           (plusp (rt-gc-thread-safe-region-depth
-                   (%rt-gc-thread-id thread-state))))
-         *gc-threads*))
-
-(defmacro with-gc-safe-region ((&optional (thread-id '*rt-current-thread-id*)) &body body)
-  "Run BODY while THREAD-ID is recorded as being in a GC safe region."
-  (let ((tid (gensym "THREAD-ID")))
-    `(let ((,tid ,thread-id))
-       (rt-gc-enter-safe-region ,tid)
-       (unwind-protect
-            (progn ,@body)
-         (rt-gc-leave-safe-region ,tid)))))
-
 (defun rt-gc-signal-handler-enter (heap)
   "Inhibit automatic GC while a signal handler is running for HEAP."
   (when (and *gc-inhibit-during-signals* heap)
@@ -210,18 +172,6 @@ stop-the-world work."
       (setf (rt-heap-gc-pending heap) nil)
        (rt-gc-minor-collect heap)))
   heap)
-
-(defmacro with-gc-signal-inhibit ((heap) &body body)
-  "Run BODY as a signal handler region that temporarily inhibits GC for HEAP."
-  (let ((h (gensym "HEAP"))
-        (old (gensym "OLD-INHIBIT")))
-    `(let* ((,h ,heap)
-            (,old (and ,h (rt-heap-gc-inhibit ,h))))
-       (unwind-protect
-            (progn
-              (rt-gc-signal-handler-enter ,h)
-              ,@body)
-         (rt-gc-signal-handler-leave ,h ,old)))))
 
 (defun rt-heap-madvise-sequential (heap start end)
   "Request MADV_SEQUENTIAL for heap pages in [START, END)."
@@ -248,22 +198,6 @@ stop-the-world work."
 
 (defvar *rt-adjustable-array-storage-registry* (make-hash-table :test #'eq)
   "Heap -> records of adjustable-array backing storage superseded by resize.")
-
-(defun rt-gc-register-adjustable-array (heap array-addr storage-addr)
-  "Record old adjustable-array backing storage for GC reclamation.
-
-When an adjustable array is resized, ARRAY-ADDR remains the live array object and
-STORAGE-ADDR is the old backing storage that should no longer be kept alive by
-array metadata.  The collector treats STORAGE-ADDR as ordinary garbage; this
-registry is diagnostic bookkeeping cleaned after full collections."
-  (check-type heap rt-heap)
-  (check-type array-addr integer)
-  (check-type storage-addr integer)
-  (let ((record (list :array array-addr
-                      :old-storage storage-addr
-                      :registered-at (get-internal-real-time))))
-    (push record (gethash heap *rt-adjustable-array-storage-registry*))
-    record))
 
 (defun %rt-gc-clean-adjustable-array-registry (heap)
   "Drop adjustable-array storage records whose old storage is no longer live."

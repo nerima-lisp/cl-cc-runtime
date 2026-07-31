@@ -1,14 +1,16 @@
 ;;;; t/mvcc-test.lisp — multi-version concurrency control (src/mvcc.lisp).
 (in-package :cl-cc-runtime/test)
 
-(describe "mvcc direct (non-transactional) access"
-  (it "an empty variable reads as nil"
+(describe
+  "mvcc direct (non-transactional) access"
+  (it
+    "an empty variable reads as nil"
     (expect (rt-mvcc-read (rt-make-mvcc-var)) :to-be-null))
-
-  (it "make-mvcc-var seeds an initial version"
+  (it
+    "make-mvcc-var seeds an initial version"
     (expect (rt-mvcc-read (rt-make-mvcc-var 5)) :to-be 5))
-
-  (it "direct writes are immediately visible and newest wins"
+  (it
+    "direct writes are immediately visible and newest wins"
     (let ((v (rt-make-mvcc-var)))
       (cl-cc/runtime::rt-mvcc-write v 10)
       (expect (rt-mvcc-read v) :to-be 10)
@@ -40,38 +42,41 @@
         (expect (rt-mvcc-read v)
                 :to-be (if updates (car (last updates)) initial))))))
 
-(describe "mvcc transaction lifecycle"
-  (it "commit publishes a transaction's writes"
+(describe
+  "mvcc transaction lifecycle"
+  (it
+    "commit publishes a transaction's writes"
     (let ((v (rt-make-mvcc-var 1)))
       (let ((tx (cl-cc/runtime::rt-mvcc-begin)))
         (cl-cc/runtime::rt-mvcc-write v 42 tx)
         (cl-cc/runtime::rt-mvcc-commit tx)
         (expect (rt-mvcc-read v) :to-be 42))))
-
-  (it "abort discards a transaction's writes"
+  (it
+    "abort discards a transaction's writes"
     (let ((v (rt-make-mvcc-var 1)))
       (let ((tx (cl-cc/runtime::rt-mvcc-begin)))
         (cl-cc/runtime::rt-mvcc-write v 42 tx)
         (cl-cc/runtime::rt-mvcc-abort tx)
         (expect (rt-mvcc-read v) :to-be 1))))
-
-  (it "rt-with-mvcc-transaction commits on normal exit"
+  (it
+    "rt-with-mvcc-transaction commits on normal exit"
     (let ((v (rt-make-mvcc-var 1)))
-      (rt-with-mvcc-transaction ()
-        (cl-cc/runtime::rt-mvcc-write v 7))
+      (rt-with-mvcc-transaction () (cl-cc/runtime::rt-mvcc-write v 7))
       (expect (rt-mvcc-read v) :to-be 7)))
-
-  (it "rt-with-mvcc-transaction rolls back when the body signals"
+  (it
+    "rt-with-mvcc-transaction rolls back when the body signals"
     (let ((v (rt-make-mvcc-var 1)))
-      (expect (lambda ()
-                (rt-with-mvcc-transaction ()
-                  (cl-cc/runtime::rt-mvcc-write v 7)
-                  (error "boom")))
-              :to-throw 'simple-error)
+      (expect
+        (lambda ()
+          (rt-with-mvcc-transaction () (cl-cc/runtime::rt-mvcc-write v 7) (error "boom")))
+        :to-throw
+        'simple-error)
       (expect (rt-mvcc-read v) :to-be 1))))
 
-(describe "mvcc compaction"
-  (it "compact drops versions older than the given timestamp"
+(describe
+  "mvcc compaction"
+  (it
+    "compact drops versions older than the given timestamp"
     (let ((v (rt-make-mvcc-var)))
       (cl-cc/runtime::rt-mvcc-write v 1)
       (cl-cc/runtime::rt-mvcc-write v 2)
@@ -82,16 +87,23 @@
 
 ;; All direct writes to one variable serialize on that variable's mutex, so the
 ;; version chain must grow by exactly one entry per write even under contention.
-(describe "mvcc under concurrency"
-  (it "concurrent direct writers add exactly one version per write"
+(describe
+  "mvcc under concurrency"
+  (it
+    "concurrent direct writers add exactly one version per write"
     (let* ((v (rt-make-mvcc-var 0))
-           (nthreads 4) (per 200)
-           (threads (loop repeat nthreads
-                          collect (sb-thread:make-thread
-                                   (lambda ()
-                                     (dotimes (i per)
-                                       (cl-cc/runtime::rt-mvcc-write v i)))))))
-      (dolist (th threads) (sb-thread:join-thread th))
-      (expect (length (cl-cc/runtime::rt-mvcc-var-versions v))
-              :to-be (1+ (* nthreads per)))
+           (nthreads 4)
+           (per 200)
+           (threads
+          (loop repeat nthreads
+                collect (sb-thread:make-thread
+              (lambda ()
+                (dotimes (i per)
+                  (cl-cc/runtime::rt-mvcc-write v i)))))))
+      (dolist (th threads)
+        (sb-thread:join-thread th))
+      (expect
+        (length (cl-cc/runtime::rt-mvcc-var-versions v))
+        :to-be
+        (1+ (* nthreads per)))
       (expect (integerp (rt-mvcc-read v)) :to-be-truthy))))

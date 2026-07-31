@@ -39,8 +39,16 @@
 (defparameter *rt-tsan-thread-id* nil
   "Optional logical thread id override; NIL assigns a stable host-thread id.")
 
-(defun %rt-sanitizer-sb-thread-function (name)
-  "Return the SB-THREAD function named NAME, or NIL when unavailable."
+(defun %rt-resolve-sb-thread-function (name)
+  "Return the SB-THREAD function named NAME, or NIL when unavailable.
+
+A shared utility for every optional-locking macro in this tree
+(%RT-WITH-OPTIONAL-LOCK, %RT-WITH-OPTIONAL-GRAB-RELEASE-LOCK, and their
+callers in gc-tlab.lisp/gc-workers.lisp/gc-major-mark.lisp/
+gc-write-barrier.lisp), which each need to probe for SB-THREAD's locking
+functions without hard-depending on SB-THREAD being loaded. Lives here
+because heap-sanitizer.lisp is the earliest of those files in the ASDF
+load order, not because it is sanitizer-specific."
   (ignore-errors
     (let ((package (find-package "SB-THREAD")))
       (when package
@@ -48,24 +56,56 @@
           (when (and status (fboundp symbol))
             (symbol-function symbol)))))))
 
+(defmacro %rt-with-optional-lock ((lock-place) &body body)
+  "Run BODY under LOCK-PLACE via SB-THREAD's CALL-WITH-MUTEX when both
+LOCK-PLACE and CALL-WITH-MUTEX are available, else run BODY unprotected.
+LOCK-PLACE is commonly NIL when SB-THREAD was unavailable when its owning
+subsystem initialized; CALL-WITH-MUTEX may itself be unavailable on a
+non-SBCL host. See %RT-WITH-OPTIONAL-GRAB-RELEASE-LOCK for the
+GRAB-MUTEX/RELEASE-MUTEX-based sibling shape some callers need instead."
+  (let ((fn (gensym "CALL-WITH-MUTEX"))
+        (lock (gensym "LOCK")))
+    `(let ((,lock ,lock-place))
+       (if ,lock
+           (let ((,fn (%rt-resolve-sb-thread-function "CALL-WITH-MUTEX")))
+             (if ,fn
+                 (funcall ,fn (lambda () ,@body) ,lock)
+                 (progn ,@body)))
+           (progn ,@body)))))
+
+(defmacro %rt-with-optional-grab-release-lock ((lock-place) &body body)
+  "Run BODY under LOCK-PLACE via SB-THREAD's GRAB-MUTEX/RELEASE-MUTEX when
+both are available, else run BODY unprotected. See %RT-WITH-OPTIONAL-LOCK's
+docstring for why LOCK-PLACE and the resolved functions can each be NIL."
+  (let ((grab (gensym "GRAB-MUTEX"))
+        (release (gensym "RELEASE-MUTEX"))
+        (lock (gensym "LOCK"))
+        (locked (gensym "LOCKED")))
+    `(let ((,lock ,lock-place))
+       (if ,lock
+           (let ((,grab (%rt-resolve-sb-thread-function "GRAB-MUTEX"))
+                 (,release (%rt-resolve-sb-thread-function "RELEASE-MUTEX"))
+                 (,locked nil))
+             (if (and ,grab ,release)
+                 (unwind-protect
+                      (progn
+                        (funcall ,grab ,lock)
+                        (setf ,locked t)
+                        ,@body)
+                   (when ,locked (funcall ,release ,lock)))
+                 (progn ,@body)))
+           (progn ,@body)))))
+
 (defun %rt-sanitizer-make-mutex ()
   "Create an optional mutex for sanitizer bookkeeping maps."
-  (let ((make-mutex (%rt-sanitizer-sb-thread-function "MAKE-MUTEX")))
+  (let ((make-mutex (%rt-resolve-sb-thread-function "MAKE-MUTEX")))
     (and make-mutex (ignore-errors (funcall make-mutex :name "rt-sanitizer-maps")))))
 
 (defvar *rt-sanitizer-map-lock* (%rt-sanitizer-make-mutex)
   "Optional lock protecting global sanitizer hash tables during parallel tests.")
 
 (defmacro %rt-with-sanitizer-map-lock (() &body body)
-  (let ((fn (gensym "CALL-WITH-MUTEX"))
-        (lock (gensym "LOCK")))
-    `(let ((,lock *rt-sanitizer-map-lock*))
-       (if ,lock
-           (let ((,fn (%rt-sanitizer-sb-thread-function "CALL-WITH-MUTEX")))
-             (if ,fn
-                 (funcall ,fn (lambda () ,@body) ,lock)
-                 (progn ,@body)))
-           (progn ,@body)))))
+  `(%rt-with-optional-lock (*rt-sanitizer-map-lock*) ,@body))
 
 (defun rt-sanitizer-reset-state ()
   "Reset sanitizer bookkeeping maps to empty state."
@@ -209,3 +249,18 @@
       (error "UBSan: ~A uses negative heap index ~D" op index))
     (when (>= index (length (rt-heap-words heap)))
       (error "UBSan: ~A out-of-bounds heap index ~D" op index))))
+
+(defmacro %rt-sanitizer-check-heap-access (heap index op)
+  "Run the four address sanitizers common to every heap read and write.
+
+OP is :READ or :WRITE. Sanitizer-specific follow-up (MSan's read-only
+poisoned-memory check, ASan's write-side init-map bookkeeping) stays at the
+call site rather than folding into this macro, since it is not shared
+between RT-HEAP-REF and RT-HEAP-SET."
+  (let ((heap-var (gensym "HEAP")) (index-var (gensym "INDEX")) (op-var (gensym "OP")))
+    `(let ((,heap-var ,heap) (,index-var ,index) (,op-var ,op))
+       (%rt-ubsan-check-access ,heap-var ,index-var ,op-var)
+       (when *rt-asan-enabled*
+         (%rt-asan-check-address ,heap-var ,index-var ,op-var))
+       (%rt-hwasan-check-address ,index-var 0)
+       (%rt-tsan-check-access ,index-var ,op-var))))

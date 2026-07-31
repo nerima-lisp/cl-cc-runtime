@@ -1,5 +1,4 @@
 (in-package :cl-cc-runtime/test)
-(in-suite cl-cc-unit-suite)
 
 ;;;; Tests for src/perf.lisp — FR-793 hardware performance counters.
 ;;;;
@@ -8,83 +7,87 @@
 ;;;; logic: counter registration/lookup, the "unsupported" fallbacks, and the
 ;;;; timestamp helpers — not real hardware measurements. Counter struct accessors
 ;;;; and rt-perf-disable-counter are unexported (cl-cc/runtime:: below).
-
 ;;; ── Event catalogue + init ────────────────────────────────────────
-
-(deftest perf-event-names-catalogue
+(it-sequential
   "The supported event catalogue lists the documented counter kinds."
   (let ((names cl-cc/runtime::*perf-event-names*))
-    (assert-true (member :cycles names))
-    (assert-true (member :instructions names))
-    (assert-true (member :cache-misses names))))
+    (expect (member :cycles names) :to-be-truthy)
+    (expect (member :instructions names) :to-be-truthy)
+    (expect (member :cache-misses names) :to-be-truthy)))
 
-(deftest perf-init-clears-counters
+(it-sequential
   "rt-perf-init resets the counter table and reports success."
-  (assert-true (rt-perf-init))
-  (assert-= 0 (hash-table-count cl-cc/runtime::*rt-perf-counters*)))
+  (expect (rt-perf-init) :to-be-truthy)
+  (expect (hash-table-count cl-cc/runtime::*rt-perf-counters*) :to-equal 0))
 
 ;;; ── Enable / read / disable (unsupported hardware path) ───────────
-
-(deftest perf-enable-known-counter-registers-struct
-  "Enabling a known counter registers a struct tagged with its type/name."
-  (rt-perf-init)
+(it-sequential "Enabling a known counter registers a struct tagged with its type/name." (rt-perf-init)
   (let ((counter (rt-perf-enable-counter :cycles)))
-    (assert-true counter)
-    (assert-eq :cycles (cl-cc/runtime::rt-perf-counter-name counter))
+    (expect counter :to-be-truthy)
+    (expect (cl-cc/runtime::rt-perf-counter-name counter) :to-be :cycles)
     ;; :cycles is index 0 in the event catalogue
-    (assert-= 0 (cl-cc/runtime::rt-perf-counter-type counter))
+    (expect (cl-cc/runtime::rt-perf-counter-type counter) :to-equal 0)
     ;; no hardware here, so the counter is registered but not enabled
-    (assert-false (cl-cc/runtime::rt-perf-counter-enabled counter))
-    (assert-eq counter (gethash :cycles cl-cc/runtime::*rt-perf-counters*))))
+    (expect (cl-cc/runtime::rt-perf-counter-enabled counter) :to-be-falsy)
+    (expect (gethash :cycles cl-cc/runtime::*rt-perf-counters*) :to-be counter)))
 
-(deftest perf-enable-unknown-counter-returns-nil
+(it-sequential
   "Enabling an event not in the catalogue returns NIL."
   (rt-perf-init)
-  (assert-null (rt-perf-enable-counter :not-a-real-event)))
+  (expect (rt-perf-enable-counter :not-a-real-event) :to-be-null))
 
-(deftest perf-read-disabled-counter-returns-nil
+(it-sequential
   "Reading a counter that is not enabled returns NIL."
   (rt-perf-init)
   (rt-perf-enable-counter :instructions)
-  (assert-null (rt-perf-read-counter :instructions)))
+  (expect (rt-perf-read-counter :instructions) :to-be-null))
 
-(deftest perf-read-unregistered-counter-returns-nil
+(it-sequential
   "Reading a counter that was never enabled returns NIL."
   (rt-perf-init)
-  (assert-null (rt-perf-read-counter :cycles)))
+  (expect (rt-perf-read-counter :cycles) :to-be-null))
 
-(deftest perf-disable-counter-removes-registration
+(it-sequential
   "Disabling a counter drops it from the registry."
   (rt-perf-init)
   (rt-perf-enable-counter :cache-misses)
   (cl-cc/runtime::rt-perf-disable-counter :cache-misses)
-  (assert-null (gethash :cache-misses cl-cc/runtime::*rt-perf-counters*)))
+  (expect (gethash :cache-misses cl-cc/runtime::*rt-perf-counters*) :to-be-null))
 
 ;;; ── with-perf-counters on unsupported platform ────────────────────
-
-(deftest perf-with-counters-signals-unsupported
+;;; PERF-COUNTERS-UNSUPPORTED derives from RT-RUNTIME-CONDITION, not CL:ERROR
+;;; (see conditions.md), so cl-weave's SIGNALS/:TO-THROW -- which only catches
+;;; ERROR subtypes -- cannot see it; a HANDLER-CASE naming the exact condition
+;;; type is the only correct way to check for it.
+(it-sequential
   "On a platform without HW counters, rt-with-perf-counters raises the
 documented unsupported condition rather than running the body."
   (rt-perf-init)
-  (assert-signals cl-cc/runtime::perf-counters-unsupported
-    (rt-with-perf-counters (:cycles)
-      (error "body must not run when counters are unsupported"))))
+  (expect
+    (handler-case
+        (progn
+          (rt-with-perf-counters
+            (:cycles)
+            (error "body must not run when counters are unsupported"))
+          nil)
+      (cl-cc/runtime::perf-counters-unsupported ()
+        t))
+    :to-be-truthy))
 
 ;;; ── Timestamp helpers ─────────────────────────────────────────────
-
-(deftest perf-rdtsc-returns-nonnegative-integer
+(it-sequential
   "rdtsc yields a non-negative integer timestamp."
   (let ((ts (rdtsc)))
-    (assert-true (integerp ts))
-    (assert-true (>= ts 0))))
+    (expect (integerp ts) :to-be-truthy)
+    (expect (>= ts 0) :to-be-truthy)))
 
-(deftest perf-rdtsc-is-monotonic-nondecreasing
+(it-sequential
   "Two successive rdtsc reads are non-decreasing."
   (let ((a (rdtsc)))
-    (assert-true (>= (rdtsc) a))))
+    (expect (>= (rdtsc) a) :to-be-truthy)))
 
-(deftest perf-rdtscp-returns-timestamp-and-aux
+(it-sequential
   "rdtscp returns a timestamp and an auxiliary processor id."
   (multiple-value-bind (ts aux) (rdtscp)
-    (assert-true (integerp ts))
-    (assert-= 0 aux)))
+    (expect (integerp ts) :to-be-truthy)
+    (expect aux :to-equal 0)))

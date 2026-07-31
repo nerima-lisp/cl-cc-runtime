@@ -2,8 +2,10 @@
 ;;;; epsilon GC (src/gc-advanced-129.lisp).
 (in-package :cl-cc-runtime/test)
 
-(describe "epsilon (no-op) GC (gc-advanced-129.lisp)"
-  (it "enable-epsilon-gc flips the mode flag"
+(describe
+  "epsilon (no-op) GC (gc-advanced-129.lisp)"
+  (it
+    "enable-epsilon-gc flips the mode flag"
     (let ((cl-cc/runtime::*gc-epsilon-enabled* nil))
       (expect (cl-cc/runtime::epsilon-gc-enabled-p) :to-be-null)
       (cl-cc/runtime::enable-epsilon-gc)
@@ -63,26 +65,30 @@
       (cl-cc/runtime::satb-drain-queue (lambda (v) (declare (ignore v)) (incf calls)))
       (expect calls :to-be 0))))
 
-(describe "region-based GC (gc-advanced-129.lisp)"
-  (it "a fresh region defaults to the eden generation with zero live bytes"
+(describe
+  "region-based GC (gc-advanced-129.lisp)"
+  (it
+    "a fresh region defaults to the eden generation with zero live bytes"
     (let ((r (cl-cc/runtime::make-gc-region)))
       (expect (cl-cc/runtime::gc-region-generation r) :to-be :eden)
       (expect (cl-cc/runtime::gc-region-live-bytes r) :to-be 0)))
-
-  (it "an empty region has a garbage ratio of 1.0"
+  (it
+    "an empty region has a garbage ratio of 1.0"
     (let ((r (cl-cc/runtime::make-gc-region :live-bytes 0)))
       (expect (cl-cc/runtime::estimate-region-garbage-ratio r) :to-equal 1.0)))
-
-  (it "a fully live region has a garbage ratio of 0.0"
+  (it
+    "a fully live region has a garbage ratio of 0.0"
     (let ((r (cl-cc/runtime::make-gc-region :live-bytes cl-cc/runtime::+gc-region-size+)))
       (expect (cl-cc/runtime::estimate-region-garbage-ratio r) :to-equal 0.0)))
-
-  (it "a half-live region has a garbage ratio of 0.5"
-    (let ((r (cl-cc/runtime::make-gc-region
-              :live-bytes (floor cl-cc/runtime::+gc-region-size+ 2))))
+  (it
+    "a half-live region has a garbage ratio of 0.5"
+    (let ((r
+          (cl-cc/runtime::make-gc-region
+            :live-bytes
+            (floor cl-cc/runtime::+gc-region-size+ 2))))
       (expect (cl-cc/runtime::estimate-region-garbage-ratio r) :to-equal 0.5)))
-
-  (it "estimate-region-garbage-ratio stores the computed ratio on the region"
+  (it
+    "estimate-region-garbage-ratio stores the computed ratio on the region"
     (let ((r (cl-cc/runtime::make-gc-region :live-bytes 0)))
       (cl-cc/runtime::estimate-region-garbage-ratio r)
       (expect (cl-cc/runtime::gc-region-garbage-ratio r) :to-equal 1.0))))

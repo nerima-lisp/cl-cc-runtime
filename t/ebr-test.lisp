@@ -72,22 +72,31 @@
 ;; (the same lock advance-epoch holds), so the shared registry is never mutated
 ;; concurrently with iteration. After every worker joins, no thread is critical,
 ;; so cycling the epoch reclaims every retired object exactly once.
-(describe "ebr under concurrency"
-  (it "reclaims every object retired by concurrent workers"
-    (let ((freed 0) (lock (sb-thread:make-mutex)))
-      (rt-ebr-init (lambda (o) (declare (ignore o))
-                     (sb-thread:with-mutex (lock) (incf freed))))
-      (let* ((nthreads 4) (per 200)
+(describe
+  "ebr under concurrency"
+  (it
+    "reclaims every object retired by concurrent workers"
+    (let ((freed 0)
+          (lock (sb-thread:make-mutex)))
+      (rt-ebr-init
+        (lambda (o)
+          (declare (ignore o))
+          (sb-thread:with-mutex (lock) (incf freed))))
+      (let* ((nthreads 4)
+             (per 200)
              (workers
-               (loop repeat nthreads
-                     collect (sb-thread:make-thread
-                              (lambda ()
-                                (let ((local (cl-cc/runtime::rt-with-mutex (cl-cc/runtime::*ebr-mutex*)
-                                               (rt-ebr-register-thread))))
-                                  (dotimes (i per)
-                                    (rt-with-ebr-critical (local)
-                                      (rt-ebr-retire local i))
-                                    (cl-cc/runtime::rt-ebr-advance-epoch))))))))
-        (dolist (w workers) (sb-thread:join-thread w))
-        (dotimes (i 5) (rt-ebr-collect))
+            (loop repeat nthreads
+                  collect (sb-thread:make-thread
+                (lambda ()
+                  (let ((local
+                        (cl-cc/runtime::rt-with-mutex
+                          (cl-cc/runtime::*ebr-mutex*)
+                          (rt-ebr-register-thread))))
+                    (dotimes (i per)
+                      (rt-with-ebr-critical (local) (rt-ebr-retire local i))
+                      (cl-cc/runtime::rt-ebr-advance-epoch))))))))
+        (dolist (w workers)
+          (sb-thread:join-thread w))
+        (dotimes (i 5)
+          (rt-ebr-collect))
         (expect freed :to-be (* nthreads per))))))

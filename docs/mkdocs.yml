@@ -142,6 +142,7 @@ nav:
   - Internals:
       - Architecture: architecture.md
   - Project:
+      - Production Readiness: production-readiness.md
       - Development: development.md
       - Changelog: changelog.md
 

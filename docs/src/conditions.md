@@ -11,6 +11,28 @@ conditions the library signals at *you*; that machinery is about the conditions
 a compiled program signals at itself. See
 [API Reference](api-reference.md#conditions-and-restarts) for the latter.
 
+## The base types
+
+### `rt-runtime-condition`
+
+The base of every condition on this page, error or not. Catch this one type
+to catch anything `cl-cc/runtime` signals, regardless of which subsystem
+raised it.
+
+### `rt-runtime-error`
+
+Subtype of `error` and `rt-runtime-condition`. The base of every *error*
+`cl-cc/runtime` signals -- everything below except `rt-gc-pressure-warning`,
+`rt-stm-retry`, `rt-os-signal-condition` and its subtypes (which are
+`warning`s or plain `condition`s, not errors), and `perf-counters-unsupported`.
+
+```lisp
+(handler-case
+    (some-runtime-operation)
+  (cl-cc/runtime:rt-runtime-error (c)
+    (format t "~&a runtime error, whichever kind: ~a~%" c)))
+```
+
 ## Memory
 
 ### `rt-stack-overflow`

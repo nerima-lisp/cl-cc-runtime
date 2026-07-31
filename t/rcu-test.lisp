@@ -3,32 +3,45 @@
 
 (defvar *rcu-test-ptr* nil)
 
-(describe "rcu pointer publication"
-  (it "assign-pointer and dereference round-trip through a symbol's value"
+(describe
+  "rcu pointer publication"
+  (it
+    "assign-pointer and dereference round-trip through a symbol's value"
     (rt-rcu-assign-pointer '*rcu-test-ptr* 42)
     (expect (rt-rcu-dereference '*rcu-test-ptr*) :to-be 42)
     (expect *rcu-test-ptr* :to-be 42)
     (rt-rcu-assign-pointer '*rcu-test-ptr* :next)
     (expect (rt-rcu-dereference '*rcu-test-ptr*) :to-be :next)))
 
-(describe "rcu reader bookkeeping"
-  (it "read-lock and read-unlock balance the reader count"
+(describe
+  "rcu reader bookkeeping"
+  (it
+    "read-lock and read-unlock balance the reader count"
     (rt-rcu-init)
     (rt-rcu-read-lock)
-    (expect (gethash sb-thread:*current-thread* cl-cc/runtime::*rt-rcu-readers*) :to-be 1)
+    (expect
+      (gethash sb-thread:*current-thread* cl-cc/runtime::*rt-rcu-readers*)
+      :to-be
+      1)
     (rt-rcu-read-lock)
-    (expect (gethash sb-thread:*current-thread* cl-cc/runtime::*rt-rcu-readers*) :to-be 2)
+    (expect
+      (gethash sb-thread:*current-thread* cl-cc/runtime::*rt-rcu-readers*)
+      :to-be
+      2)
     (cl-cc/runtime::rt-rcu-read-unlock)
     (cl-cc/runtime::rt-rcu-read-unlock)
     (expect (hash-table-count cl-cc/runtime::*rt-rcu-readers*) :to-be 0))
-
-  (it "rt-with-rcu-read runs the body and releases the reader afterwards"
+  (it
+    "rt-with-rcu-read runs the body and releases the reader afterwards"
     (rt-rcu-init)
-    (let ((result (rt-with-rcu-read ()
-                    (expect (gethash sb-thread:*current-thread*
-                                     cl-cc/runtime::*rt-rcu-readers*)
-                            :to-be 1)
-                    :body-value)))
+    (let ((result
+          (rt-with-rcu-read
+            ()
+            (expect
+              (gethash sb-thread:*current-thread* cl-cc/runtime::*rt-rcu-readers*)
+              :to-be
+              1)
+            :body-value)))
       (expect result :to-be :body-value))
     (expect (hash-table-count cl-cc/runtime::*rt-rcu-readers*) :to-be 0)))
 
@@ -69,4 +82,17 @@
       (sb-thread:join-thread reader)))
 
   (it "rt-rcu-init returns t"
-    (expect (rt-rcu-init) :to-be-truthy)))
+    (expect (rt-rcu-init) :to-be-truthy))
+
+  (it "with TIMEOUT and a reader that never leaves, gives up promptly instead of blocking forever"
+    ;; RT-RCU-SYNCHRONIZE used to re-pass the original TIMEOUT to every
+    ;; RT-CONDITION-WAIT in its loop instead of a shrinking remaining
+    ;; duration -- see RT-BARRIER-WAIT's regression test in sync-test.lisp.
+    (rt-rcu-init)
+    (rt-rcu-read-lock)
+    (let ((started (get-internal-real-time)))
+      (expect (rt-rcu-synchronize :timeout 0.05) :to-be-null)
+      (expect
+        (< (- (get-internal-real-time) started) internal-time-units-per-second)
+        :to-be-truthy))
+    (cl-cc/runtime::rt-rcu-read-unlock)))

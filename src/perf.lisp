@@ -110,7 +110,7 @@ Returns the counter value or NIL if not enabled."
            ,@body)
        (dolist (ct ',counter-types) (rt-perf-disable-counter ct)))))
 
-(define-condition perf-counters-unsupported (condition) ()
+(define-condition perf-counters-unsupported (rt-runtime-condition) ()
   (:report (lambda (c s) (declare (ignore c))
              (format s "Performance counters not supported on this platform"))))
 

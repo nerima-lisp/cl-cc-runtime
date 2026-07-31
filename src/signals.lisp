@@ -12,7 +12,7 @@
 (defconstant +rt-sigusr2+ 12)
 (defconstant +rt-sigwinch+ 28)
 
-(define-condition rt-os-signal-condition (condition)
+(define-condition rt-os-signal-condition (rt-runtime-condition)
   ((signal :initarg :signal :reader rt-os-signal)
    (name :initarg :name :reader rt-os-signal-name))
   (:report (lambda (c s)

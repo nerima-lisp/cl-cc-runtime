@@ -138,7 +138,6 @@ otherwise queue ITEM for a later RT-ASYNC-GENERATOR-NEXT call."
           (return (%rt-resolved-future (nreverse items))))
         (push item items)))))
 
-progn
 (defmacro rt-async-for ((var aiter) &body body)
   "Await each item from AITER, bind it to VAR, and evaluate BODY."
   (let ((aiter-var (gensym "AITER"))
@@ -157,11 +156,11 @@ progn
   (program-counter 0 :type fixnum)
   (done-p nil))
 
-(defun rt-lower-coroutine (steps &key supports-call/cc deep-yield-p)
+(defun rt-lower-coroutine (steps &key supports-call/cc-p deep-yield-p)
   "Lower STEPS into a resumable coroutine with an explicit program counter.
 Stackful mode is selected when call/cc or deep yields require it."
   (%make-rt-coroutine
-   :strategy (if (or supports-call/cc deep-yield-p) :stackful :stackless)
+   :strategy (if (or supports-call/cc-p deep-yield-p) :stackful :stackless)
    :steps (coerce steps (quote vector))))
 
 (defun rt-coroutine-resume (coroutine)

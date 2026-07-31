@@ -10,7 +10,9 @@
    #:with-log-context #:with-log-span
    #:log-debug #:log-info #:log-warn #:log-error #:log-fatal
    #:log-default-debug #:log-default-info #:log-default-warn #:log-default-error #:log-default-fatal
-   #:log-condition #:make-text-handler #:make-json-handler)
+   #:log-condition #:make-text-handler #:make-json-handler #:make-function-handler
+   #:log-record-fields #:capture-log-context #:with-captured-log-context
+   #:call-with-captured-log-context #:log-context-snapshot-p)
   (:export
    ;; Tagged pointer constants (3-bit native tag values, used by runtime.lisp / heap.lisp)
    #:+tag-fixnum+ #:+rt-tag-cons+ #:+rt-tag-symbol+ #:+rt-tag-function+
@@ -121,6 +123,7 @@
      #:rt-make-instance-0
      #:*rt-class-registry* #:*rt-generic-function-registry*
     ;; Conditions
+    #:rt-runtime-condition #:rt-runtime-error
     #:rt-signal-error #:rt-signal #:rt-warn-fn #:rt-cerror
     #:rt-invoke-restart
     #:*handler-stack* #:*restart-stack*
@@ -397,8 +400,11 @@
   ;; Heap walk (FR-445)
   #:rt-gc-map-heap-objects
    ;; ── Sync primitives (sync.lisp) ──
-   #:rt-make-mutex #:rt-mutex-lock #:rt-mutex-unlock
-   #:rt-make-condition-variable
+   #:rt-make-mutex #:rt-mutex-lock #:rt-mutex-unlock #:rt-mutex-try-lock
+   #:rt-mutex-owner #:rt-with-mutex #:rt-with-try-mutex
+   #:rt-make-condition-variable #:rt-condition-wait
+   #:rt-condition-notify #:rt-condition-notify-all
+   #:rt-with-remaining-timeout
    #:rt-make-semaphore #:rt-semaphore-wait #:rt-semaphore-signal
    #:rt-make-barrier #:rt-barrier-wait
    #:rt-make-once #:rt-once-call
@@ -635,7 +641,9 @@
     #:log-debug #:log-info #:log-warn #:log-error #:log-fatal
     #:log-default-debug #:log-default-info #:log-default-warn
     #:log-default-error #:log-default-fatal
-    #:log-condition #:make-text-handler #:make-json-handler
+    #:log-condition #:make-text-handler #:make-json-handler #:make-function-handler
+    #:log-record-fields #:capture-log-context #:with-captured-log-context
+    #:call-with-captured-log-context #:log-context-snapshot-p
     #:*rt-logger*
     ;; ── Arena allocator (allocator.lisp) ──
     #:rt-arena #:make-arena #:with-arena

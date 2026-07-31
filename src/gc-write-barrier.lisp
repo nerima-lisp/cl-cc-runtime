@@ -63,18 +63,9 @@ GC cycle, and avoids repeatedly marking the same card in one GC cycle.")
     (when table (clrhash table)))
   heap)
 
-(defun %rt-gc-satb-sb-thread-function (name)
-  "Return the SB-THREAD function named NAME, or NIL when unavailable."
-  (ignore-errors
-    (let ((package (find-package "SB-THREAD")))
-      (when package
-        (multiple-value-bind (symbol status) (find-symbol name package)
-          (when (and status (fboundp symbol))
-            (symbol-function symbol)))))))
-
 (defun %rt-gc-satb-make-mutex (name)
   "Create an optional host mutex without reader-time SB-THREAD dependency."
-  (let ((make-mutex (%rt-gc-satb-sb-thread-function "MAKE-MUTEX")))
+  (let ((make-mutex (%rt-resolve-sb-thread-function "MAKE-MUTEX")))
     (and make-mutex (ignore-errors (funcall make-mutex :name name)))))
 
 (defvar *rt-gc-satb-thread-queues-lock*
@@ -83,24 +74,7 @@ GC cycle, and avoids repeatedly marking the same card in one GC cycle.")
 
 (defmacro with-gc-satb-thread-queues-locked (() &body body)
   "Execute BODY while holding the SATB thread-queue hash-table mutex."
-  (let ((grab (gensym "GRAB-MUTEX"))
-        (release (gensym "RELEASE-MUTEX"))
-        (lock (gensym "LOCK"))
-        (locked (gensym "LOCKED")))
-    `(let ((,lock *rt-gc-satb-thread-queues-lock*))
-       (if ,lock
-           (let ((,grab (%rt-gc-satb-sb-thread-function "GRAB-MUTEX"))
-                 (,release (%rt-gc-satb-sb-thread-function "RELEASE-MUTEX"))
-                 (,locked nil))
-             (if (and ,grab ,release)
-                 (unwind-protect
-                      (progn
-                        (funcall ,grab ,lock)
-                        (setf ,locked t)
-                        ,@body)
-                   (when ,locked (funcall ,release ,lock)))
-                 (progn ,@body)))
-           (progn ,@body)))))
+  `(%rt-with-optional-grab-release-lock (*rt-gc-satb-thread-queues-lock*) ,@body))
 
 ;;; ------------------------------------------------------------
 ;;; Section 4: Write Barrier — SATB + Card Table
@@ -134,13 +108,6 @@ GC cycle, and avoids repeatedly marking the same card in one GC cycle.")
         (unless (= (gethash card-index table -1) cycle)
           (setf (gethash card-index table) cycle)
           (rt-card-mark-dirty heap obj-addr)))))
-
-(defun %rt-gc-satb-thread-table (heap &key create)
-  (with-gc-satb-thread-queues-locked ()
-    (or (gethash heap *rt-gc-satb-thread-queues*)
-        (when create
-          (setf (gethash heap *rt-gc-satb-thread-queues*)
-                (make-hash-table :test #'equal))))))
 
 (defun rt-gc-satb-enqueue (heap value &optional (thread-id *rt-current-thread-id*))
   "Append VALUE to THREAD-ID's SATB queue for HEAP and return VALUE.

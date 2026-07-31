@@ -29,6 +29,9 @@ targets SBCL only.
 - [Conditions](conditions.md) is the catalogue of condition types this library
   signals.
 - [Architecture](architecture.md) describes how `src/` is divided and why.
+- [Production Readiness](production-readiness.md) is a written audit against
+  concrete criteria: testing depth, timeout discipline, error handling,
+  observability, and what is honestly still incomplete.
 - [Development](development.md) has the build, test, coverage and formatting
   commands.
 

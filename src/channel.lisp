@@ -20,53 +20,82 @@
     (setf (rt-channel-buffer ch) (cdr (rt-channel-buffer ch)))
     val))
 (defun rt-channel-send (ch val &key timeout)
-  (rt-with-mutex ((rt-channel-mutex ch) :timeout timeout)
-    (when (rt-channel-closed-p ch) (error "channel closed"))
-    (if (rt-channel-buffered-p ch)
-        (progn
-          (loop while (%rt-channel-full-p ch)
-                do (rt-condition-wait (rt-channel-send-cond ch) (rt-channel-mutex ch) :timeout timeout))
-          (%rt-channel-enqueue ch val)
-          (rt-condition-notify (rt-channel-recv-cond ch)))
-        (progn
-          (loop until (or (rt-channel-closed-p ch)
-                          (and (> (rt-channel-waiting-receivers ch) 0)
-                               (not (rt-channel-handoff-present-p ch))))
-                do (rt-condition-wait (rt-channel-send-cond ch) (rt-channel-mutex ch) :timeout timeout))
-          (when (rt-channel-closed-p ch) (error "channel closed"))
-          (setf (rt-channel-handoff ch) val
-                (rt-channel-handoff-present-p ch) t)
-          (rt-condition-notify (rt-channel-recv-cond ch))
-          (loop while (rt-channel-handoff-present-p ch)
-                do (rt-condition-wait (rt-channel-send-cond ch) (rt-channel-mutex ch) :timeout timeout))))
-    val))
+  "Send VAL on CH, blocking until there is room (buffered) or a receiver is
+ready for a handoff (unbuffered). Returns (VALUES VAL T) on success, or
+(VALUES NIL NIL) once TIMEOUT seconds pass without sending. Signals an
+error if CH is closed. The three wait loops below share one deadline via
+RT-WITH-REMAINING-TIMEOUT rather than each re-passing the original TIMEOUT
+to RT-CONDITION-WAIT, which used to let the effective wait run up to three
+times longer than TIMEOUT."
+  (rt-with-remaining-timeout (remaining timeout)
+    (rt-with-mutex ((rt-channel-mutex ch) :timeout timeout)
+      (when (rt-channel-closed-p ch) (error "channel closed"))
+      (flet ((wait-or-give-up (cond-var)
+               (let ((r (remaining)))
+                 (when (and timeout (<= r 0)) (return-from rt-channel-send (values nil nil)))
+                 (unless (rt-condition-wait cond-var (rt-channel-mutex ch) :timeout r)
+                   (return-from rt-channel-send (values nil nil))))))
+        (if (rt-channel-buffered-p ch)
+            (progn
+              (loop while (%rt-channel-full-p ch)
+                    do (wait-or-give-up (rt-channel-send-cond ch)))
+              (%rt-channel-enqueue ch val)
+              (rt-condition-notify (rt-channel-recv-cond ch)))
+            (progn
+              (loop until (or (rt-channel-closed-p ch)
+                              (and (> (rt-channel-waiting-receivers ch) 0)
+                                   (not (rt-channel-handoff-present-p ch))))
+                    do (wait-or-give-up (rt-channel-send-cond ch)))
+              (when (rt-channel-closed-p ch) (error "channel closed"))
+              (setf (rt-channel-handoff ch) val
+                    (rt-channel-handoff-present-p ch) t)
+              (rt-condition-notify (rt-channel-recv-cond ch))
+              (unwind-protect
+                   (loop while (rt-channel-handoff-present-p ch)
+                         do (wait-or-give-up (rt-channel-send-cond ch)))
+                ;; A give-up here must retract the handoff: a receiver that
+                ;; has not yet consumed it must not see a value from a send
+                ;; that has already abandoned delivering it.
+                (setf (rt-channel-handoff-present-p ch) nil)))))
+      (values val t))))
 (defun rt-channel-recv (ch &key timeout)
-  (rt-with-mutex ((rt-channel-mutex ch) :timeout timeout)
-    (if (rt-channel-buffered-p ch)
-        (progn
-          (loop until (or (rt-channel-closed-p ch) (rt-channel-buffer ch))
-                do (rt-condition-wait (rt-channel-recv-cond ch) (rt-channel-mutex ch) :timeout timeout))
-          (if (and (rt-channel-closed-p ch) (null (rt-channel-buffer ch)))
-              (values nil nil)
-              (let ((val (%rt-channel-dequeue ch)))
-                (rt-condition-notify (rt-channel-send-cond ch))
-                (values val t))))
-        (progn
-          (incf (rt-channel-waiting-receivers ch))
-          (unwind-protect
-               (progn
-                 (rt-condition-notify (rt-channel-send-cond ch))
-                 (loop until (or (rt-channel-closed-p ch)
-                                 (rt-channel-handoff-present-p ch))
-                       do (rt-condition-wait (rt-channel-recv-cond ch) (rt-channel-mutex ch) :timeout timeout))
-                 (if (rt-channel-handoff-present-p ch)
-                     (let ((val (rt-channel-handoff ch)))
-                       (setf (rt-channel-handoff ch) nil
-                             (rt-channel-handoff-present-p ch) nil)
-                       (rt-condition-notify (rt-channel-send-cond ch))
-                       (values val t))
-                     (values nil nil)))
-            (decf (rt-channel-waiting-receivers ch)))))))
+  "Receive from CH, blocking until a value is available (buffered) or a
+sender hands one off (unbuffered). Returns (VALUES VAL T) on success, or
+(VALUES NIL NIL) once TIMEOUT seconds pass without receiving, or once CH is
+closed with nothing left to receive. See RT-CHANNEL-SEND's docstring for why
+the wait loops share one deadline rather than each re-arming TIMEOUT."
+  (rt-with-remaining-timeout (remaining timeout)
+    (rt-with-mutex ((rt-channel-mutex ch) :timeout timeout)
+      (flet ((wait-or-give-up (cond-var)
+               (let ((r (remaining)))
+                 (when (and timeout (<= r 0)) (return-from rt-channel-recv (values nil nil)))
+                 (unless (rt-condition-wait cond-var (rt-channel-mutex ch) :timeout r)
+                   (return-from rt-channel-recv (values nil nil))))))
+        (if (rt-channel-buffered-p ch)
+            (progn
+              (loop until (or (rt-channel-closed-p ch) (rt-channel-buffer ch))
+                    do (wait-or-give-up (rt-channel-recv-cond ch)))
+              (if (and (rt-channel-closed-p ch) (null (rt-channel-buffer ch)))
+                  (values nil nil)
+                  (let ((val (%rt-channel-dequeue ch)))
+                    (rt-condition-notify (rt-channel-send-cond ch))
+                    (values val t))))
+            (progn
+              (incf (rt-channel-waiting-receivers ch))
+              (unwind-protect
+                   (progn
+                     (rt-condition-notify (rt-channel-send-cond ch))
+                     (loop until (or (rt-channel-closed-p ch)
+                                     (rt-channel-handoff-present-p ch))
+                           do (wait-or-give-up (rt-channel-recv-cond ch)))
+                     (if (rt-channel-handoff-present-p ch)
+                         (let ((val (rt-channel-handoff ch)))
+                           (setf (rt-channel-handoff ch) nil
+                                 (rt-channel-handoff-present-p ch) nil)
+                           (rt-condition-notify (rt-channel-send-cond ch))
+                           (values val t))
+                         (values nil nil)))
+                (decf (rt-channel-waiting-receivers ch)))))))))
 (defun rt-channel-try-send (ch val)
   (rt-with-mutex ((rt-channel-mutex ch))
     (when (not (rt-channel-closed-p ch))

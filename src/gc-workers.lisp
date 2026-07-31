@@ -14,31 +14,18 @@
 ;;;   - Per-phase parallelism: root-scan, mark-drain, sweep
 ;;; ------------------------------------------------------------
 
-(defun %rt-gc-sb-thread-function (name)
-  "Return the SB-THREAD function named NAME, or NIL when unavailable."
-  (ignore-errors
-    (let ((package (find-package "SB-THREAD")))
-      (when package
-        (multiple-value-bind (symbol status) (find-symbol name package)
-          (when (and status (fboundp symbol))
-            (symbol-function symbol)))))))
+;;; %RT-RESOLVE-SB-THREAD-FUNCTION and %RT-WITH-OPTIONAL-LOCK are defined in
+;;; heap-sanitizer.lisp (the earliest loader of the several files that need
+;;; them) and shared from there rather than redefined per file.
 
 (defun %rt-gc-sb-thread-mutex (&optional name)
   "Return an SB-THREAD mutex object when available; otherwise NIL."
-  (let ((make-mutex (%rt-gc-sb-thread-function "MAKE-MUTEX")))
+  (let ((make-mutex (%rt-resolve-sb-thread-function "MAKE-MUTEX")))
     (and make-mutex (ignore-errors (funcall make-mutex :name (or name "gc-worker-queue"))))))
 
 (defmacro %rt-gc-with-optional-mutex ((mutex) &body body)
   "Run BODY under MUTEX when SB-THREAD:WITH-MUTEX is available."
-  (let ((fn (gensym "WITH-MUTEX-FN"))
-        (mx (gensym "MUTEX")))
-    `(let ((,mx ,mutex))
-       (if ,mx
-           (let ((,fn (%rt-gc-sb-thread-function "CALL-WITH-MUTEX")))
-             (if ,fn
-                 (funcall ,fn (lambda () ,@body) ,mx)
-                 (progn ,@body)))
-           (progn ,@body)))))
+  `(%rt-with-optional-lock (,mutex) ,@body))
 
 (defvar *rt-gc-work-stealing-queues* nil
   "Dynamic vector of worker queue cells for FR-338 work stealing.")
@@ -112,8 +99,8 @@ processor is installed.  RT-GC-PARALLEL-MARK binds
 (defun rt-gc-detect-worker-count ()
   "Return recommended number of GC worker threads based on host environment.
 Returns 0 (= sequential) when SB-THREAD is unavailable."
-  (let ((make-thread (%rt-gc-sb-thread-function "MAKE-THREAD"))
-        (join-thread (%rt-gc-sb-thread-function "JOIN-THREAD")))
+  (let ((make-thread (%rt-resolve-sb-thread-function "MAKE-THREAD"))
+        (join-thread (%rt-resolve-sb-thread-function "JOIN-THREAD")))
     (if (and make-thread join-thread)
         (let ((thread (ignore-errors
                         (funcall make-thread (lambda ()) :name "gc-probe"))))
@@ -124,8 +111,8 @@ Returns 0 (= sequential) when SB-THREAD is unavailable."
 
 (defun %rt-gc-run-worker-tasks (tasks)
   "Run TASKS in parallel with SB-THREAD when configured, otherwise sequentially."
-  (let ((make-thread (%rt-gc-sb-thread-function "MAKE-THREAD"))
-        (join-thread (%rt-gc-sb-thread-function "JOIN-THREAD")))
+  (let ((make-thread (%rt-resolve-sb-thread-function "MAKE-THREAD"))
+        (join-thread (%rt-resolve-sb-thread-function "JOIN-THREAD")))
     (if (and (plusp *gc-worker-count*) make-thread join-thread)
         (let ((errors nil))
           (let ((threads

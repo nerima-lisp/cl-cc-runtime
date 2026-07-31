@@ -69,9 +69,11 @@ roots.
 
 ## Values are NaN-boxed 64-bit words
 
-Separately from the heap, `value.lisp` defines a tagged 64-bit representation
-in which a double-precision float is stored as itself and everything else is
-stored inside the payload of a quiet NaN.
+Separately from the heap, `value.lisp` and its split-out files
+(`value-tags.lisp` for the tag/mask constants, `value-codec.lisp` for the
+encoders and decoders) define a tagged 64-bit representation in which a
+double-precision float is stored as itself and everything else is stored
+inside the payload of a quiet NaN.
 
 ```lisp
 (encode-fixnum 42)        ; => 344064
@@ -115,7 +117,6 @@ language's concurrency model; see [API Reference](api-reference.md) for the
 entry points of each.
 
 Native threads are available too, via the `sb-thread` facades in
-`portable.lisp` and the native-thread section of `scheduler.lisp`. The
-lock-free structures and the reclamation schemes are the parts that assume real
-parallelism; the green-thread scheduler is not thread-safe across native
-threads by itself.
+`portable.lisp` and `scheduler-native-thread.lisp`. The lock-free structures
+and the reclamation schemes are the parts that assume real parallelism; the
+green-thread scheduler is not thread-safe across native threads by itself.

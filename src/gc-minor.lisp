@@ -167,62 +167,54 @@
         (flet ((in-source-p (addr)
                  (and (>= addr evac-source)
                       (< addr (+ evac-source semi-size)))))
+          ;; Every root class below performs the same read-copy-rebox step --
+          ;; find VAL's address if it points into the evacuation source, copy
+          ;; the referent, and return VAL reboxed to the new address, or VAL
+          ;; unchanged when it does not point into the source -- then writes
+          ;; the result back through whatever storage that root class uses
+          ;; (a root cell, a binding, a hash-table entry, a stack-map slot).
+          ;; %RT-GC-VALUE-ADDRESS-FOR-PREDICATE already returns NIL for a
+          ;; non-pointer VAL, so this is safe to call unconditionally rather
+          ;; than pre-filtering by root type first.
+          (flet ((evacuate (val)
+                   (let ((from-addr (%rt-gc-value-address-for-predicate val #'in-source-p)))
+                     (if from-addr
+                         (%rt-gc-rebox-pointer-like
+                          val
+                          (%gc-ensure-copied heap from-addr to-free-cell
+                                             promoted-list-cell #'in-source-p))
+                         val))))
           ;; Step 1: Copy roots
           (dolist (root-cell (rt-heap-roots heap))
-            (let* ((val (cdr root-cell))
-                   (from-addr
-                     (case (%rt-gc-root-type heap root-cell)
-                        ((:pointer :any) (%rt-gc-value-address-for-predicate val #'in-source-p))
-                       (otherwise nil))))
-              (when from-addr
-                (setf (cdr root-cell)
-                      (%rt-gc-rebox-pointer-like
-                        val
-                         (%gc-ensure-copied heap from-addr to-free-cell
-                                            promoted-list-cell #'in-source-p))))))
+            (setf (cdr root-cell) (evacuate (cdr root-cell))))
           ;; Dynamic binding stacks are thread-local special-variable roots.
           ;; Update each binding in place when its value is evacuated.
           (dolist (thread-state *gc-threads*)
             (dolist (binding (%rt-gc-thread-binding-stack thread-state))
-              (let* ((sym (%rt-gc-binding-symbol binding))
-                     (skip (and sym
-                                (fboundp 'rt-special-variable-global-only-p)
-                                (rt-special-variable-global-only-p sym)))
-                     (val (%rt-gc-binding-value binding))
-                     (from-addr (and (not skip)
-                                      (%rt-gc-value-address-for-predicate
-                                       val #'in-source-p))))
-                (when from-addr
+              (let ((sym (%rt-gc-binding-symbol binding)))
+                (unless (and sym
+                             (fboundp 'rt-special-variable-global-only-p)
+                             (rt-special-variable-global-only-p sym))
                   (%rt-gc-set-binding-value
-                   binding
-                    (%rt-gc-rebox-pointer-like
-                     val
-                     (%gc-ensure-copied heap from-addr to-free-cell
-                                        promoted-list-cell #'in-source-p)))))))
+                   binding (evacuate (%rt-gc-binding-value binding)))))))
           ;; Global special variables are roots too, but they do not require
           ;; thread-local binding-stack scans when marked global-only.
           (when (boundp '*rt-global-var-registry*)
             (maphash
              (lambda (sym val)
-                (let ((from-addr (%rt-gc-value-address-for-predicate
-                                  val #'in-source-p)))
-                 (when from-addr
-                   (setf (gethash sym *rt-global-var-registry*)
-                          (%rt-gc-rebox-pointer-like
-                           val
-                           (%gc-ensure-copied heap from-addr to-free-cell
-                                              promoted-list-cell #'in-source-p))))))
+               (setf (gethash sym *rt-global-var-registry*) (evacuate val)))
              *rt-global-var-registry*))
           (when *gc-conservative-roots*
             (dolist (thread-state *gc-threads*)
               (dolist (word (%rt-gc-thread-words thread-state))
-                (let ((from-addr (%rt-gc-value-address-for-predicate
-                                   word #'in-source-p)))
-                  (when from-addr
-                    (%gc-ensure-copied heap from-addr to-free-cell
-                                       promoted-list-cell #'in-source-p))))))
+                (evacuate word))))
           ;; Precise stack maps are compiler-provided roots.  They supplement
           ;; registered root cells without changing the copying algorithm.
+          ;; RT-GC-UPDATE-STACKMAP-FRAME's callback contract is "return NIL to
+          ;; leave the slot alone, non-NIL to overwrite it with the returned
+          ;; value" -- the opposite of EVACUATE's "return VAL unchanged when
+          ;; not evacuated", so this site keeps its own inline mapper rather
+          ;; than reusing EVACUATE.
           (dolist (thread-state *gc-threads*)
             (dolist (frame (and (consp thread-state) (getf thread-state :frames)))
               (rt-gc-update-stackmap-frame
@@ -264,7 +256,7 @@
           (setf live-words (- (cdr to-free-cell) evac-target))
           (incf (rt-heap-words-collected heap) (- semi-size live-words))
           ;; Step 8: Clear card table (old->young references re-recorded via write barrier)
-          (rt-card-clear-all heap))
+          (rt-card-clear-all heap)))
         (incf (rt-heap-minor-gc-count heap)))
     ;; Always reset gc-state, even on error
     (setf (rt-heap-gc-state heap) :normal))

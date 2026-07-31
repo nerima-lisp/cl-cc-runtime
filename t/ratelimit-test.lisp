@@ -1,8 +1,10 @@
 ;;;; t/ratelimit-test.lisp — token-bucket rate limiter (src/ratelimit.lisp).
 (in-package :cl-cc-runtime/test)
 
-(describe "token bucket construction (ratelimit.lisp)"
-  (it "starts full: initial tokens equal the burst"
+(describe
+  "token bucket construction (ratelimit.lisp)"
+  (it
+    "starts full: initial tokens equal the burst"
     (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 5.0 :burst 20.0)))
       (expect (cl-cc/runtime::rt-token-bucket-tokens b) :to-equal 20.0)
       (expect (cl-cc/runtime::rt-token-bucket-burst b) :to-equal 20.0)
@@ -40,7 +42,20 @@
 
   (it "rt-token-bucket-wait returns immediately when a token is available"
     (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 1000.0 :burst 5.0)))
-      (expect (cl-cc/runtime::rt-token-bucket-wait b) :to-be-truthy))))
+      (expect (cl-cc/runtime::rt-token-bucket-wait b) :to-be-truthy)))
+
+  (it "rt-token-bucket-wait honors a generous timeout when a token does become available in time"
+    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 1000.0 :burst 1.0)))
+      (cl-cc/runtime::rt-token-bucket-try-acquire b)
+      (expect (cl-cc/runtime::rt-token-bucket-wait b 1 :timeout 1.0) :to-be-truthy)))
+
+  (it "rt-token-bucket-wait returns nil rather than blocking forever when TIMEOUT elapses first"
+    ;; rate 1.0 means the bucket refills at one token per second, so a 1-token
+    ;; request cannot be satisfied inside a 50ms timeout: this proves the wait
+    ;; actually bounds itself instead of spinning until a token appears.
+    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 1.0 :burst 1.0)))
+      (cl-cc/runtime::rt-token-bucket-try-acquire b)
+      (expect (cl-cc/runtime::rt-token-bucket-wait b 1 :timeout 0.05) :to-be-null))))
 
 (describe "token bucket refill (ratelimit.lisp)"
   (it "refill adds rate*elapsed tokens but never exceeds the burst cap"
