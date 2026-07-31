@@ -36,16 +36,33 @@ command's own timeout) and observed directly with `ps`: at 41 seconds in it
 was compiling normally (117 MB resident); by 2 minutes 26 seconds it had
 made zero further progress -- identical RSS, 0.0% CPU, log unchanged --
 while `uptime` reported a load average of 9.0 and a sibling session's own
-`run-tests.lisp` held 125% CPU. The constraint is confirmed host CPU
-contention from concurrently running sibling nerima-lisp sessions during a
-from-scratch instrumented compile of ~130 files plus four sibling systems,
-not a fixable bug in either script. `nix build`'s sandboxed, single-purpose
-derivation is unaffected by that contention, which is why it is the gate
-instead. `scripts/run-coverage.lisp` exists and produces an HTML report; it
-is not run as part of the gate, and no numeric coverage target is enforced.
-This is a known gap, not a silent one -- closing it requires running the
-script on a machine (or at a time) without this contention, which is outside
-this repository's own control.
+`run-tests.lisp` held 125% CPU, consistent with host contention. It was left
+running and re-checked at 6 minutes 31 seconds: still zero progress, even
+though load average had by then dropped to 4.0 -- a real contention-bound
+process should have picked up at least some work as load fell, so `sample`
+was run against it directly. Every non-finalizer thread was parked: the
+three SBCL worker-pool threads on `_dispatch_semaphore_wait_slow` (routine
+for an idle pool, not itself informative), and, more tellingly, the main
+thread sampled at the exact same unresolved instruction address in all 2662
+sub-samples taken over 3 seconds -- the signature of a blocked wait
+primitive, not of CPU-starved forward progress, which would sample across a
+spread of addresses as it advances. The evidence points to `sb-cover`
+instrumentation combined with this machine's SBCL 2.6.6 (`nix develop`'s
+pinned toolchain, newer than the bare `sbcl` on this machine's `$PATH`,
+2.6.0) deadlocking outright during the instrumented recompile, rather than
+merely losing a CPU scheduling race -- host contention from concurrently
+running sibling nerima-lisp sessions may still be a contributing factor (it
+was present for the first observation), but is not sufficient on its own to
+explain zero progress across a load-average drop. The process was killed
+rather than left to consume memory indefinitely once this was established.
+`nix build`'s sandboxed, single-purpose test derivation does not hit this
+path (it never instruments with `sb-cover`), which is why it is the gate
+instead of `scripts/run-coverage.lisp`. The script exists and produces an
+HTML report when it does complete; it is not run as part of the gate, and no
+numeric coverage target is enforced. This is a known gap, not a silent one
+-- closing it needs someone to reproduce the deadlock with `sb-cover`
+debugging enabled (or on a different SBCL build) to find the actual blocked
+resource, which is beyond what this session's tooling could determine.
 
 ## Timeout discipline
 
