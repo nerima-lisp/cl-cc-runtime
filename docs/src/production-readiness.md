@@ -24,19 +24,28 @@ executed by it. This is deeper evidence than line coverage, which this
 project does not currently report as a percentage -- `sb-cover` requires
 recompiling every source file with instrumentation, and that recompilation
 starves on the machine this was developed on. This was re-checked rather
-than taken on faith: a plain (non-instrumented) `nix develop -c sbcl --script
-run-tests.lisp` run also stalled past any reasonable interactive budget on
-this machine while several sibling nerima-lisp repositories' own test suites
-were compiling concurrently, and killing the local `result` symlink first
-(so ASDF's own `(:tree ...)` source-registry entry in `run-tests.lisp` could
-not wander into the Nix store through it) made no difference -- so the
-constraint is host CPU contention during a from-scratch compile of ~130
-files plus four sibling systems, not a fixable bug in either script.
-`nix build`'s sandboxed, single-purpose derivation is unaffected by that
-contention, which is why it is the gate instead. `scripts/run-coverage.lisp`
-exists and produces an HTML report; it is not run as part of the gate, and
-no numeric coverage target is enforced. This is a known gap, not a silent
-one.
+than taken on faith, twice. First, a plain (non-instrumented) `nix develop -c
+sbcl --script run-tests.lisp` run also stalled past any reasonable
+interactive budget while several sibling nerima-lisp repositories' own test
+suites were compiling concurrently, and killing the local `result` symlink
+first (so ASDF's own `(:tree ...)` source-registry entry in `run-tests.lisp`
+could not wander into the Nix store through it) made no difference -- ruling
+out a source-registry bug as the cause. Second, `scripts/run-coverage.lisp`
+was launched as a detached process (`nohup ... &`, immune to any single
+command's own timeout) and observed directly with `ps`: at 41 seconds in it
+was compiling normally (117 MB resident); by 2 minutes 26 seconds it had
+made zero further progress -- identical RSS, 0.0% CPU, log unchanged --
+while `uptime` reported a load average of 9.0 and a sibling session's own
+`run-tests.lisp` held 125% CPU. The constraint is confirmed host CPU
+contention from concurrently running sibling nerima-lisp sessions during a
+from-scratch instrumented compile of ~130 files plus four sibling systems,
+not a fixable bug in either script. `nix build`'s sandboxed, single-purpose
+derivation is unaffected by that contention, which is why it is the gate
+instead. `scripts/run-coverage.lisp` exists and produces an HTML report; it
+is not run as part of the gate, and no numeric coverage target is enforced.
+This is a known gap, not a silent one -- closing it requires running the
+script on a machine (or at a time) without this contention, which is outside
+this repository's own control.
 
 ## Timeout discipline
 
