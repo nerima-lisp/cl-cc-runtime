@@ -78,15 +78,19 @@
       treefmt-nix,
     }:
     let
-      # Only the two platforms that are actually verified are declared.
-      # x86_64-linux is what the ubuntu CI runner builds; aarch64-darwin is the
-      # development machine, so every local `nix flake check` exercises it.
-      # aarch64-linux and x86_64-darwin were declared here before and nothing
-      # ever built them, which is exactly the gap this list exists to close.
-      # See ADR-0078.
+      # CI builds and tests only x86_64-linux, so that is the sole declared
+      # system: the flake never advertises a platform it does not verify.
+      # `nix flake check --all-systems` fails with a platform mismatch on a
+      # platform no runner can build, rather than skipping it.
+      #
+      # Consequence, accepted deliberately on 2026-08-01: mkPackageFlake
+      # generates EVERY per-system output from this one list -- packages,
+      # checks, apps and devShells alike -- so dropping aarch64-darwin also
+      # drops devShells.aarch64-darwin. `nix develop` and `nix build` therefore
+      # do not work on macOS; development happens on Linux. See
+      # PACKAGE_STANDARD.md, section "systems".
       systems = [
         "x86_64-linux"
-        "aarch64-darwin"
       ];
     in
     # `mkPackageFlake` spans systems -- it obtains a `pkgs` and its own
@@ -175,15 +179,14 @@
       # shorter budget would make CI flaky under load.
       timeoutSeconds = 600;
 
-      # The site is built from the repository root rather than from docs/,
-      # because docs/src/changelog.md pulls in the root CHANGELOG.md through a
-      # pymdownx.snippets include whose base_path is ".".
+      # The site is built from the repository root rather than from docs/, so
+      # the config path is the same `docs/mkdocs.yml` a contributor types by
+      # hand.
       docs = {
         root = ./.;
         fileset = nixpkgs.lib.fileset.unions [
           ./docs/mkdocs.yml
           ./docs/src
-          ./CHANGELOG.md
         ];
         mkdocsYmlName = "docs/mkdocs.yml";
       };

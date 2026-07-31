@@ -14,7 +14,7 @@ It mixes plain `it`/`it-sequential` cases, table-driven `it-sequential-each`
 known-answer batteries (SHA-256/SHA-512/HMAC/Base64 against published
 vectors), `it-property` round-trip checks, and one `it-fuzz` test -- the
 fuzz test found a real out-of-bounds read in `rt-base64-decode` the first
-time it ran (see the Changelog's `[Unreleased] Fixed` section).
+time it ran.
 
 At least one function per the org's mutation-testing floor is verified with
 `cl-weave:run-mutations`/`assert-mutation-score` at a score of 1.0 (see

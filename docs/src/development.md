@@ -98,10 +98,9 @@ To edit them with live reload, from the repository root:
 mkdocs serve -f docs/mkdocs.yml
 ```
 
-Run mkdocs from the root, not from `docs/`: `docs/src/changelog.md` includes
-the root `CHANGELOG.md` through a snippets include whose base path is the
-working directory. Add `--no-strict` while editing if warnings get in the way,
-but the committed state has to build with `--strict`.
+Run mkdocs from the root, not from `docs/`, so the config path stays
+`docs/mkdocs.yml` on every invocation path. Add `--no-strict` while editing if
+warnings get in the way, but the committed state has to build with `--strict`.
 
 Every page under `docs/src/` must appear in the `nav` in `docs/mkdocs.yml`.
 That is what `--strict` enforces, and it is why the nav cannot quietly fall
@@ -110,15 +109,18 @@ behind the tree.
 ## Releasing
 
 The `:version` in `cl-cc-runtime.asd` is the single source of truth. To cut a
-release: update `:version`, move the `## [Unreleased]` entries in
-`CHANGELOG.md` under a new `## [X.Y.Z] - YYYY-MM-DD` heading, and push the tag
-`vX.Y.Z`.
+release: update `:version` and push the tag `vX.Y.Z`.
 
 `release.yml` refuses to publish when the tag and the `.asd` version disagree,
-runs `nix flake check` against the tagged tree, and takes the release body from
-the matching CHANGELOG section. A heading that deviates from
-`## [X.Y.Z] - YYYY-MM-DD` makes that extraction come up empty and fails the
-release.
+runs `nix flake check` against the tagged tree, and then opens an empty *draft*
+release. The
+[GitHub Release description](https://github.com/nerima-lisp/cl-cc-runtime/releases)
+is the org's only canonical changelog, so the maintainer writes the notes into
+that draft and publishes it:
+
+```sh
+gh release edit vX.Y.Z --notes-file notes.md --draft=false
+```
 
 ## Keeping dependencies current
 

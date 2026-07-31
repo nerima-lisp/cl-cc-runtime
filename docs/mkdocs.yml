@@ -3,10 +3,8 @@
 # Build:   mkdocs build --strict -f docs/mkdocs.yml
 # Serve:   mkdocs serve -f docs/mkdocs.yml
 #
-# Both are run from the repository root, not from docs/: docs/src/changelog.md
-# pulls in the root CHANGELOG.md through a pymdownx.snippets include whose
-# base_path is ".". The Nix flake (`nix build .#docs`) drives the same config
-# offline and from the same directory.
+# Both are run from the repository root. The Nix flake (`nix build .#docs`)
+# drives the same config offline and from the same directory.
 
 site_name: cl-cc-runtime
 site_description: >-
@@ -101,12 +99,6 @@ markdown_extensions:
       line_spans: __span
       pygments_lang_class: true
   - pymdownx.inlinehilite
-  - pymdownx.snippets:
-      # Resolved against the working directory mkdocs is invoked from, which
-      # is the repository root -- see the Build/Serve commands above.
-      base_path:
-        - "."
-      check_paths: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
@@ -144,7 +136,6 @@ nav:
   - Project:
       - Production Readiness: production-readiness.md
       - Development: development.md
-      - Changelog: changelog.md
 
 not_in_nav: |
   notes/
