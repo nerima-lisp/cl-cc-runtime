@@ -21,48 +21,44 @@ At least one function per the org's mutation-testing floor is verified with
 [Architecture](architecture.md#testing)): every single-operator mutation of
 that function's real body is caught by its existing case battery, not just
 executed by it. This is deeper evidence than line coverage, which this
-project does not currently report as a percentage -- `sb-cover` requires
-recompiling every source file with instrumentation, and that recompilation
-starves on the machine this was developed on. This was re-checked rather
-than taken on faith, twice. First, a plain (non-instrumented) `nix develop -c
-sbcl --script run-tests.lisp` run also stalled past any reasonable
-interactive budget while several sibling nerima-lisp repositories' own test
-suites were compiling concurrently, and killing the local `result` symlink
-first (so ASDF's own `(:tree ...)` source-registry entry in `run-tests.lisp`
-could not wander into the Nix store through it) made no difference -- ruling
-out a source-registry bug as the cause. Second, `scripts/run-coverage.lisp`
-was launched as a detached process (`nohup ... &`, immune to any single
-command's own timeout) and observed directly with `ps`: at 41 seconds in it
-was compiling normally (117 MB resident); by 2 minutes 26 seconds it had
-made zero further progress -- identical RSS, 0.0% CPU, log unchanged --
-while `uptime` reported a load average of 9.0 and a sibling session's own
-`run-tests.lisp` held 125% CPU, consistent with host contention. It was left
-running and re-checked at 6 minutes 31 seconds: still zero progress, even
-though load average had by then dropped to 4.0 -- a real contention-bound
-process should have picked up at least some work as load fell, so `sample`
-was run against it directly. Every non-finalizer thread was parked: the
-three SBCL worker-pool threads on `_dispatch_semaphore_wait_slow` (routine
-for an idle pool, not itself informative), and, more tellingly, the main
-thread sampled at the exact same unresolved instruction address in all 2662
-sub-samples taken over 3 seconds -- the signature of a blocked wait
-primitive, not of CPU-starved forward progress, which would sample across a
-spread of addresses as it advances. The evidence points to `sb-cover`
-instrumentation combined with this machine's SBCL 2.6.6 (`nix develop`'s
-pinned toolchain, newer than the bare `sbcl` on this machine's `$PATH`,
-2.6.0) deadlocking outright during the instrumented recompile, rather than
-merely losing a CPU scheduling race -- host contention from concurrently
-running sibling nerima-lisp sessions may still be a contributing factor (it
-was present for the first observation), but is not sufficient on its own to
-explain zero progress across a load-average drop. The process was killed
-rather than left to consume memory indefinitely once this was established.
-`nix build`'s sandboxed, single-purpose test derivation does not hit this
-path (it never instruments with `sb-cover`), which is why it is the gate
-instead of `scripts/run-coverage.lisp`. The script exists and produces an
-HTML report when it does complete; it is not run as part of the gate, and no
-numeric coverage target is enforced. This is a known gap, not a silent one
--- closing it needs someone to reproduce the deadlock with `sb-cover`
-debugging enabled (or on a different SBCL build) to find the actual blocked
-resource, which is beyond what this session's tooling could determine.
+project does not currently report as a percentage. `scripts/run-coverage.lisp`
+exists and produces an HTML report when it completes; it is not run as part
+of the gate, and no numeric coverage target is enforced.
+
+This was investigated at length rather than taken on faith, and the
+investigation changed the diagnosis. The original claim in this document was
+that `sb-cover`'s instrumented recompile itself starves or deadlocks on this
+machine; direct measurement does not support that. Bisecting the failure by
+running each stage of `scripts/run-coverage.lisp` in isolation (source
+registry setup, each dependency load, `sb-cover` instrumentation, the
+compile) found that plain `(asdf:load-system "cl-log-kit")` -- no
+`sb-cover`, no coverage declaim, nothing project-specific -- already hangs
+indefinitely when run as an ordinary `sbcl --script` process, whether or not
+that process runs inside `nix develop`'s shell. `asdf:initialize-source-registry`
+itself was separately timed at 0.05 seconds, ruling out the `(:tree ...)`
+source-registry entry as the cause. A `sample` taken against one such hung
+process showed every non-finalizer thread parked -- the main thread at one
+identical unresolved instruction address across all 2662 sub-samples taken
+over 3 seconds -- consistent with a genuine blocked wait, not scheduling
+contention; a follow-up hostname/DNS timing check and a source-level search
+of `cl-log-kit` for networking calls both came back clean, so the specific
+blocked resource is still unidentified.
+
+The load-bearing fact is narrower than the failure mode: `nix build
+.#checks.<system>.default` -- the actual gate -- loads this exact same
+`cl-log-kit` dependency as part of running all 1142 tests, and does so
+successfully and repeatably (see above). Whatever makes an ad hoc, outside-
+the-sandbox `sbcl --script` invocation on this machine hang loading
+`cl-log-kit` does not reproduce inside `nix build`'s sandboxed derivation.
+`scripts/run-coverage.lisp` was never successfully run to completion in this
+investigation as a result, so no numeric coverage figure could be produced
+this session -- but the cause is this machine's interactive-shell
+environment, not a `cl-cc-runtime`-side or `sb-cover`-side defect, and
+specifically not the SBCL-thread-deadlock-during-instrumentation theory this
+document previously stated. This is a known gap, not a silent one -- closing
+it needs someone to run `scripts/run-coverage.lisp` on a machine where a bare
+`sbcl --script` can load `cl-log-kit`, or to root-cause why this machine's
+cannot, neither of which this session's tooling could complete.
 
 ## Timeout discipline
 
