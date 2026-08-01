@@ -96,7 +96,7 @@
       (with-open-file (in path :direction :input)
         (loop for line = (read-line in nil nil)
               while line
-              do (let ((parts (remove "" (uiop:split-string line :separator '(#\Space #\Tab))
+              do (let ((parts (remove "" (host-kit:split-string line :separator '(#\Space #\Tab))
                                       :test #'string=)))
                    (when (and (>= (length parts) 3)
                               (%rt-profile-hex-token-p (first parts))
@@ -272,7 +272,7 @@ instrumentation; background sampling uses the same storage path."
   (let* ((frames (cond
                    ((stringp stack)
                     (mapcar #'%rt-profile-normalize-frame
-                            (remove "" (uiop:split-string stack :separator '(#\;))
+                            (remove "" (host-kit:split-string stack :separator '(#\;))
                                     :test #'string=)))
                    (t (mapcar (lambda (frame)
                                 (%rt-profile-normalize-frame

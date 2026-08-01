@@ -29,7 +29,7 @@ structured logging, process execution and JSON rather than reimplementing them."
   ;; cl-log-kit -> cl-boundary-kit -> cl-process-kit -> cl-cc-runtime, which is
   ;; at the depth ceiling of 4 with one hop to spare. See DEPENDENCY_POLICY.md
   ;; before adding a fourth dependency here.
-  :depends-on ("cl-log-kit" "cl-process-kit" "cl-json-kit")
+  :depends-on ("cl-log-kit" "cl-process-kit" "cl-json-kit" "cl-host-kit")
   :pathname "src"
   :serial t
   :components
@@ -253,6 +253,6 @@ structured logging, process execution and JSON rather than reimplementing them."
    (:file "gc-major-sweep-incremental-test"))
   :perform (test-op (op system)
              (declare (ignore op system))
-             (unless (uiop:symbol-call :cl-weave :run-all
-                                       :reporter :spec :pass-with-no-tests nil)
+             (unless (host-kit:symbol-call :cl-weave :run-all
+                                           :reporter :spec :pass-with-no-tests nil)
                (error "cl-cc-runtime tests failed"))))

@@ -175,7 +175,7 @@ dependency when the spec being duplicated will not change."
 
 (defun %rt-dyld-interposition-var-p (entry)
   "True when ENVIRON entry ENTRY is a macOS dyld interposition variable."
-  (uiop:string-prefix-p "DYLD_INSERT_LIBRARIES=" entry))
+  (host-kit:string-prefix-p "DYLD_INSERT_LIBRARIES=" entry))
 
 (defun %rt-child-environment ()
   "Return a child process environment with macOS dyld interposition removed,

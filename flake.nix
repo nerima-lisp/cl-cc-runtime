@@ -60,6 +60,16 @@
       inputs.cl-nix-forge.follows = "cl-nix-forge";
     };
 
+    # The 2026-08-01 uiop->cl-host-kit org migration's real (non-test)
+    # dependency. Already on mkPackageFlake upstream, so this follows the
+    # same `packages.${system}` shape as cl-log-kit/cl-process-kit above
+    # rather than cl-json-kit's fromDerivation leaf-wrapping.
+    cl-host-kit = {
+      url = "github:nerima-lisp/cl-host-kit/v0.2.1";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.cl-nix-forge.follows = "cl-nix-forge";
+    };
+
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -75,6 +85,7 @@
       cl-log-kit,
       cl-json-kit,
       cl-process-kit,
+      cl-host-kit,
       treefmt-nix,
     }:
     let
@@ -158,6 +169,7 @@
         cl-log-kit.packages.${ctx.system}.cl-log-kit
         cl-process-kit.packages.${ctx.system}.cl-process-kit
         (ctx.cl.fromDerivation { drv = cl-json-kit.packages.${ctx.system}.cl-json-kit; })
+        cl-host-kit.packages.${ctx.system}.cl-host-kit
       ];
 
       # cl-weave is a dependency of cl-cc-runtime/test and of nothing else

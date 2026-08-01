@@ -43,13 +43,11 @@ detection; on timeout the probe falls through to /proc/cpuinfo / NIL.")
 (defun %rt-cpu-feature-text ()
   "Return best-effort CPU feature text for capability detection."
   (or (ignore-errors
-        (when (and (find-package :uiop) (fboundp 'uiop:run-program))
-          (handler-case
-              (sb-ext:with-timeout *rt-cpu-feature-probe-timeout-seconds*
-                (uiop:run-program '("sysctl" "-a")
-                                  :output :string
-                                  :ignore-error-status t))
-            (sb-ext:timeout () nil))))
+        (let ((result (host-kit:run-program
+                       "sysctl" '("-a")
+                       :timeout *rt-cpu-feature-probe-timeout-seconds*)))
+          (and (not (host-kit:process-result-timed-out-p result))
+               (host-kit:process-result-stdout result))))
       (ignore-errors
         (with-open-file (in "/proc/cpuinfo" :direction :input)
           (let ((out (make-string-output-stream)))
