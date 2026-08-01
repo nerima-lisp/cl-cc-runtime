@@ -113,7 +113,7 @@ reclamation schemes (epoch-based, hazard pointers, RCU and QSBR).
 
 They are separate because they make different trade-offs, not because one
 supersedes another. A compiler back end picks the one that matches the source
-language's concurrency model; see [API Reference](api-reference.md) for the
+language's concurrency model; see [API Reference](../reference/api.md) for the
 entry points of each.
 
 Native threads are available too, via the `sb-thread` facades in

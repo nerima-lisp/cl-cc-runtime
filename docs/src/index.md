@@ -17,22 +17,21 @@ targets SBCL only.
 
 ## Where to go next
 
-- [Installation](installation.md) adds the flake input and the `:depends-on`
-  entry, and confirms the system loads.
-- [Quick Start](quick-start.md) walks one task end to end: allocating on the
-  managed heap, registering a root, and collecting.
-- [Core Concepts](core-concepts.md) explains the four ideas the rest of the API
+- [Getting Started](getting-started.md) adds the flake input and the
+  `:depends-on` entry, confirms the system loads, then walks one task end to
+  end: allocating on the managed heap, registering a root, and collecting.
+- [Core Concepts](guide/core-concepts.md) explains the four ideas the rest of the API
   is built on -- word-addressed heaps, NaN boxing, roots, and cooperative
   scheduling.
-- [API Reference](api-reference.md) lists the exported entry points by
+- [API Reference](reference/api.md) lists the exported entry points by
   subsystem.
-- [Conditions](conditions.md) is the catalogue of condition types this library
+- [Conditions](reference/conditions.md) is the catalogue of condition types this library
   signals.
-- [Architecture](architecture.md) describes how `src/` is divided and why.
-- [Production Readiness](production-readiness.md) is a written audit against
+- [Architecture](reference/architecture.md) describes how `src/` is divided and why.
+- [Production Readiness](project/production-readiness.md) is a written audit against
   concrete criteria: testing depth, timeout discipline, error handling,
   observability, and what is honestly still incomplete.
-- [Development](development.md) has the build, test, coverage and formatting
+- [Development](project/development.md) has the build, test, coverage and formatting
   commands.
 
 ## Scope

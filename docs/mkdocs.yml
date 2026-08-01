@@ -123,19 +123,16 @@ markdown_extensions:
 # unlisted page, so the nav cannot silently fall behind the tree.
 nav:
   - Home: index.md
-  - Getting Started:
-      - Installation: installation.md
-      - Quick Start: quick-start.md
+  - Getting Started: getting-started.md
   - Guide:
-      - Core Concepts: core-concepts.md
+      - Core Concepts: guide/core-concepts.md
   - Reference:
-      - API Reference: api-reference.md
-      - Conditions: conditions.md
-  - Internals:
-      - Architecture: architecture.md
+      - API: reference/api.md
+      - Architecture: reference/architecture.md
+      - Conditions: reference/conditions.md
   - Project:
-      - Production Readiness: production-readiness.md
-      - Development: development.md
+      - Development: project/development.md
+      - Production Readiness: project/production-readiness.md
 
 not_in_nav: |
   notes/

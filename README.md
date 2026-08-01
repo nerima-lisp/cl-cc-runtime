@@ -61,10 +61,10 @@ registry as well because cl-process-kit requires it.
 
 ## Documentation
 
-- [Quick Start](https://nerima-lisp.github.io/cl-cc-runtime/quick-start/)
-- [Core Concepts](https://nerima-lisp.github.io/cl-cc-runtime/core-concepts/)
-- [API Reference](https://nerima-lisp.github.io/cl-cc-runtime/api-reference/)
-- [Architecture](https://nerima-lisp.github.io/cl-cc-runtime/architecture/)
+- [Getting Started](https://nerima-lisp.github.io/cl-cc-runtime/getting-started/)
+- [Core Concepts](https://nerima-lisp.github.io/cl-cc-runtime/guide/core-concepts/)
+- [API Reference](https://nerima-lisp.github.io/cl-cc-runtime/reference/api/)
+- [Architecture](https://nerima-lisp.github.io/cl-cc-runtime/reference/architecture/)
 
 ## Development
 

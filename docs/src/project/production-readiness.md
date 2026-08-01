@@ -18,7 +18,7 @@ time it ran.
 
 At least one function per the org's mutation-testing floor is verified with
 `cl-weave:run-mutations`/`assert-mutation-score` at a score of 1.0 (see
-[Architecture](architecture.md#testing)): every single-operator mutation of
+[Architecture](../reference/architecture.md#testing)): every single-operator mutation of
 that function's real body is caught by its existing case battery, not just
 executed by it. This is deeper evidence than line coverage, which this
 project does not currently report as a percentage. `scripts/run-coverage.lisp`
@@ -123,7 +123,7 @@ a breaking behavior change for every existing caller.
 Every condition this library signals derives from `rt-runtime-condition` (or
 `rt-runtime-error` for the error subset), so a caller can catch anything from
 `cl-cc/runtime` with one `handler-case` clause -- see
-[Conditions](conditions.md) for the full catalogue. The runtime also
+[Conditions](../reference/conditions.md) for the full catalogue. The runtime also
 implements its own independent condition/handler/restart system
 (`rt-signal`, `rt-establish-handler`, `rt-restart-case`, ...) for the
 *compiled target program's* error handling, deliberately separate from the
@@ -145,7 +145,7 @@ patterns to confirm each detector actually flags them.
 ## Observability
 
 Structured logging (`cl-log-kit`, used directly -- see
-[Architecture](architecture.md)), OpenTelemetry spans and metrics export,
+[Architecture](../reference/architecture.md)), OpenTelemetry spans and metrics export,
 Prometheus-format metrics, continuous profiling with OTel/pprof-JSON
 rendering, and hardware performance counters are all present and exercised
 by tests. `rt-context-spawn` propagates both the runtime's own cancellation/
@@ -168,8 +168,8 @@ Nine further nerima-lisp org packages were evaluated for adoption over the
 course of this refactor (`cl-dataflow`, `cl-parser-kit`, `cl-cli`,
 `cl-tty-kit`, `cl-regex-kit`, `cl-history-kit`, `cl-date-kit`,
 `cl-concurrent-kit`, `cl-host-kit`); see
-[Architecture](architecture.md#why-not-cl-dataflow) and
-[Architecture](architecture.md#other-org-packages-evaluated-and-declined)
+[Architecture](../reference/architecture.md#why-not-cl-dataflow) and
+[Architecture](../reference/architecture.md#other-org-packages-evaluated-and-declined)
 for the reasoning behind declining all nine as dependencies, and the one
 place (`rt-getenv`/`rt-setenv`/`rt-unsetenv`'s POSIX name validation) where
 the right answer per the org's own `DEPENDENCY_POLICY.md` was to duplicate
@@ -194,7 +194,7 @@ since the code itself was correct.
 - The default green-thread scheduler is cooperative and single-native-thread;
   throughput under real parallelism requires opting into the work-stealing
   scheduler or native threads explicitly (see
-  [Core Concepts](core-concepts.md#concurrency-is-cooperative-by-default)).
+  [Core Concepts](../guide/core-concepts.md#concurrency-is-cooperative-by-default)).
 - Mutation testing currently covers one function, the org's stated floor,
   not the full `src/` tree.
 - No numeric bound on how many other org packages, dependency-upgrade

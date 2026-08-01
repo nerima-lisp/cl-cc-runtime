@@ -9,7 +9,7 @@ They are separate from the *runtime* condition system -- `rt-signal`,
 handlers and restarts for the compiled program. This page is about the
 conditions the library signals at *you*; that machinery is about the conditions
 a compiled program signals at itself. See
-[API Reference](api-reference.md#conditions-and-restarts) for the latter.
+[API Reference](api.md#conditions-and-restarts) for the latter.
 
 ## The base types
 
