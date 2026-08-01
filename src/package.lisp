@@ -427,19 +427,11 @@
     ;; ── Futures / promises (future.lisp) ──
      #:rt-make-future #:rt-future-resolve #:rt-future-await #:rt-future-done-p
      #:rt-future-then
-     ;; ── Async / async generators (async.lisp, async-generators.lisp) ──
+     ;; ── Async (async.lisp) ──
      #:rt-async #:rt-await #:rt-await* #:rt-async-submit
      #:rt-async-lambda #:rt-async-defun
      #:rt-async-cps-transform #:rt-async-cps
      #:rt-async-channel #:rt-async-send #:rt-async-recv
-    #:rt-aiter #:rt-aiter-p #:make-rt-aiter
-    #:rt-aiter-next-fn #:rt-aiter-next
-    #:rt-aiter-from-list #:rt-aiter-map #:rt-aiter-filter #:rt-aiter-take #:rt-aiter-collect
-    #:rt-async-generator-state #:rt-async-generator-state-p #:make-rt-async-generator-state
-    #:rt-async-generator-state-items #:rt-async-generator-state-done-p
-    #:rt-async-generator-state-error #:rt-async-generator-state-waiters
-    #:rt-make-async-generator #:rt-async-yield #:rt-async-generator-next
-    #:rt-async-generator-close #:rt-async-generator-fail #:rt-async-for #:rt-coroutine #:rt-coroutine-p #:rt-coroutine-strategy #:rt-lower-coroutine #:rt-coroutine-resume #:rt-coroutine-done-p
     ;; ── Algebraic effects (effects.lisp) ──
     #:rt-effect #:rt-effect-p #:make-rt-effect #:rt-effect-name #:rt-effect-payload
     #:rt-perform #:rt-handle #:rt-handler-state #:rt-handler-state-p
@@ -612,23 +604,6 @@
      #:memory-tier-info #:+rt-affinity-mask-bytes+
      #:rt-cpu-topology
      #:rt-thread-set-affinity #:rt-thread-get-affinity
-     ;; ── GPU compute (gpu.lisp) ──
-     #:rt-gpu-buffer #:rt-gpu-kernel
-    #:rt-gpu-buffer-alloc #:rt-gpu-buffer-copy #:rt-gpu-buffer-free
-    #:rt-gpu-kernel-compile #:rt-gpu-launch-kernel #:rt-gpu-launch-async
-    ;; ── Reactive Streams (reactive.lisp) ──
-    #:rt-subscription #:rt-subscriber
-    #:rt-subscribe #:rt-on-subscribe #:rt-on-next #:rt-on-error #:rt-on-complete
-    #:rt-request #:rt-cancel
-    #:rt-publisher-from-list #:rt-publisher-map #:rt-publisher-filter
-    #:rt-publisher-merge #:rt-publisher-zip
-    #:rt-make-subscriber #:rt-subscriber-collect
-    ;; ── Async Generators (async-generators.lisp) ──
-    #:rt-aiter #:rt-aiter-next #:rt-aiter-from-list
-    #:rt-async-generator-state #:rt-make-async-generator
-    #:rt-async-yield #:rt-async-generator-close #:rt-async-generator-fail
-    #:rt-async-generator-next
-    #:rt-aiter-map #:rt-aiter-filter #:rt-aiter-take #:rt-aiter-collect
     ;; ── Effect system (effects.lisp) ──
     #:rt-effect #:rt-handler-state
     #:rt-current-handler #:rt-resume #:rt-perform #:rt-handle
@@ -678,20 +653,12 @@
     ;; ── Self-host portability facades (portable.lisp) ──
     #:rt-make-lock #:rt-with-lock #:rt-lock #:rt-unlock #:rt-try-lock
     #:rt-getenv
-    ;; ── Cluster / remote (cluster.lisp) ──
-    #:rt-cluster-init #:rt-cluster-join #:rt-cluster-leave
-    #:rt-cluster-query-node-status #:rt-remote-send #:rt-make-remote-ref
     ;; ── FFI (ffi.lisp) ──
     #:rt-ffi-load-library #:rt-ffi-close-library #:rt-define-foreign-function
     #:rt-foreign-funcall #:rt-ffi-callback-invoke #:rt-define-foreign-struct
     #:rt-ffi-struct-size #:rt-ffi-struct-field-offset #:rt-ffi-init #:*rt-deopt-enabled*
     ;; ── Image / hot reload (image.lisp) ──
     #:rt-image-register-restore-hook #:rt-hot-reload #:rt-image-init
-    ;; ── io_uring async I/O (io-uring.lisp) ──
-    #:rt-iouring-available-p #:rt-iouring-read #:rt-iouring-write
-    #:rt-iouring-poll #:rt-iouring-close
-    ;; ── MVCC (mvcc.lisp) ──
-    #:rt-make-mvcc-var #:rt-mvcc-read #:rt-with-mvcc-transaction #:rt-mvcc-compact
     ;; ── Rate limiting (ratelimit.lisp) ──
     #:rt-make-token-bucket #:rt-token-bucket-acquire
     #:rt-token-bucket-wait #:rt-token-bucket-stats
@@ -712,9 +679,6 @@
     #:rt-directory #:rt-ensure-directories-exist #:rt-truename
     #:rt-make-broadcast-stream #:rt-make-concatenated-stream #:rt-make-echo-stream
     #:rt-read-sequence #:rt-write-sequence
-    ;; ── Zero-copy buffers (zerocopy.lisp) ──
-    #:rt-register-buffer #:rt-unregister-buffer #:rt-splice
-    #:rt-copy-buffer #:rt-zerocopy-init
     ;; ── Cryptographic primitives (crypto.lisp) ──
     #:rt-sha256 #:rt-sha512 #:rt-sha256-string
     #:rt-hmac-sha256 #:rt-base64-encode #:rt-base64-decode))
