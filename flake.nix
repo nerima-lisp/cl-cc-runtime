@@ -38,24 +38,24 @@
     # is built once and threaded through, never re-derived by a downstream
     # consumer.
     cl-weave = {
-      url = "github:nerima-lisp/cl-weave/v1.1.0";
+      url = "github:nerima-lisp/cl-weave/v1.1.4";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.cl-nix-forge.follows = "cl-nix-forge";
     };
     cl-log-kit = {
-      url = "github:nerima-lisp/cl-log-kit/v2.0.0";
+      url = "github:nerima-lisp/cl-log-kit/v2.0.1";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.cl-nix-forge.follows = "cl-nix-forge";
     };
     cl-json-kit = {
-      url = "github:nerima-lisp/cl-json-kit/v1.0.1";
+      url = "github:nerima-lisp/cl-json-kit/v1.0.2";
       inputs.nixpkgs.follows = "nixpkgs";
       # No `cl-nix-forge.follows`: this tag predates cl-json-kit's own
       # migration to mkPackageFlake, so its flake.nix declares no
       # cl-nix-forge input of its own to redirect.
     };
     cl-process-kit = {
-      url = "github:nerima-lisp/cl-process-kit/v2.0.0";
+      url = "github:nerima-lisp/cl-process-kit/v3.1.0";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.cl-nix-forge.follows = "cl-nix-forge";
     };
@@ -65,7 +65,7 @@
     # same `packages.${system}` shape as cl-log-kit/cl-process-kit above
     # rather than cl-json-kit's fromDerivation leaf-wrapping.
     cl-host-kit = {
-      url = "github:nerima-lisp/cl-host-kit/v0.2.1";
+      url = "github:nerima-lisp/cl-host-kit/v0.2.5";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.cl-nix-forge.follows = "cl-nix-forge";
     };
