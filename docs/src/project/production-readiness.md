@@ -165,10 +165,10 @@ derivations rather than separate CI jobs, so there is one command that
 either passes or says exactly why not.
 
 Nine further nerima-lisp org packages were evaluated for adoption over the
-course of this refactor (`cl-dataflow`, `cl-parser-kit`, `cl-cli`,
+course of this refactor (`cl-dataflow-kit`, `cl-parser-kit`, `cl-cli`,
 `cl-tty-kit`, `cl-regex-kit`, `cl-history-kit`, `cl-date-kit`,
 `cl-concurrent-kit`, `cl-host-kit`); see
-[Architecture](../reference/architecture.md#why-not-cl-dataflow) and
+[Architecture](../reference/architecture.md#why-not-cl-dataflow-kit) and
 [Architecture](../reference/architecture.md#other-org-packages-evaluated-and-declined)
 for the reasoning behind declining all nine as dependencies, and the one
 place (`rt-getenv`/`rt-setenv`/`rt-unsetenv`'s POSIX name validation) where
