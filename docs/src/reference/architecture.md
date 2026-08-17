@@ -84,14 +84,14 @@ more subsystems in a library that already has 125 files.
 The depth ceiling for the org is 4. Adding a fourth dependency here would come
 close enough to it to be worth discussing first.
 
-### Why not cl-dataflow
+### Why not cl-dataflow-kit
 
-`cl-dataflow` (computation graphs, pipelines, state machines, effect
+`cl-dataflow-kit` (computation graphs, pipelines, state machines, effect
 boundaries) is an L3 sibling that looks adjacent to `reactive.lisp` and
 `effects.lisp` on the surface. It is not a fit: both of those files implement
 a specific low-level protocol by name -- Reactive Streams'
 `on-subscribe`/`on-next`/`on-error`/`on-complete` and an algebraic-effect
-handler stack -- that the cl-cc compiler emits code against. `cl-dataflow`'s
+handler stack -- that the cl-cc compiler emits code against. `cl-dataflow-kit`'s
 `define-pipeline`/`:node`/`:edge` model operates one layer up, at named-graph
 orchestration. Adopting it here would mean wrapping its graph API to fake the
 protocol shape downstream code already targets, which is exactly the kind of
@@ -111,7 +111,7 @@ timezone arithmetic has no consumer here; every clock read in this tree goes
 through `rt-gettime-monotonic`, not a calendar. `cl-regex-kit` has no
 string-pattern call site to replace.
 
-`cl-concurrent-kit` is the same shape mismatch as `cl-dataflow` above: it is
+`cl-concurrent-kit` is the same shape mismatch as `cl-dataflow-kit` above: it is
 a bordeaux-threads-style portable primitive set, one layer up from what this
 library needs. `sync.lisp`'s primitives are named `rt-*` because the
 compiler back end emits calls to them by that exact name, not because this
