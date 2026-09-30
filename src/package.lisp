@@ -634,6 +634,11 @@
     #:satb-write-barrier #:satb-drain-queue #:*satb-queue*
     #:+gc-region-size+ #:gc-region #:make-gc-region #:*gc-regions*
     #:*gc-pause-target-ms* #:estimate-region-garbage-ratio
+    #:rt-heap-region #:rt-heap-regions #:rt-heap-region-size-words
+    #:rt-heap-region-for-address #:rt-heap-initialize-regions
+    #:*rt-region-mixed-collection-enabled-p*
+    #:rt-gc-region-select-mixed #:rt-gc-region-mixed-collect
+    #:rt-gc-region-handle-evacuation-failure
     ;; ── Compressed pointers / SSO strings (value.lisp) ──
     #:+compressed-pointer-flag+ #:+compressed-pointer-offset-mask+
     #:+compressed-heap-region-bytes+ #:+compressed-heap-region-words+

@@ -62,6 +62,7 @@ structured logging, process execution and JSON rather than reimplementing them."
    (:file "heap-core")
    (:file "heap-sanitizer")
    (:file "heap-layout")
+   (:file "heap-region")
    (:file "heap-access")
    (:file "heap-forwarding")
    (:file "heap-numa")
@@ -92,6 +93,7 @@ structured logging, process execution and JSON rather than reimplementing them."
    (:file "gc-major-sweep")
    (:file "gc-compact")
    (:file "gc-concurrent-sweep")
+   (:file "gc-region-collect")
    (:file "gc-major-collect")
    (:file "gc-sweep-telemetry")
    ;; Synchronization & concurrency primitives
@@ -233,7 +235,8 @@ structured logging, process execution and JSON rather than reimplementing them."
    (:file "async-test")
    (:file "portable-test")
    (:file "gc-workers-test")
-   (:file "gc-major-sweep-incremental-test"))
+   (:file "gc-major-sweep-incremental-test")
+   (:file "gc-region-collect-test"))
   ;; Not HOST-KIT:SYMBOL-CALL: a .asd is read before :depends-on is ever
   ;; consulted, so a CL-HOST-KIT-prefixed token here would be a read-time
   ;; PACKAGE-DOES-NOT-EXIST error regardless of what the system depends on.

@@ -64,6 +64,8 @@
   (numa-node-map nil :type hash-table)
   (numa-gc-schedule nil :type list)
   (interleaved-regions nil :type list)
+  (regions nil :type simple-vector)
+  (region-size-words 0 :type fixnum)
   (co-location-hints nil :type hash-table)
   (gc-inhibit      nil  :type boolean)
   (gc-pending      nil  :type boolean))
