@@ -50,6 +50,13 @@
     (expect (cl-cc/runtime::rt-peek-char s) :to-equal #\y)
     (expect (cl-cc/runtime::rt-read-char s) :to-equal #\y)))
 
+(it-sequential
+  "rt-listen reports pending input and rt-clear-input consumes it."
+  (let ((s (make-string-input-stream "x")))
+    (expect (cl-cc/runtime::rt-listen s) :to-be-truthy)
+    (cl-cc/runtime::rt-clear-input s)
+    (expect (cl-cc/runtime::rt-listen s) :to-be-falsy)))
+
 ;;; ─── rt-read-line ───────────────────────────────────────────────────────────
 (it-sequential
   "rt-read-line reads a line from a string input stream."

@@ -46,10 +46,78 @@ CL-PROCESS-KIT:PROCESS-HANDLE used for portable process management."
   #+darwin :darwin
   #+linux :linux
   #-(or darwin linux) :unknown)
+(defvar *rt-terminal-saved-modes* (make-hash-table :test #'eq))
 
 (defun rt-platform () *rt-platform*)
 (defun rt-platform-darwin-p () (eq *rt-platform* :darwin))
 (defun rt-platform-linux-p () (eq *rt-platform* :linux))
+
+(defun %rt-stream-fd (stream)
+  (when (typep stream 'sb-sys:fd-stream)
+    (sb-sys:fd-stream-fd stream)))
+
+(defun rt-isatty (&optional stream)
+  "Return true when STREAM is attached to a terminal."
+  (let ((fd (%rt-stream-fd (or stream *standard-output*))))
+    (and fd (ignore-errors (sb-posix:tcgetattr fd)) t)))
+
+(defun rt-terminal-p (&optional stream)
+  "Alias for RT-ISATTY."
+  (rt-isatty stream))
+
+(defun %rt-stty (stream &rest args)
+  (uiop:run-program (cons "stty" args) :input stream :output :string
+                    :error-output :string))
+
+(defun rt-terminal-raw-mode (&optional stream)
+  "Put STREAM's terminal into raw, no-echo mode and save its prior mode."
+  (let* ((stream (or stream *standard-input*))
+         (fd (%rt-stream-fd stream)))
+    (unless (and fd (rt-isatty stream))
+      (return-from rt-terminal-raw-mode nil))
+    (setf (gethash stream *rt-terminal-saved-modes*)
+          (string-trim '(#\Space #\Tab #\Newline #\Return)
+                       (%rt-stty stream "-g")))
+    (%rt-stty stream "raw" "-echo")
+    t))
+
+(defun rt-terminal-restore-mode (&optional stream)
+  "Restore the terminal mode saved by RT-TERMINAL-RAW-MODE."
+  (let* ((stream (or stream *standard-input*))
+         (saved (gethash stream *rt-terminal-saved-modes*)))
+    (when saved
+      (%rt-stty stream saved)
+      (remhash stream *rt-terminal-saved-modes*)
+      t)))
+
+(defun rt-ansi-color (color &key (bright nil))
+  "Return an ANSI foreground escape for COLOR (0-7 or a color keyword)."
+  (let ((code (etypecase color
+                (integer (if (<= 0 color 7) color
+                             (error "ANSI color must be in the range 0..7")))
+                (symbol (ecase color
+                          (:black 0) (:red 1) (:green 2) (:yellow 3)
+                          (:blue 4) (:magenta 5) (:cyan 6) (:white 7))))))
+    (if bright
+        (format nil "~C[1;~Dm" #\Esc (+ 30 code))
+        (format nil "~C[~Dm" #\Esc (+ 30 code)))))
+
+(defun rt-ansi-reset ()
+  "Return the ANSI escape that resets terminal attributes."
+  (format nil "~C[0m" #\Esc))
+
+(defun rt-random-bytes (count)
+  "Return COUNT cryptographically seeded random bytes when available."
+  (check-type count (integer 0 *))
+  (let ((bytes (make-array count :element-type '(unsigned-byte 8))))
+    (handler-case
+        (with-open-file (stream "/dev/urandom" :direction :input
+                                :element-type '(unsigned-byte 8))
+          (read-sequence bytes stream))
+      (file-error ()
+        (let ((state (make-random-state t)))
+          (dotimes (i count) (setf (aref bytes i) (random 256 state))))))
+    bytes))
 
 (defun %rt-direction-for-mode (mode)
   (cond ((member mode '(:input :read +rt-o-rdonly+ 0) :test #'equal) :input)

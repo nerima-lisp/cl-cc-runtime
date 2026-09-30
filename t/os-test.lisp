@@ -21,6 +21,19 @@
           (expect (cl-cc/runtime:rt-getenv name) :to-be nil))
       (cl-cc/runtime:rt-unsetenv name))))
 
+(it-sequential
+  "terminal helpers report non-terminal test streams and produce ANSI escapes."
+  (let ((s (make-string-output-stream)))
+    (expect (cl-cc/runtime:rt-isatty s) :to-be-falsy)
+    (expect (cl-cc/runtime:rt-ansi-color :red) :to-equal (format nil "~C[31m" #\Esc))
+    (expect (cl-cc/runtime:rt-ansi-reset) :to-equal (format nil "~C[0m" #\Esc))))
+
+(it-sequential
+  "rt-random-bytes returns the requested number of octets."
+  (let ((bytes (cl-cc/runtime:rt-random-bytes 32)))
+    (expect (length bytes) :to-equal 32)
+    (expect (array-element-type bytes) :to-equal '(unsigned-byte 8))))
+
 (it-sequential-each
   (("empty" "")
    ("equals-sign" "HAS=EQUALS")

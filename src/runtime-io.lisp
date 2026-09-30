@@ -27,6 +27,24 @@
 (define-rt-stream-op rt-finish-output finish-output ())
 (define-rt-stream-op rt-force-output  force-output  ())
 (define-rt-stream-op rt-clear-output  clear-output  ())
+(defun rt-listen (&optional stream)
+  "Return true when STREAM has input available without blocking."
+  (listen (or stream *standard-input*)))
+(defun rt-stream-ready-p (&optional stream)
+  "Alias for RT-LISTEN suitable for generated code."
+  (rt-listen stream))
+(defun rt-clear-input (&optional stream)
+  "Discard pending input from STREAM and return true."
+  (clear-input (or stream *standard-input*))
+  t)
+(defun rt-file-position (stream &optional position)
+  "Return STREAM's file position, or set it when POSITION is supplied."
+  (if position
+      (file-position stream position)
+      (file-position stream)))
+(defun rt-file-length (stream)
+  "Return STREAM's file length when the host stream supports it."
+  (file-length stream))
 (defun rt-write-to-string (obj)
   "Native-callable simple write-to-string. Uses current CL print-control variables."
   (write-to-string obj))

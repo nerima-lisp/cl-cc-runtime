@@ -161,6 +161,7 @@
    #:rt-write-char #:rt-write-string #:rt-write-line #:rt-write-byte
    #:rt-format #:rt-read-char #:rt-read-line #:rt-read-byte
    #:rt-peek-char #:rt-unread-char
+   #:rt-listen #:rt-stream-ready-p #:rt-clear-input #:rt-file-position #:rt-file-length
    #:rt-open-file #:rt-close-file
    #:rt-make-string-stream
    #:rt-make-string-output-stream #:rt-get-output-stream-string #:rt-stream-write-string
@@ -653,6 +654,8 @@
     ;; ── Self-host portability facades (portable.lisp) ──
     #:rt-make-lock #:rt-with-lock #:rt-lock #:rt-unlock #:rt-try-lock
     #:rt-getenv
+    #:rt-isatty #:rt-terminal-p #:rt-terminal-raw-mode #:rt-terminal-restore-mode
+    #:rt-ansi-color #:rt-ansi-reset #:rt-random-bytes
     ;; ── FFI (ffi.lisp) ──
     #:rt-ffi-load-library #:rt-ffi-close-library #:rt-define-foreign-function
     #:rt-foreign-funcall #:rt-ffi-callback-invoke #:rt-define-foreign-struct
