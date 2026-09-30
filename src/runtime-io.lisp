@@ -35,7 +35,12 @@
   (rt-listen stream))
 (defun rt-clear-input (&optional stream)
   "Discard pending input from STREAM and return true."
-  (clear-input (or stream *standard-input*))
+  (let ((stream (or stream *standard-input*)))
+    (clear-input stream)
+    ;; Some host string streams implement CLEAR-INPUT as a no-op.  Drain only
+    ;; characters reported as immediately available, so this never blocks on a
+    ;; terminal or pipe.
+    (loop while (listen stream) do (read-char stream nil nil)))
   t)
 (defun rt-file-position (stream &optional position)
   "Return STREAM's file position, or set it when POSITION is supplied."
