@@ -267,3 +267,31 @@
       (expect
         (< (position 'cpl-child result) (position 'cpl-parent result))
         :to-be-truthy))))
+
+;;; ─── Dynamic class reconfiguration ────────────────────────────────────────
+(it-sequential
+  "rt-change-class preserves shared bound slots and leaves new slots unbound."
+  (let ((cl-cc/runtime::*rt-class-registry* (make-hash-table :test #'eq)))
+    (cl-cc/runtime::rt-defclass 'reconfig-old '() '(shared old-only))
+    (cl-cc/runtime::rt-defclass 'reconfig-new '() '(shared new-only))
+    (let ((object (cl-cc/runtime::rt-make-instance
+                   'reconfig-old :shared :kept :old-only :removed)))
+      (cl-cc/runtime::rt-change-class object 'reconfig-new :new-only :added)
+      (expect (cl-cc/runtime::rt-class-name (cl-cc/runtime::rt-class-of object))
+              :to-be 'reconfig-new)
+      (expect (cl-cc/runtime::rt-slot-value object 'shared) :to-be :kept)
+      (expect (cl-cc/runtime::rt-slot-boundp object 'old-only) :to-equal 0)
+      (expect (cl-cc/runtime::rt-slot-value object 'new-only) :to-be :added)
+      (expect (cl-cc/runtime::rt-slot-exists-p object 'old-only) :to-equal 0))))
+
+(it-sequential
+  "rt-reinitialize-instance updates supplied slots without changing class."
+  (let ((cl-cc/runtime::*rt-class-registry* (make-hash-table :test #'eq)))
+    (cl-cc/runtime::rt-defclass 'reinit-class '() '(value other))
+    (let ((object (cl-cc/runtime::rt-make-instance
+                   'reinit-class :value 1 :other 2)))
+      (cl-cc/runtime::rt-reinitialize-instance object :value 9)
+      (expect (cl-cc/runtime::rt-slot-value object 'value) :to-equal 9)
+      (expect (cl-cc/runtime::rt-slot-value object 'other) :to-equal 2)
+      (expect (cl-cc/runtime::rt-class-name (cl-cc/runtime::rt-class-of object))
+              :to-be 'reinit-class))))

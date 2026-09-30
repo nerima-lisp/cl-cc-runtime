@@ -98,33 +98,141 @@ used by RT-COMPUTE-APPLICABLE-METHODS and RT-CALL-GENERIC.")
 ;;; Instance Access
 ;;; ------------------------------------------------------------
 
+(defun %rt-class-descriptor (class)
+  "Resolve CLASS to a runtime class descriptor when one is registered."
+  (cond
+    ((hash-table-p class) class)
+    ((gethash class *rt-class-registry*))
+    (t nil)))
+
+(defun %rt-effective-slots (class)
+  "Return the inherited and direct slots of runtime CLASS, in class order."
+  (let ((descriptor (%rt-class-descriptor class))
+        (slots nil))
+    (dolist (class-name (reverse (or (and descriptor (gethash :__cpl__ descriptor))
+                                    (list class))))
+      (let ((class-ht (%rt-class-descriptor class-name)))
+        (dolist (slot (and class-ht (gethash :__slots__ class-ht)))
+          (pushnew slot slots :test #'eq))))
+    (nreverse slots)))
+
+(defun %rt-runtime-instance-p (object)
+  (and (hash-table-p object)
+       (hash-table-p (gethash :__class__ object))))
+
+(defun %rt-slot-key (slot-name)
+  (unless (symbolp slot-name)
+    (error "Runtime slot name must be a symbol, got ~S" slot-name))
+  slot-name)
+
+(defun %rt-set-initargs (object initargs)
+  "Apply alternating keyword/value INITARGS to runtime OBJECT."
+  (unless (evenp (length initargs))
+    (error "Odd number of initialization arguments: ~S" initargs))
+  (loop for (name value) on initargs by #'cddr
+        for slot-name = (find-if (lambda (slot)
+                                   (string-equal (symbol-name slot)
+                                                 (symbol-name name)))
+                                 (%rt-effective-slots (gethash :__class__ object)))
+        do (unless (or (keywordp name) (symbolp name))
+             (error "Initialization argument name must be a symbol: ~S" name))
+           (when (and (keywordp name) (eq name :allow-other-keys))
+             (return))
+           (if slot-name
+               (setf (gethash slot-name object) value
+                     (gethash slot-name (gethash :__bound-slots__ object)) t)
+               (error "Unknown runtime initialization slot ~S" name)))
+  object)
+
 (defun rt-make-instance (class &rest initargs)
-  (apply #'make-instance class initargs))
+  (if (%rt-class-descriptor class)
+      (let ((object (make-hash-table :test #'eq)))
+        (setf (gethash :__class__ object) (%rt-class-descriptor class)
+              (gethash :__bound-slots__ object) (make-hash-table :test #'eq))
+        (%rt-set-initargs object initargs))
+      (apply #'make-instance class initargs)))
 
 (defun rt-make-instance-0 (class)
-  (make-instance class))
+  (rt-make-instance class))
 
 (defun rt-slot-value (obj slot-name)
-  (slot-value obj slot-name))
+  (if (%rt-runtime-instance-p obj)
+      (if (rt-slot-boundp obj slot-name)
+          (gethash (%rt-slot-key slot-name) obj)
+          (error "The runtime slot ~S is unbound" slot-name))
+      (slot-value obj slot-name)))
 
 (defun rt-slot-set (obj slot-name val)
-  (setf (slot-value obj slot-name) val))
+  (if (%rt-runtime-instance-p obj)
+      (progn
+        (unless (rt-slot-exists-p obj slot-name)
+          (error "The runtime slot ~S does not exist" slot-name))
+        (let ((bound-slots (or (gethash :__bound-slots__ obj)
+                               (setf (gethash :__bound-slots__ obj)
+                                     (make-hash-table :test #'eq)))))
+          (setf (gethash (%rt-slot-key slot-name) obj) val
+                (gethash (%rt-slot-key slot-name) bound-slots) t))
+        val)
+      (setf (slot-value obj slot-name) val)))
 
 (defun rt-slot-boundp (obj slot-name)
-  (if (slot-boundp obj slot-name) 1 0))
+  (if (%rt-runtime-instance-p obj)
+      (if (gethash (%rt-slot-key slot-name) (gethash :__bound-slots__ obj)) 1 0)
+      (if (slot-boundp obj slot-name) 1 0)))
 
 (defun rt-slot-makunbound (obj slot-name)
-  (slot-makunbound obj slot-name))
+  (if (%rt-runtime-instance-p obj)
+      (progn
+        (remhash (%rt-slot-key slot-name) obj)
+        (remhash (%rt-slot-key slot-name) (gethash :__bound-slots__ obj))
+        obj)
+      (slot-makunbound obj slot-name)))
 
 (defun rt-slot-exists-p (obj slot-name)
-  (if (slot-exists-p obj slot-name) 1 0))
+  (if (%rt-runtime-instance-p obj)
+      (if (member (%rt-slot-key slot-name)
+                  (%rt-effective-slots (gethash :__class__ obj)) :test #'eq)
+          1 0)
+      (if (slot-exists-p obj slot-name) 1 0)))
+
+(defun rt-reinitialize-instance (object &rest initargs)
+  "Reinitialize a runtime instance, or delegate to host CLOS."
+  (if (%rt-runtime-instance-p object)
+      (%rt-set-initargs object initargs)
+      (apply #'reinitialize-instance object initargs)))
+
+(defun rt-change-class (object new-class &rest initargs)
+  "Change the class of OBJECT while preserving slots shared by both classes."
+  (if (%rt-runtime-instance-p object)
+      (let* ((old-class (gethash :__class__ object))
+             (old-bound (gethash :__bound-slots__ object))
+             (new-descriptor (%rt-class-descriptor new-class)))
+        (unless new-descriptor
+          (error "Unknown runtime class ~S" new-class))
+        (let ((old-values (make-hash-table :test #'eq)))
+          (dolist (slot (%rt-effective-slots old-class))
+            (when (gethash slot old-bound)
+              (setf (gethash slot old-values) (gethash slot object))))
+          (setf (gethash :__class__ object) new-descriptor
+                (gethash :__bound-slots__ object) (make-hash-table :test #'eq))
+          (dolist (slot (%rt-effective-slots new-descriptor))
+            (multiple-value-bind (value presentp) (gethash slot old-values)
+              (when presentp
+                (setf (gethash slot object) value
+                      (gethash slot (gethash :__bound-slots__ object)) t))))
+          (%rt-set-initargs object initargs)
+          object))
+      (apply #'change-class object new-class initargs)))
 
 (defun rt-class-name (class)
   (if (hash-table-p class)
       (gethash :__name__ class)
       (class-name class)))
 
-(defun rt-class-of (obj) (class-of obj))
+(defun rt-class-of (obj)
+  (if (%rt-runtime-instance-p obj)
+      (gethash :__class__ obj)
+      (class-of obj)))
 
 (defun rt-find-class (name)
   (or (gethash name *rt-class-registry*)

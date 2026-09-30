@@ -118,6 +118,7 @@
    ;; CLOS
    #:rt-defclass #:rt-make-instance #:rt-slot-value #:rt-slot-set
    #:rt-slot-boundp #:rt-slot-makunbound #:rt-slot-exists-p
+   #:rt-change-class #:rt-reinitialize-instance
      #:rt-class-name #:rt-class-of #:rt-find-class #:rt-register-method #:rt-call-generic
     #:rt-compute-applicable-methods
      #:rt-make-instance-0
