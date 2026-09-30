@@ -67,6 +67,14 @@
 
 (defconstant +tag-string+   #x0005000000000000  "String sub-tag.")
 
+;;; Managed-heap array metadata tags.  NaN-boxed arrays continue to use the
+;;; general object pointer tag because the five NaN pointer sub-tags are already
+;;; allocated and the next bit pattern aliases the character space.
+(defconstant +rt-array-type-tag+ 5
+  "Managed-heap object header tag reserved for array storage.")
+(defconstant +rt-array-metadata-version+ 1
+  "Version of the metadata stored in a managed array's metadata slot.")
+
 ;;; Character: quiet NaN with bit[50] clear but bit[49] set.
 ;;; Base = #x7FFE_... gives bit[49]=1, bit[50]=0 → distinct from pointers.
 (defconstant +tag-char+     #x7FFE000000000000

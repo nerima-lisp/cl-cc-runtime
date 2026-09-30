@@ -63,6 +63,14 @@
       (expect handled-p :to-be-falsy))))
 
 (it-sequential
+  "runtime condition subclasses retain ANSI type relationships."
+  (let ((condition (make-condition 'cl-cc/runtime:rt-division-by-zero)))
+    (expect (typep condition 'division-by-zero) :to-be-truthy)
+    (expect (typep condition 'arithmetic-error) :to-be-truthy)
+    (expect (typep condition 'cl-cc/runtime:rt-runtime-error) :to-be-truthy)
+    (expect (typep condition 'cl-cc/runtime:rt-runtime-condition) :to-be-truthy)))
+
+(it-sequential
   "rt-establish-handler runs its thunk with the handler and pops it afterwards."
   (let ((cl-cc/runtime::*handler-stack* nil))
     (cl-cc/runtime::rt-establish-handler

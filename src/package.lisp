@@ -123,9 +123,14 @@
      #:rt-make-instance-0
      #:*rt-class-registry* #:*rt-generic-function-registry*
     ;; Conditions
-    #:rt-runtime-condition #:rt-runtime-error
+    #:rt-runtime-condition #:rt-runtime-error #:rt-serious-condition #:rt-warning
+    #:rt-type-error #:rt-simple-type-error #:rt-program-error #:rt-control-error
+    #:rt-storage-condition #:rt-stream-error #:rt-file-error #:rt-cell-error
+    #:rt-unbound-variable #:rt-undefined-function #:rt-arithmetic-error
+    #:rt-division-by-zero #:rt-floating-point-overflow #:rt-floating-point-underflow
     #:rt-signal-error #:rt-signal #:rt-warn-fn #:rt-cerror
     #:rt-invoke-restart
+    #:*rt-debugger-hook* #:rt-invoke-debugger-hook #:rt-with-debugger-hook
     #:*handler-stack* #:*restart-stack*
     #:rt-handler #:rt-handler-p #:make-rt-handler
     #:rt-handler-condition-type #:rt-handler-handler-function
@@ -180,6 +185,7 @@
    #:+nan-boxing-quiet-nan+
    #:+ptr-base+ #:+ptr-mask+ #:+tag-mask+ #:+addr-mask+
    #:+tag-object+ #:+tag-cons+ #:+tag-symbol+ #:+tag-function+ #:+tag-string+
+   #:+rt-array-type-tag+ #:+rt-array-metadata-version+
    #:+tag-char+
    #:+fixnum-tag+ #:+fixnum-mask+ #:+fixnum-shift+
    #:+val-nil+ #:+val-t+ #:+val-unbound+
