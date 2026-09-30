@@ -18,6 +18,47 @@
 (define-condition rt-runtime-error (error rt-runtime-condition) ()
   (:documentation "Base of every error cl-cc/runtime signals."))
 
+;;; ANSI condition taxonomy used by runtime-generated errors.  The RT prefix
+;;; keeps these classes distinct from host conditions while retaining the
+;;; standard superclass relationships callers use with TYPEP.
+(define-condition rt-serious-condition (serious-condition rt-runtime-condition) ())
+(define-condition rt-warning (warning rt-runtime-condition) ())
+(define-condition rt-type-error (type-error rt-runtime-error) ())
+(define-condition rt-simple-type-error (simple-type-error rt-type-error) ())
+(define-condition rt-program-error (program-error rt-runtime-error) ())
+(define-condition rt-control-error (control-error rt-runtime-error) ())
+(define-condition rt-storage-condition (storage-condition rt-runtime-error) ())
+(define-condition rt-stream-error (stream-error rt-runtime-error) ())
+(define-condition rt-file-error (file-error rt-stream-error) ())
+(define-condition rt-cell-error (cell-error rt-runtime-error) ())
+(define-condition rt-unbound-variable (unbound-variable rt-cell-error) ())
+(define-condition rt-undefined-function (undefined-function rt-cell-error) ())
+(define-condition rt-arithmetic-error (arithmetic-error rt-runtime-error) ())
+(define-condition rt-division-by-zero (division-by-zero rt-arithmetic-error) ())
+(define-condition rt-floating-point-overflow
+    (floating-point-overflow rt-arithmetic-error) ())
+(define-condition rt-floating-point-underflow
+    (floating-point-underflow rt-arithmetic-error) ())
+
+(defvar *rt-debugger-hook* nil
+  "Runtime debugger hook, called with an unhandled condition before escalation.
+
+The hook receives the condition and must not return a replacement value.  A
+dynamic binding shadows this variable for one runtime signal, matching the
+scope of the host Common Lisp debugger hook without mutating the host hook.")
+
+(defun rt-invoke-debugger-hook (condition)
+  "Invoke the current runtime debugger hook for CONDITION, if any."
+  (when *rt-debugger-hook*
+    (funcall *rt-debugger-hook* condition))
+  condition)
+
+(defun rt-with-debugger-hook (hook thunk)
+  "Run THUNK with HOOK installed as the runtime debugger hook."
+  (check-type thunk (or function symbol rt-closure-obj))
+  (let ((*rt-debugger-hook* hook))
+    (rt-call-fn thunk)))
+
 (defvar *rt-method-context-stack* nil
   "Dynamic stack of native-runtime generic-function method contexts.
 
