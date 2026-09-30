@@ -138,6 +138,14 @@
     #:rt-dispatch-restart
      ;; Misc
       #:rt-boundp #:rt-fboundp #:rt-makunbound
+      ;; Regular expressions
+      #:rt-regex #:rt-regex-p #:rt-regex-compile #:rt-regex-match-p #:rt-regex-search
+      ;; Persistent data structures
+      #:rt-persistent-vector #:rt-persistent-vector-p
+      #:rt-persistent-vector-length #:rt-persistent-vector-ref
+      #:rt-persistent-vector-assoc #:rt-persistent-vector-conj
+      #:rt-persistent-map #:rt-persistent-map-p
+      #:rt-persistent-map-assoc #:rt-persistent-map-get
       ;; C embedding API (FR-812)
       #:cl-cc-state #:cl-cc-state-p #:make-cl-cc-state
       #:cl-cc-state-id #:cl-cc-state-vm #:cl-cc-state-package
