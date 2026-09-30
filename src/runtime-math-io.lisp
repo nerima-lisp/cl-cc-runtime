@@ -69,7 +69,9 @@
     (multiple-value-bind (result handled-p) (rt-dispatch-signal condition)
       (if handled-p
           result
-          (error condition)))))
+          (progn
+            (rt-invoke-debugger-hook condition)
+            (error condition))))))
 
 (defun rt-signal (condition)
   (%rt-with-signal-gc-inhibit
