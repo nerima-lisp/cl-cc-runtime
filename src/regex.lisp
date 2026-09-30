@@ -113,4 +113,4 @@
         (limit (or end (length string))))
     (loop for position from start to limit
           for finishes = (%regex-match-node (rt-regex-expression r) string position limit)
-          when finishes do (return (cons position (apply #'min finishes))))))
+          when finishes do (return (cons position (apply #'max finishes))))))

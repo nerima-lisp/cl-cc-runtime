@@ -12,7 +12,8 @@
   (it "supports classes, escapes, anchors, and search"
     (expect (rt-regex-match-p "^[a-z]+@[a-z]+\\.com$" "a@b.com") :to-be-truthy)
     (expect (rt-regex-match-p "^[^0-9]+$" "abc") :to-be-truthy)
-    (expect (rt-regex-search "cat" "a cat nap") :to-equal '(2 . 5))))
+    (expect (rt-regex-search "cat" "a cat nap") :to-equal '(2 . 5))
+    (expect (rt-regex-search "a+" "aaa") :to-equal '(0 . 3))))
 
 (describe "persistent data structures"
   (it "keeps vector versions independent"
