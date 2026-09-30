@@ -110,6 +110,11 @@
     t))
 
 (defun rt-listen (fd &optional (backlog 5))
+  ;; RT-LISTEN is also the Common Lisp stream readiness primitive.  NET's
+  ;; socket API historically used the same runtime name, so dispatch streams
+  ;; to CL:LISTEN before interpreting the argument as a runtime socket fd.
+  (when (streamp fd)
+    (return-from rt-listen (cl:listen fd)))
   (let ((entry (%rt-socket-entry fd)))
     (unless (rt-socket-entry-local-address entry)
       (error "Socket ~a must be bound before listen" fd))
