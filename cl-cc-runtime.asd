@@ -35,6 +35,8 @@ structured logging, process execution and JSON rather than reimplementing them."
   :components
   ;; src/ is flat and every defpackage lives in src/package.lisp.
   ((:file "package")
+   (:file "regex")
+   (:file "persistent")
    (:file "runtime-region")
    (:file "runtime")
    (:file "runtime-conditions")
@@ -233,7 +235,8 @@ structured logging, process execution and JSON rather than reimplementing them."
    (:file "async-test")
    (:file "portable-test")
    (:file "gc-workers-test")
-   (:file "gc-major-sweep-incremental-test"))
+   (:file "gc-major-sweep-incremental-test")
+   (:file "regex-persistent-test"))
   ;; Not HOST-KIT:SYMBOL-CALL: a .asd is read before :depends-on is ever
   ;; consulted, so a CL-HOST-KIT-prefixed token here would be a read-time
   ;; PACKAGE-DOES-NOT-EXIST error regardless of what the system depends on.
