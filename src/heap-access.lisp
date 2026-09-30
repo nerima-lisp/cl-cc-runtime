@@ -65,7 +65,7 @@
              managed-words +compressed-heap-region-words+))
     (when *compressed-pointers-enabled*
       (setf *heap-base-address* young-from-base))
-    (%make-rt-heap
+    (let ((heap (%make-rt-heap
      :words                          words
      :young-from-base                young-from-base
      :young-to-base                  young-to-base
@@ -120,9 +120,13 @@
      :numa-node-map                  numa-node-map
      :numa-gc-schedule               nil
      :interleaved-regions            nil
+     :regions                        (make-array 0)
+     :region-size-words              +rt-heap-region-size-words+
      :co-location-hints              co-location-hints
      :gc-inhibit                     nil
      :gc-pending                     nil)))
+      (rt-heap-initialize-regions heap)
+      heap)))
 
 (defun rt-heap-ref (heap index)
   "Read word at absolute INDEX from HEAP.

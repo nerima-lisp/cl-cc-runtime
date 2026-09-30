@@ -56,6 +56,9 @@
           (unless ok
             (error "FR-339: tri-color invariant violated at old object ~D"
                    violating-addr)))
+        (when (and (boundp '*rt-region-mixed-collection-enabled-p*)
+                   *rt-region-mixed-collection-enabled-p*)
+          (rt-gc-region-mixed-collect heap))
         ;; Phase 4: sweep old space.  Concurrent mode uses the same sweep worker
         ;; entry point as the background/lazy path; the portable Pure CL runtime
         ;; joins before returning so the public heap invariants remain unchanged.
