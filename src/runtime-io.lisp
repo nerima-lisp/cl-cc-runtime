@@ -27,9 +27,6 @@
 (define-rt-stream-op rt-finish-output finish-output ())
 (define-rt-stream-op rt-force-output  force-output  ())
 (define-rt-stream-op rt-clear-output  clear-output  ())
-(defun rt-listen (&optional stream)
-  "Return true when STREAM has input available without blocking."
-  (listen (or stream *standard-input*)))
 (defun rt-stream-ready-p (&optional stream)
   "Alias for RT-LISTEN suitable for generated code."
   (rt-listen stream))
