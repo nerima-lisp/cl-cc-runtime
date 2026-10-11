@@ -45,7 +45,7 @@ survivor move while the garbage is reclaimed:
 ```nix
 # flake.nix
 inputs.cl-cc-runtime = {
-  url = "github:nerima-lisp/cl-cc-runtime/v0.1.0";
+  url = "github:nerima-lisp/cl-cc-runtime/v0.1.1";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```
@@ -53,9 +53,13 @@ inputs.cl-cc-runtime = {
 Note the pinned tag. Consumers inside this org must pin a release tag rather
 than follow the default branch.
 
+The example uses the published 0.1.1 release. The version declared in this
+workspace is the unreleased 0.1.2 candidate.
+
 The system depends on [cl-log-kit](https://github.com/nerima-lisp/cl-log-kit),
-[cl-process-kit](https://github.com/nerima-lisp/cl-process-kit) and
-[cl-json-kit](https://github.com/nerima-lisp/cl-json-kit), and needs
+[cl-process-kit](https://github.com/nerima-lisp/cl-process-kit),
+[cl-json-kit](https://github.com/nerima-lisp/cl-json-kit), and
+[cl-host-kit](https://github.com/nerima-lisp/cl-host-kit), and needs
 [cl-boundary-kit](https://github.com/nerima-lisp/cl-boundary-kit) on the source
 registry as well because cl-process-kit requires it.
 

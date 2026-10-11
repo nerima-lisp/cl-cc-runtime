@@ -68,6 +68,22 @@
     (expect (cl-cc/runtime::rt-actor-receive a :timeout 0.1) :to-equal 1)))
 
 ;;; ─── Mailbox backpressure ───────────────────────────────────────────────────
+(it-sequential
+  "a timed-out actor mutex makes send return NIL without enqueuing"
+  (let* ((a (cl-cc/runtime::rt-make-actor nil))
+         (m (cl-cc/runtime::rt-actor-m a)))
+    (cl-cc/runtime::rt-with-mutex (m)
+      (let ((sender (sb-thread:make-thread
+                      (lambda ()
+                        (cl-cc/runtime::rt-actor-send a :blocked :timeout 0.01)))))
+        (expect (sb-thread:join-thread sender) :to-be-null))
+      (expect (cl-cc/runtime::rt-actor-mailbox a) :to-be-null)
+      (expect (sb-thread:holding-mutex-p (cl-cc/runtime::rt-mutex-host-mutex m))
+              :to-be-truthy))
+    (expect (cl-cc/runtime::rt-actor-send a :delivered :timeout 0.01)
+            :to-be :delivered)
+    (expect (cl-cc/runtime::rt-actor-mailbox a) :to-equal '(:delivered))))
+
 ;;; RT-ACTOR-SEND used to have no mailbox capacity limit at all: a producer
 ;;; faster than its consumer grew the mailbox without bound. MAILBOX-LIMIT
 ;;; is opt-in (default NIL preserves the original unbounded mailbox) so

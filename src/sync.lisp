@@ -289,10 +289,16 @@ RT-WITH-MUTEX's docstring for why the acquisition result must gate BODY."
            (rt-rwlock-write-unlock ,lock))))))
 
 (defun rt-condition-wait-until (cv m predicate &key timeout)
-  "Wait while PREDICATE is false. Rechecks after wakeups to tolerate spurious wakeups."
-  (loop until (funcall predicate)
-        do (rt-condition-wait cv m :timeout timeout))
-  t)
+  "Wait while PREDICATE is false, using one TIMEOUT budget across wakeups.
+Return T when PREDICATE holds, or NIL when the wait times out."
+  (rt-with-remaining-timeout (remaining timeout)
+    (loop until (funcall predicate)
+          do (let ((r (remaining)))
+               (when (and timeout (<= r 0))
+                 (return-from rt-condition-wait-until nil))
+               (unless (rt-condition-wait cv m :timeout r)
+                 (return-from rt-condition-wait-until nil))))
+    t))
 
 (defun rt-semaphore-try-wait (s)
   (rt-with-try-mutex ((rt-semaphore-m s))

@@ -202,6 +202,75 @@
 (describe
   "condition variable (sync.lisp)"
   (it
+    "wait-until accepts an already true predicate with a zero timeout"
+    (let ((m (cl-cc/runtime::rt-make-mutex))
+          (cv (cl-cc/runtime::rt-make-condition-variable))
+          (checks 0))
+      (cl-cc/runtime::rt-with-mutex (m)
+        (expect
+          (cl-cc/runtime::rt-condition-wait-until
+            cv m (lambda () (incf checks) t) :timeout 0)
+          :to-be-truthy)
+        (expect checks :to-be 1)
+        (expect (sb-thread:holding-mutex-p (cl-cc/runtime::rt-mutex-host-mutex m))
+                :to-be-truthy))))
+  (it
+    "wait-until returns NIL without checking shared state after a wait times out"
+    (let ((m (cl-cc/runtime::rt-make-mutex))
+          (cv (cl-cc/runtime::rt-make-condition-variable))
+          (checks 0)
+          (held nil))
+      (cl-cc/runtime::rt-mutex-lock m)
+      (unwind-protect
+           (progn
+             (expect
+               (cl-cc/runtime::rt-condition-wait-until
+                 cv m
+                 (lambda ()
+                   (push (sb-thread:holding-mutex-p
+                           (cl-cc/runtime::rt-mutex-host-mutex m)) held)
+                   ;; A second check lets the broken implementation terminate.
+                   (> (incf checks) 1))
+                 :timeout 0.01)
+               :to-be-null)
+             (expect checks :to-be 1)
+             (expect (every #'identity held) :to-be-truthy))
+        (when (sb-thread:holding-mutex-p (cl-cc/runtime::rt-mutex-host-mutex m))
+          (cl-cc/runtime::rt-mutex-unlock m)))))
+  (it
+    "wait-until keeps one timeout budget across a notified false predicate"
+    (let* ((m (cl-cc/runtime::rt-make-mutex))
+           (cv (cl-cc/runtime::rt-make-condition-variable))
+           (waiting (sb-thread:make-semaphore :count 0))
+           (checks 0)
+           (notifier
+             (sb-thread:make-thread
+               (lambda ()
+                 (sb-thread:wait-on-semaphore waiting)
+                 (cl-cc/runtime::rt-with-mutex (m)
+                   (cl-cc/runtime::rt-condition-notify cv))))))
+      (cl-cc/runtime::rt-mutex-lock m)
+      (unwind-protect
+           (progn
+             (expect
+               (cl-cc/runtime::rt-condition-wait-until
+                 cv m
+                 (lambda ()
+                   (case (incf checks)
+                     (1 (sb-thread:signal-semaphore waiting) nil)
+                     ;; Consume the original budget after a real wakeup.
+                     (2 (sleep 0.25) nil)
+                     ;; Bound the broken implementation without masking its result.
+                     (otherwise t)))
+                 :timeout 0.2)
+               :to-be-null)
+             (expect checks :to-be 2)
+             (expect (sb-thread:holding-mutex-p (cl-cc/runtime::rt-mutex-host-mutex m))
+                     :to-be-truthy))
+        (when (sb-thread:holding-mutex-p (cl-cc/runtime::rt-mutex-host-mutex m))
+          (cl-cc/runtime::rt-mutex-unlock m))
+        (sb-thread:join-thread notifier))))
+  (it
     "wait-until wakes when another thread sets the predicate and notifies"
     (let* ((m (cl-cc/runtime::rt-make-mutex))
            (cv (cl-cc/runtime::rt-make-condition-variable))

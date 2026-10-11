@@ -22,7 +22,7 @@ This avoids scanning every host package while still covering the small guest-fac
 surface that currently relies on `rt-fboundp` during bootstrapping and tests.")
 
 (defparameter *rt-bootstrap-package-names*
-  '(:cl :cl-user :keyword :cl-cc/bootstrap :cl-cc/runtime
+  '(:common-lisp :cl-user :keyword :cl-cc/bootstrap :cl-cc/runtime
     :cl-cc :cl-cc/vm :cl-cc/compile :cl-cc/expand
     :cl-cc/parse :cl-cc/type :cl-cc/optimize :cl-cc/emit :cl-cc/ast)
   "Conservative bootstrap package seed for the runtime package registry.
@@ -63,6 +63,9 @@ the compiler/runtime currently names directly during selfhost and test flows.")
 
 (defun %rt-ensure-package-slots (descriptor)
   "Ensure DESCRIPTOR has all package-registry tables used by self-host mode."
+  (unless (gethash :host-package descriptor)
+    (setf (gethash :host-package descriptor)
+          (find-package (gethash :name descriptor))))
   (unless (gethash :symbols descriptor)
     (setf (gethash :symbols descriptor) (make-hash-table :test #'equal)))
   (unless (gethash :inherited descriptor)
@@ -199,6 +202,7 @@ host package universe."
   (clrhash *rt-package-registry*)
   (dolist (pkg-name *rt-bootstrap-package-names*)
     (%rt-register-package pkg-name))
+  (rt-make-package :common-lisp :nicknames '(:cl))
   *rt-package-registry*)
 
 (defun %rt-bootstrap-symbol (sym-name)
@@ -306,15 +310,33 @@ VM bridge registry.  PHP-CURRENT-CLOSURE, when bound, adds the PHP hook."
 
 (defun rt-intern (name &optional package)
   (let* ((pkg (or (and package (%rt-package-metadata package))
-                   (and *package* (%rt-package-metadata *package*))))
-          (table (gethash :symbols (%rt-ensure-package-slots pkg)))
-          (key (string name))
-          (host-package (gethash :host-package pkg)))
-     (or (gethash key table)
-         (setf (gethash key table)
-               (if host-package
-                   (intern key host-package)
-                   (make-symbol key))))))
+                  (and *package* (%rt-package-metadata *package*))))
+         (table (gethash :symbols (%rt-ensure-package-slots pkg)))
+         (key (string name))
+         (host-package (gethash :host-package pkg)))
+    (multiple-value-bind (symbol presentp) (gethash key table)
+      (when (and presentp (or (not host-package) (symbol-package symbol)))
+        (return-from rt-intern
+          (values symbol
+                  (if (or (member symbol (gethash :exports pkg) :test #'eq)
+                          (and host-package
+                               (multiple-value-bind (host-symbol status)
+                                   (find-symbol key host-package)
+                                 (and (eq host-symbol symbol) (eq status :external)))))
+                      :external
+                      :internal))))
+      (unless presentp
+        (multiple-value-bind (inherited inheritedp)
+            (gethash key (gethash :inherited pkg))
+          (when inheritedp
+            (return-from rt-intern (values inherited :inherited)))))
+      (if host-package
+          (multiple-value-bind (symbol status) (intern key host-package)
+            (if (eq status :inherited)
+                (remhash key table)
+                (setf (gethash key table) symbol))
+            (values symbol status))
+          (values (setf (gethash key table) (make-symbol key)) nil)))))
 
 (defun rt-make-package (name &key nicknames use)
   (let* ((key (%rt-package-key name))
@@ -453,17 +475,18 @@ VM bridge registry.  PHP-CURRENT-CLOSURE, when bound, adds the PHP hook."
   "Find symbol NAME in PACKAGE. Returns (values symbol status)."
   (let* ((pkg (%rt-package-metadata (or package *package*)))
          (table (gethash :symbols pkg))
-          (key (string name))
-         (sym (gethash key table)))
-    (if sym
-        (if (member sym (gethash :exports pkg) :test #'eq)
-            (values sym :external)
-            (values sym :internal))
-        ;; Check inherited symbols
-        (let ((inherited (gethash :inherited pkg)))
-          (if (and inherited (gethash key inherited))
-              (values (gethash key inherited) :inherited)
-              (values nil nil))))))
+         (key (string name)))
+    (multiple-value-bind (symbol presentp) (gethash key table)
+      (if presentp
+          (values symbol
+                  (if (member symbol (gethash :exports pkg) :test #'eq)
+                      :external
+                      :internal))
+          (multiple-value-bind (inherited inheritedp)
+              (gethash key (gethash :inherited pkg))
+            (if inheritedp
+                (values inherited :inherited)
+                (values nil nil)))))))
 
 (defun rt-package-name (package)
   "Return the name string of PACKAGE."

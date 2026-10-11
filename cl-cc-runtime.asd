@@ -21,7 +21,7 @@ structured logging, process execution and JSON rather than reimplementing them."
   :author "takeokunn <bararararatty@gmail.com>"
   :maintainer "takeokunn <bararararatty@gmail.com>"
   :license "MIT"
-  :version "0.1.1"
+  :version "0.1.2"
   :homepage "https://github.com/nerima-lisp/cl-cc-runtime"
   :bug-tracker "https://github.com/nerima-lisp/cl-cc-runtime/issues"
   :source-control (:git "https://github.com/nerima-lisp/cl-cc-runtime.git")
@@ -165,7 +165,7 @@ structured logging, process execution and JSON rather than reimplementing them."
   :author "takeokunn <bararararatty@gmail.com>"
   :maintainer "takeokunn <bararararatty@gmail.com>"
   :license "MIT"
-  :version "0.1.1"
+  :version "0.1.2"
   :homepage "https://github.com/nerima-lisp/cl-cc-runtime"
   :bug-tracker "https://github.com/nerima-lisp/cl-cc-runtime/issues"
   :source-control (:git "https://github.com/nerima-lisp/cl-cc-runtime.git")
@@ -195,6 +195,7 @@ structured logging, process execution and JSON rather than reimplementing them."
    (:file "runtime-strings-chars-test")
    (:file "runtime-data-ops-test")
    (:file "runtime-test")
+   (:file "runtime-packages-test")
    (:file "value-test")
    (:file "crdt-test")
    (:file "metrics-test")

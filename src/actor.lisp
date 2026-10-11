@@ -24,7 +24,8 @@ bound; NIL (the default) preserves the original unbounded mailbox."
   "Send MSG to A's mailbox and return MSG. When A has a MAILBOX-LIMIT (see
 RT-MAKE-ACTOR) and the mailbox is already at that limit, blocks for room to
 free up -- bounded by TIMEOUT, returning NIL rather than growing the
-mailbox without bound when TIMEOUT elapses first with no room freed."
+mailbox without bound when TIMEOUT elapses first with no room freed.
+Also return NIL if the mailbox mutex cannot be acquired within TIMEOUT."
   (rt-with-remaining-timeout (remaining timeout)
     (rt-with-mutex ((rt-actor-m a) :timeout timeout)
       (let ((limit (rt-actor-mailbox-limit a)))
@@ -34,8 +35,8 @@ mailbox without bound when TIMEOUT elapses first with no room freed."
                    (unless (rt-condition-wait (rt-actor-c a) (rt-actor-m a) :timeout r)
                      (return-from rt-actor-send nil)))))
       (push msg (rt-actor-mailbox a))
-      (rt-condition-notify-all (rt-actor-c a))))
-  msg)
+      (rt-condition-notify-all (rt-actor-c a))
+      msg)))
 (defun rt-actor-receive (a &key timeout)
   "Pop and return the next message from A's mailbox, blocking until one
 arrives or A stops. With TIMEOUT and nothing received in time, returns NIL."
