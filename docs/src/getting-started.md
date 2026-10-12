@@ -10,14 +10,15 @@ In your `flake.nix`:
 
 ```nix
 inputs.cl-cc-runtime = {
-  url = "github:nerima-lisp/cl-cc-runtime/v0.1.0";
+  url = "github:nerima-lisp/cl-cc-runtime/v0.1.1";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```
 
-Pin a release tag. Inside this org a bare `github:nerima-lisp/cl-cc-runtime`
-follows the default branch, so a push to main would change your build without
-anything in your repository changing.
+This example pins the published `v0.1.1` tag. The working tree's ASD version
+`0.1.2` is an unreleased candidate, not the version installed by this example.
+A bare `github:nerima-lisp/cl-cc-runtime` follows the default branch when its
+flake lock is first created or updated.
 
 Add the source tree to `CL_SOURCE_REGISTRY` for whatever runs SBCL:
 
@@ -45,15 +46,20 @@ pkgs.sbcl.buildASDFSystem {
   ...)
 ```
 
-cl-cc-runtime itself depends on three sibling systems: `cl-log-kit`,
-`cl-process-kit` and `cl-json-kit`. `cl-process-kit` in turn depends on
-`cl-boundary-kit`, so all four have to be on the source registry even though
-only three appear in this system's `:depends-on`. The flake input above wires
-that up; a hand-rolled checkout has to do it explicitly.
+The current `0.1.2` candidate declares four direct ASDF dependencies:
+`cl-log-kit`, `cl-process-kit`, `cl-json-kit` and `cl-host-kit`.
+`cl-process-kit` also depends on `cl-boundary-kit`, a transitive dependency of
+the runtime. When loading from source, register the source roots of all direct
+and transitive dependencies as well; the `CL_SOURCE_REGISTRY` example above
+only registers the runtime and your own project. The candidate's flake package
+declares the four direct dependencies and includes their transitive package
+closure.
 
-The `:version` in `cl-cc-runtime.asd` is the single source of truth. `flake.nix`
-reads it, and the release workflow refuses to publish a tag that disagrees with
-it, so `v0.1.0` and `:version "0.1.0"` cannot drift apart.
+`flake.nix` reads the runtime version from `cl-cc-runtime.asd`. The release
+workflow checks that the tag version matches the ASD version in the tagged
+tree; a candidate version in a working tree does not establish that a release
+has been published. The `my-system` version above belongs to your consuming
+system, independently of the runtime version.
 
 ## Confirm it loads
 
