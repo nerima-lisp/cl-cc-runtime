@@ -201,48 +201,51 @@
       treefmt.evalModule = treefmt-nix.lib.evalModule;
 
       extraOutputs = ctx: {
-        checks.orphan-tests = ctx.pkgs.runCommand "cl-cc-runtime-orphan-tests" {
-          source = ctx.src;
-          nativeBuildInputs = with ctx.pkgs; [
-            coreutils
-            diffutils
-            findutils
-            gawk
-          ];
-        } ''
-          set -euo pipefail
-
-          actual="$TMPDIR/actual-test-files"
-          registered="$TMPDIR/registered-test-files"
-          nested="$TMPDIR/nested-test-files"
-
-          find "$source/t" -type f -name '*-test.lisp' -printf '%P\n' \
-            | LC_ALL=C sort > "$actual"
-          find "$source/t" -mindepth 2 -type f -name '*-test.lisp' -printf '%P\n' \
-            | LC_ALL=C sort > "$nested"
-
-          if [ -s "$nested" ]; then
-            printf '%s\n' 'Nested test files are unsupported until this check resolves ASDF module paths:' >&2
-            cat "$nested" >&2
-            exit 1
-          fi
-
-          awk '
-            /^[(]defsystem "cl-cc-runtime\/test"/ { in_test = 1; next }
-            in_test && /^[[:space:]]*:perform/ { exit }
-            in_test && /^[[:space:]]*\(:file "[^"]*-test"\)+[[:space:]]*$/ {
-              name = $0
-              sub(/^.*[(]:file "/, "", name)
-              sub(/".*$/, "", name)
-              print name ".lisp"
+        checks.orphan-tests =
+          ctx.pkgs.runCommand "cl-cc-runtime-orphan-tests"
+            {
+              source = ctx.src;
+              nativeBuildInputs = with ctx.pkgs; [
+                coreutils
+                diffutils
+                findutils
+                gawk
+              ];
             }
-          ' "$source/cl-cc-runtime.asd" | LC_ALL=C sort > "$registered"
+            ''
+              set -euo pipefail
 
-          test -s "$actual"
-          test -s "$registered"
-          diff -u "$registered" "$actual"
-          touch "$out"
-        '';
+              actual="$TMPDIR/actual-test-files"
+              registered="$TMPDIR/registered-test-files"
+              nested="$TMPDIR/nested-test-files"
+
+              find "$source/t" -type f -name '*-test.lisp' -printf '%P\n' \
+                | LC_ALL=C sort > "$actual"
+              find "$source/t" -mindepth 2 -type f -name '*-test.lisp' -printf '%P\n' \
+                | LC_ALL=C sort > "$nested"
+
+              if [ -s "$nested" ]; then
+                printf '%s\n' 'Nested test files are unsupported until this check resolves ASDF module paths:' >&2
+                cat "$nested" >&2
+                exit 1
+              fi
+
+              awk '
+                /^[(]defsystem "cl-cc-runtime\/test"/ { in_test = 1; next }
+                in_test && /^[[:space:]]*:perform/ { exit }
+                in_test && /^[[:space:]]*\(:file "[^"]*-test"\)+[[:space:]]*$/ {
+                  name = $0
+                  sub(/^.*[(]:file "/, "", name)
+                  sub(/".*$/, "", name)
+                  print name ".lisp"
+                }
+              ' "$source/cl-cc-runtime.asd" | LC_ALL=C sort > "$registered"
+
+              test -s "$actual"
+              test -s "$registered"
+              diff -u "$registered" "$actual"
+              touch "$out"
+            '';
       };
     };
 }
