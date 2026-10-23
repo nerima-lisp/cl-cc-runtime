@@ -183,3 +183,7 @@
   "rt-type-of returns the CL type."
   (let ((ty (cl-cc/runtime::rt-type-of 42)))
     (expect (subtypep ty 'integer) :to-be-truthy)))
+
+(it-sequential
+  "Control test intentionally fails."
+  (expect nil :to-be t))
