@@ -40,8 +40,9 @@ jobs:
           cachix-cache: ${{ vars.CACHIX_CACHE }}
           cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
-      # Runs the SBCL test suite (checks.default), the treefmt formatting gate
-      # (checks.formatting), and the mkdocs --strict build (checks.docs).
+      # Runs the SBCL test suite (checks.default), orphan-test detection
+      # (checks.orphan-tests), the treefmt formatting gate (checks.formatting),
+      # and the mkdocs --strict build (checks.docs).
       # Add `--all-systems` only when the flake declares more than one system.
       - name: Check flake
         run: nix flake check --print-build-logs
