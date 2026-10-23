@@ -60,6 +60,17 @@
       (expect offset :to-equal 1))))
 
 (it-sequential
+  "rt-make-array accepts displaced-to and preserves writes through the base."
+  (let* ((base (cl-cc/runtime:rt-make-array 4 :initial-element 0))
+         (disp (cl-cc/runtime:rt-make-array 2 :displaced-to base
+                                             :displaced-index-offset 1)))
+    (cl-cc/runtime:rt-aset disp 0 42)
+    (expect (cl-cc/runtime:rt-aref base 1) :to-equal 42)
+    (multiple-value-bind (to offset) (cl-cc/runtime:rt-array-displacement disp)
+      (expect to :to-be base)
+      (expect offset :to-equal 1))))
+
+(it-sequential
   "rt-array-has-fill-pointer-p / rt-array-adjustable-p return 0 for simple arrays."
   (let ((a (cl-cc/runtime:rt-make-array 3)))
     (expect (cl-cc/runtime:rt-array-has-fill-pointer-p a) :to-equal 0)

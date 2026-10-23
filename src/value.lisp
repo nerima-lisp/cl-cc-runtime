@@ -40,6 +40,12 @@
 ;;;
 ;;;   SSO string: bits[63:59]=#b01110, bits[58:3] store up to 7 character
 ;;;               bytes little-endian by index, bits[2:0] store byte length.
+;;;
+;;; Managed arrays use the general object pointer sub-tag. Their heap header
+;;; carries +RT-ARRAY-TYPE-TAG+ and the metadata word records element type,
+;;; rank/dimensions, capacity, fill-pointer, displacement, and bit packing.
+;;; Host-facing RT-MAKE-ARRAY preserves these properties through the ANSI
+;;; array object, so no property is inferred from the pointer tag alone.
 
 (in-package :cl-cc/runtime)
 

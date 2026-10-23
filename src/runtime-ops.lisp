@@ -10,12 +10,30 @@
 ;;; Arrays / Vectors
 ;;; ------------------------------------------------------------
 
-(defun rt-make-array (dims &key (element-type t) initial-element fill-pointer adjustable)
-  (if initial-element
-      (make-array dims :element-type element-type :initial-element initial-element
-                  :fill-pointer fill-pointer :adjustable adjustable)
-      (make-array dims :element-type element-type
-                  :fill-pointer fill-pointer :adjustable adjustable)))
+(defun rt-make-array (dims &key (element-type t)
+                               (initial-element nil initial-element-p)
+                               (initial-contents nil initial-contents-p)
+                               fill-pointer adjustable
+                               displaced-to displaced-index-offset)
+  "Create a runtime array while preserving all ANSI array shape options.
+
+The INITIAL-ELEMENT supplied-p distinction matters for NIL, which is a valid
+initial element rather than an omitted keyword.  Displaced arrays are kept as
+real host arrays so their backing-array identity remains visible to the GC and
+FFI integration layers."
+  (let ((arguments (list :element-type element-type
+                         :fill-pointer fill-pointer
+                         :adjustable adjustable)))
+    (when initial-element-p
+      (setf arguments (append arguments (list :initial-element initial-element))))
+    (when initial-contents-p
+      (setf arguments (append arguments (list :initial-contents initial-contents))))
+    (when displaced-to
+      (setf arguments (append arguments
+                              (list :displaced-to displaced-to
+                                    :displaced-index-offset
+                                    (or displaced-index-offset 0)))))
+    (apply #'make-array dims arguments)))
 
 (defun rt-aref (a &rest indices) (apply #'aref a indices))
 (defun rt-aset (a &rest indices-then-value)
