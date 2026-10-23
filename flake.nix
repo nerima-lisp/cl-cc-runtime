@@ -230,7 +230,7 @@
           awk '
             /^[(]defsystem "cl-cc-runtime\/test"/ { in_test = 1; next }
             in_test && /^[[:space:]]*:perform/ { exit }
-            in_test && /^[[:space:]]*\(:file "[^"]*-test"\)[[:space:]]*$/ {
+            in_test && /^[[:space:]]*\(:file "[^"]*-test"\)+[[:space:]]*$/ {
               name = $0
               sub(/^.*[(]:file "/, "", name)
               sub(/".*$/, "", name)
