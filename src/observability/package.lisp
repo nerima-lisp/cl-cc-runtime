@@ -1,18 +1,47 @@
 (defpackage #:cl-cc/runtime/observability
   (:use #:cl)
-  (:import-from #:log-kit #:+level-debug+ #:+level-info+ #:+level-warn+ #:+level-error+ #:+level-fatal+ #:*default-logger* #:make-logger #:set-default-logger #:with-default-logger #:logger-with #:derive-logger #:logger-child #:with-log-context #:with-log-span #:log-debug #:log-info #:log-warn #:log-error #:log-fatal #:log-default-debug #:log-default-info #:log-default-warn #:log-default-error #:log-default-fatal #:log-condition #:make-text-handler #:make-json-handler #:make-function-handler #:log-record-fields #:capture-log-context #:with-captured-log-context #:call-with-captured-log-context #:log-context-snapshot-p)
-  (:import-from #:cl-cc/runtime/memory #:rt-gc-current-stats #:rt-gc-stats)
+  (:import-from #:log-kit
+                #:+level-debug+ #:+level-info+ #:+level-warn+ #:+level-error+ #:+level-fatal+
+                #:*default-logger* #:make-logger #:set-default-logger #:with-default-logger
+                #:logger-with #:derive-logger #:logger-child #:with-log-context #:with-log-span
+                #:log-debug #:log-info #:log-warn #:log-error #:log-fatal
+                #:log-default-debug #:log-default-info #:log-default-warn
+                #:log-default-error #:log-default-fatal #:log-condition
+                #:make-text-handler #:make-json-handler #:make-function-handler
+                #:log-record-fields #:capture-log-context #:with-captured-log-context
+                #:call-with-captured-log-context #:log-context-snapshot-p)
+  (:import-from #:cl-cc/runtime/memory
+                #:rt-gc-current-stats #:rt-gc-stats)
+  (:import-from #:observability-kit
+                #:define-counter #:define-gauge #:define-histogram
+                #:make-meter-provider #:make-meter #:meter-registry
+                #:metric-inc #:metric-set #:metric-observe #:metric-snapshot
+                #:metric-snapshot-samples #:metric-sample-value #:metric-sample-count
+                #:metric-sample-sum #:metric-sample-buckets #:metric-name
+                #:proper-list-p
+                #:make-tracer-provider #:make-tracer #:make-instrumentation-context
+                #:start-span #:end-span #:span-p #:span-name #:span-trace-id #:span-id
+                #:span-parent-span-id #:span-start-time #:span-end-time #:span-attributes
+                #:span-events #:span-event-name #:span-event-timestamp
+                #:span-event-attributes #:span-event-p #:span-status
+                #:span-status-message #:span-ended-p #:span-set-attribute
+                #:span-add-event #:span-set-status #:span-record-span-id)
+  (:import-from #:observability-kit/otlp
+                #:span-record->otlp)
+  (:import-from #:observability-kit/prometheus
+                #:render-prometheus)
   (:intern
    #:%rt-json-attributes
    #:%rt-json-scalar
    #:*rt-metrics-registry*
+   #:*rt-meter*
+   #:*rt-meter-provider*
    #:rt-counter-value
    #:rt-gauge-value
    #:rt-histogram-buckets
    #:rt-histogram-count
    #:rt-histogram-counts
-   #:rt-histogram-sum
-  )
+   #:rt-histogram-sum)
   (:export
    #:*default-logger*
    #:*rt-logger*

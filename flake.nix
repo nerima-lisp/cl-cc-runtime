@@ -70,6 +70,32 @@
       inputs.cl-nix-forge.follows = "cl-nix-forge";
     };
 
+    cl-observability-kit = {
+      url = "github:nerima-lisp/cl-observability-kit/v1.1.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.cl-nix-forge.follows = "cl-nix-forge";
+      inputs.cl-weave.follows = "cl-weave";
+      inputs.cl-log-kit.follows = "cl-log-kit";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+    };
+    cl-deflate-kit = {
+      url = "github:nerima-lisp/cl-deflate-kit/v0.3.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.cl-weave.follows = "cl-weave";
+    };
+    cl-crypto-kit = {
+      url = "github:nerima-lisp/cl-crypto-kit/v0.2.1";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.cl-weave.follows = "cl-weave";
+    };
+    cl-resilience-kit = {
+      url = "github:nerima-lisp/cl-resilience-kit/v1.0.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.cl-nix-forge.follows = "cl-nix-forge";
+      inputs.cl-weave.follows = "cl-weave";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+    };
+
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -86,6 +112,10 @@
       cl-json-kit,
       cl-process-kit,
       cl-host-kit,
+      cl-observability-kit,
+      cl-deflate-kit,
+      cl-crypto-kit,
+      cl-resilience-kit,
       treefmt-nix,
     }:
     let
@@ -158,6 +188,10 @@
         cl-process-kit.packages.${ctx.system}.cl-process-kit
         (ctx.cl.fromDerivation { drv = cl-json-kit.packages.${ctx.system}.cl-json-kit; })
         cl-host-kit.packages.${ctx.system}.cl-host-kit
+        cl-observability-kit.packages.${ctx.system}.cl-observability-kit
+        (ctx.cl.fromDerivation { drv = cl-deflate-kit.packages.${ctx.system}.default; })
+        (ctx.cl.fromDerivation { drv = cl-crypto-kit.packages.${ctx.system}.default; })
+        cl-resilience-kit.packages.${ctx.system}.cl-resilience-kit
       ];
 
       # cl-weave is a dependency of cl-cc-runtime/test and of nothing else
@@ -174,9 +208,9 @@
       # the command a contributor runs by hand and the gate CI runs cannot
       # drift apart. 600s, not the preset's own 600s default left implicit:
       # spelled out because it is a deliberate choice, not an accident of the
-      # default -- this suite starts real threads for the lock-free, STM,
-      # scheduler and consensus tests, so it is not a pure-library suite and a
-      # shorter budget would make CI flaky under load.
+      # default -- this suite starts real threads for the lock-free, STM, and
+      # scheduler tests, so it is not a pure-library suite and a shorter budget
+      # would make CI flaky under load.
       timeoutSeconds = 600;
 
       # The site is built from the repository root rather than from docs/, so
@@ -242,7 +276,6 @@
             "t/cryptography"
             "t/compression"
             "t/resilience"
-            "t/distributed-state"
           ];
           testSystems = [
             "cl-cc-runtime/test"

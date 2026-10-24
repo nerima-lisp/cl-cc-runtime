@@ -30,6 +30,7 @@
   (name "clcc" :type string)
   (started-at 0 :type integer)
   (started-at-nanos 0 :type integer)
+  (started-at-monotonic-nanos 0 :type integer)
   (stopped-at nil)
   (stopped-at-nanos nil)
   (samples (make-hash-table :test #'equal) :type hash-table)
@@ -56,10 +57,26 @@
   `(sb-thread:with-mutex ((rt-continuous-profile-session-lock ,session))
      ,@body))
 
-(defun %rt-profile-now-nanos ()
-  "Return a monotonic-ish nanosecond timestamp for profile records."
-  (truncate (* (get-internal-real-time)
-               (/ 1000000000 internal-time-units-per-second))))
+(progn
+  (defun %rt-profile-now-nanos ()
+    "Return the current Unix-epoch time in nanoseconds."
+    (multiple-value-bind (seconds microseconds)
+        (sb-ext:get-time-of-day)
+      (+ (* seconds 1000000000)
+         (* microseconds 1000))))
+
+  (defun %rt-profile-monotonic-now-nanos ()
+    (truncate (* (rt-gettime-monotonic) 1000000000)))
+
+  (defun %rt-profile-monotonic->unix-nanos (session monotonic-nanos)
+    (+ (rt-continuous-profile-session-started-at-nanos session)
+       (- monotonic-nanos
+          (rt-continuous-profile-session-started-at-monotonic-nanos session))))
+
+  (defun %rt-profile-session-now-nanos (session)
+    (%rt-profile-monotonic->unix-nanos
+     session
+     (%rt-profile-monotonic-now-nanos))))
 
 (defun %rt-profile-safe-rate (rate)
   (let ((value (or rate +rt-continuous-profile-default-rate-hz+)))
@@ -196,7 +213,7 @@
     (%rt-profile-add-sample
      session
      (make-rt-profile-sample
-      :timestamp-nanos (%rt-profile-now-nanos)
+      :timestamp-nanos (%rt-profile-session-now-nanos session)
       :thread-id (%rt-profile-thread-id)
       :trace-id (rt-continuous-profile-session-trace-id session)
       :span-id (rt-continuous-profile-session-span-id session)
@@ -221,10 +238,13 @@ The sampler runs on a background thread at SAMPLE-RATE-HZ (100Hz by default),
 records timestamped stack samples with thread IDs, and can export pprof-like or
 OpenTelemetry Profiling JSON to OUTPUT (:STDOUT, pathname string, or NIL)."
   (let* ((rate (%rt-profile-safe-rate sample-rate-hz))
+         (started-at-nanos (%rt-profile-now-nanos))
+         (started-at-monotonic-nanos (%rt-profile-monotonic-now-nanos))
          (session (make-rt-continuous-profile-session
                    :name name
                    :started-at (get-universal-time)
-                   :started-at-nanos (%rt-profile-now-nanos)
+                   :started-at-nanos started-at-nanos
+                   :started-at-monotonic-nanos started-at-monotonic-nanos
                    :attributes attributes
                    :running-p t
                    :sample-rate-hz rate
@@ -243,16 +263,19 @@ OpenTelemetry Profiling JSON to OUTPUT (:STDOUT, pathname string, or NIL)."
 (defun rt-stop-continuous-profile (&optional (session *rt-continuous-profile-session*))
   "Stop SESSION, join the sampler thread, flush configured output, and return it."
   (when session
-    (setf (rt-continuous-profile-session-running-p session) nil
-          (rt-continuous-profile-session-stopped-at session) (get-universal-time)
-          (rt-continuous-profile-session-stopped-at-nanos session) (%rt-profile-now-nanos))
-    (let ((thread (rt-continuous-profile-session-sampler-thread session)))
-      (when (and thread (sb-thread:thread-alive-p thread))
-        (ignore-errors (sb-thread:join-thread thread :timeout 1))))
-    (when (rt-continuous-profile-session-output session)
-      (ignore-errors (rt-export-continuous-profile session)))
-    (when (eq session *rt-continuous-profile-session*)
-      (setf *rt-continuous-profile-session* nil)))
+    (unwind-protect
+         (progn
+           (setf (rt-continuous-profile-session-running-p session) nil
+                 (rt-continuous-profile-session-stopped-at session) (get-universal-time)
+                 (rt-continuous-profile-session-stopped-at-nanos session)
+                 (%rt-profile-session-now-nanos session))
+           (let ((thread (rt-continuous-profile-session-sampler-thread session)))
+             (when thread
+               (sb-thread:join-thread thread)))
+           (when (rt-continuous-profile-session-output session)
+             (rt-export-continuous-profile session)))
+      (when (eq session *rt-continuous-profile-session*)
+        (setf *rt-continuous-profile-session* nil))))
   session)
 
 (defun rt-wait-for-continuous-profile-sample (session &key (timeout 1))
@@ -279,7 +302,8 @@ instrumentation; background sampling uses the same storage path."
                                  frame (rt-continuous-profile-session-perf-map session)))
                               stack))))
          (sample (make-rt-profile-sample
-                  :timestamp-nanos (or timestamp-nanos (%rt-profile-now-nanos))
+                  :timestamp-nanos (or timestamp-nanos
+                                       (%rt-profile-session-now-nanos session))
                   :thread-id (or thread-id (%rt-profile-thread-id))
                   :trace-id (or trace-id (rt-continuous-profile-session-trace-id session))
                   :span-id (or span-id (rt-continuous-profile-session-span-id session))

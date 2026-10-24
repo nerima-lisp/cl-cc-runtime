@@ -1,7 +1,7 @@
 # Development
 
 Everything below assumes a checkout and a working Nix with flakes enabled. The
-flake pins SBCL and every sibling dependency, so there is nothing else to
+flake pins SBCL and every runtime dependency, so there is nothing else to
 install.
 
 ## The gate
@@ -31,7 +31,7 @@ nix run .#test
 ```
 
 Or from a development shell, where `CL_SOURCE_REGISTRY` is already set to the
-pinned siblings:
+pinned test and runtime dependencies:
 
 ```sh
 nix develop
@@ -39,17 +39,15 @@ sbcl --script run-tests.lisp
 ```
 
 `run-tests.lisp` is at the repository root. It registers the checkout and
-inherits `CL_SOURCE_REGISTRY` for `cl-weave`, `cl-log-kit`, `cl-process-kit`,
-`cl-boundary-kit` and `cl-json-kit`, then calls
-`(asdf:test-system "cl-cc-runtime")`.
+inherits `CL_SOURCE_REGISTRY` for the pinned test and runtime dependencies,
+then calls `(asdf:test-system "cl-cc-runtime")`.
 
-The suite starts real threads for the lock-free, STM, scheduler and consensus
-tests, so it takes noticeably longer than a pure library's and the check
-carries a 600-second timeout.
+The suite starts real threads, so it takes noticeably longer than a pure
+library's and the check carries a 600-second timeout.
 
 ## Compile check only
 
-The fastest way to find out whether a change reads:
+The quickest check that changed source still compiles and loads:
 
 ```sh
 nix develop
@@ -98,9 +96,9 @@ To edit them with live reload, from the repository root:
 mkdocs serve -f docs/mkdocs.yml
 ```
 
-Run mkdocs from the root, not from `docs/`, so the config path stays
-`docs/mkdocs.yml` on every invocation path. Add `--no-strict` while editing if
-warnings get in the way, but the committed state has to build with `--strict`.
+Run mkdocs from the repository root with `-f docs/mkdocs.yml`. Add
+`--no-strict` while editing if warnings get in the way, but the committed
+state has to build with `--strict`.
 
 Every page under `docs/src/` must appear in the `nav` in `docs/mkdocs.yml`.
 That is what `--strict` enforces, and it is why the nav cannot quietly fall
@@ -111,12 +109,12 @@ behind the tree.
 The `:version` in `cl-cc-runtime.asd` is the single source of truth. To cut a
 release: update `:version` and push the tag `vX.Y.Z`.
 
-`release.yml` refuses to publish when the tag and the `.asd` version disagree,
-runs `nix flake check` against the tagged tree, and then opens an empty *draft*
-release. The
-[GitHub Release description](https://github.com/nerima-lisp/cl-cc-runtime/releases)
-is the org's only canonical changelog, so the maintainer writes the notes into
-that draft and publishes it:
+`CHANGELOG.md` records unreleased notes. `release.yml` refuses to publish when
+the tag and the `.asd` version disagree, runs `nix flake check` against the
+tagged tree, and then opens an empty *draft* release. The [GitHub Release
+description](https://github.com/nerima-lisp/cl-cc-runtime/releases) is the
+canonical changelog for published releases; the maintainer writes the notes
+into the draft and publishes it:
 
 ```sh
 gh release edit vX.Y.Z --notes-file notes.md --draft=false
@@ -125,6 +123,5 @@ gh release edit vX.Y.Z --notes-file notes.md --draft=false
 ## Keeping dependencies current
 
 `flake-update.yml` opens a pull request every Monday bumping every flake input.
-Sibling packages stay pinned to release tags, so that bot only moves nixpkgs
-and treefmt-nix; moving to a new sibling release is a deliberate edit to
-`flake.nix`.
+Runtime kits stay pinned to release tags, so that bot only moves nixpkgs and
+treefmt-nix; moving to a new kit release is a deliberate edit to `flake.nix`.

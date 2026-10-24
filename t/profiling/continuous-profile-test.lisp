@@ -3,31 +3,85 @@
 
 (it-sequential
   "FR-701: continuous profiling records samples and exports OpenTelemetry span data."
-  (let ((session
-        (cl-cc/runtime::rt-start-continuous-profile
-          :name
-          "fr701"
-          :output
-          nil
-          :attributes
-          '(("service.name" . "cl-cc-test")))))
-    (cl-cc/runtime::rt-record-profile-sample
-      '("main" "worker")
-      :count
-      3
-      :session
-      session)
-    (expect
-      (gethash
-        "main;worker"
-        (cl-cc/runtime::rt-continuous-profile-session-samples session))
-      :to-equal
-      3)
-    (cl-cc/runtime::rt-stop-continuous-profile session)
-    (let ((span (cl-cc/runtime::rt-continuous-profile->otel-span session)))
+  (progn
+    (let* ((unix-anchor 1700000000000000000)
+           (monotonic-anchor
+             (truncate (* (cl-cc/runtime/os:rt-gettime-monotonic) 1000000000)))
+           (sample-session
+             (cl-cc/runtime/profiling:make-rt-continuous-profile-session
+              :running-p t
+              :started-at-nanos unix-anchor
+              :started-at-monotonic-nanos monotonic-anchor)))
+      (let ((before
+              (+ unix-anchor
+                 (- (truncate
+                     (* (cl-cc/runtime/os:rt-gettime-monotonic) 1000000000))
+                    monotonic-anchor))))
+        (cl-cc/runtime/profiling:rt-record-profile-sample
+         '("monotonic")
+         :thread-id "mapping-check"
+         :session sample-session)
+        (let ((sample
+                (find-if (lambda (item)
+                           (string= "mapping-check"
+                                    (cl-cc/runtime/profiling:rt-profile-sample-thread-id
+                                     item)))
+                         (coerce
+                          (cl-cc/runtime/profiling:rt-continuous-profile-session-sample-log
+                           sample-session)
+                          'list))))
+          (expect sample :to-be-truthy)
+          (let* ((timestamp
+                   (cl-cc/runtime/profiling:rt-profile-sample-timestamp-nanos sample))
+                 (after
+                   (+ unix-anchor
+                      (- (truncate
+                          (* (cl-cc/runtime/os:rt-gettime-monotonic) 1000000000))
+                         monotonic-anchor))))
+            (expect (<= before timestamp) :to-be-truthy)
+            (expect (<= timestamp after) :to-be-truthy)))))
+    (let* ((sample-time 1700000000123456789)
+           (session
+             (cl-cc/runtime::rt-start-continuous-profile
+              :name "fr701"
+              :output nil
+              :attributes '(("service.name" . "cl-cc-test")))))
+      (cl-cc/runtime::rt-record-profile-sample
+       '("main" "worker")
+       :count 3
+       :thread-id "counter-check"
+       :session session)
       (expect
-        (search "fr701" (cl-cc/runtime::rt-otel-span-to-json span))
-        :to-be-truthy))))
+       (gethash "main;worker"
+                (cl-cc/runtime::rt-continuous-profile-session-samples session))
+       :to-equal 3)
+      (cl-cc/runtime::rt-record-profile-sample
+       '("timestamped")
+       :timestamp-nanos sample-time
+       :thread-id "timestamp-check"
+       :session session)
+      (cl-cc/runtime::rt-stop-continuous-profile session)
+      (let ((caller-span
+              (cl-cc/runtime/observability:rt-otel-start-span "caller")))
+        (unwind-protect
+             (let* ((span
+                      (cl-cc/runtime/profiling:rt-continuous-profile->otel-span
+                       session))
+                    (event
+                      (find-if
+                       (lambda (item)
+                         (= (cl-cc/runtime/observability:rt-otel-event-time item)
+                            sample-time))
+                       (cl-cc/runtime/observability:rt-otel-span-events span))))
+               (expect event :to-be-truthy)
+               (expect
+                (eq cl-cc/runtime/observability:*rt-otel-span* caller-span)
+                :to-be-truthy)
+               (expect
+                (search "fr701"
+                        (cl-cc/runtime/observability:rt-otel-span-to-json span))
+                :to-be-truthy))
+          (cl-cc/runtime/observability:rt-otel-end-span caller-span))))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; %rt-profile-resolve-perf-symbol
@@ -172,29 +226,45 @@
       (expect (search "resourceProfiles" result) :to-be-truthy))))
 
 (it-sequential
-  ":format :pprof-json dispatches to pprof-json; payload contains sampleType and periodType."
-  (let ((session
-        (cl-cc/runtime::make-rt-continuous-profile-session
-          :name
-          "export-pprof"
-          :output
-          nil
-          :format
-          :pprof-json
-          :started-at-nanos
-          0
-          :stopped-at-nanos
-          1000000)))
-    (let ((result
-          (cl-cc/runtime::rt-export-continuous-profile
-            session
-            :format
-            :pprof-json
-            :output
-            nil)))
+  ":format :pprof-json encodes string fields as string-table indexes."
+  (let* ((session
+           (make-rt-continuous-profile-session
+            :name "export-pprof"
+            :output nil
+            :format :pprof-json
+            :started-at-nanos 1700000000000000000
+            :stopped-at-nanos 1700000000001000000))
+         (sample-log (rt-continuous-profile-session-sample-log session)))
+    (vector-push-extend
+     (make-rt-profile-sample
+      :timestamp-nanos 1700000000000500000
+      :thread-id "worker-thread"
+      :trace-id "trace-id"
+      :span-id "span-id"
+      :stack (list (make-rt-profile-frame
+                    :function "worker"
+                    :source-file "worker.lisp"
+                    :perf-symbol "perf-worker")))
+     sample-log)
+    (let ((result (rt-export-continuous-profile
+                   session
+                   :format :pprof-json
+                   :output nil)))
       (expect (stringp result) :to-be-truthy)
       (expect (search "sampleType" result) :to-be-truthy)
-      (expect (search "periodType" result) :to-be-truthy))))
+      (expect (search "periodType" result) :to-be-truthy)
+      (expect (search "\"name\":1" result) :to-be-truthy)
+      (expect (search "\"filename\":2" result) :to-be-truthy)
+      (expect (search "\"perfSymbol\":3" result) :to-be-truthy)
+      (expect (search "\"threadId\":4" result) :to-be-truthy)
+      (expect (search "\"traceId\":5" result) :to-be-truthy)
+      (expect (search "\"spanId\":6" result) :to-be-truthy)
+      (expect (search "\"worker-thread\"" result) :to-be-truthy)
+      (expect (search "\"trace-id\"" result) :to-be-truthy)
+      (expect (search "\"span-id\"" result) :to-be-truthy)
+      (expect (search "\"threadId\":\"worker-thread\"" result) :to-equal nil)
+      (expect (search "\"traceId\":\"trace-id\"" result) :to-equal nil)
+      (expect (search "\"spanId\":\"span-id\"" result) :to-equal nil))))
 
 (it-sequential
   "output :stdout writes to *standard-output* and still returns the payload string; checks for cl-cc/runtime in OTel JSON."

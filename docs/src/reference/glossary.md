@@ -1,12 +1,15 @@
 # Glossary
 
+Key types and functions are representative public symbols, not a complete API
+list. `None` means no representative is listed for that entry.
+
 ## memory
 
 - Definition: The managed heap, allocation, garbage collection, and runtime roots that keep live objects reachable.
 - Package: `cl-cc/runtime/memory`, `cl-cc/runtime/memory/infra`
 - Key types: `rt-heap`
 - Key functions: `rt-gc-alloc`, `rt-gc-minor-collect`, `rt-gc-major-collect`
-- Other contexts: `values` owns weak-hash APIs and entry representation; `memory` owns GC processing and ephemeron creation.
+- Other contexts: `values` owns weak-hash APIs and entry representation. An ephemeron is a key-value pair whose value is considered live only while its key is live; `memory` creates and processes them during garbage collection.
 
 ## values
 
@@ -26,7 +29,7 @@
 
 ## concurrency
 
-- Definition: Schedules runtime work and provides fibers, channels, synchronization, STM, and lock-free coordination.
+- Definition: Schedules runtime work and provides fibers, channels, synchronization, software transactional memory (STM), and lock-free coordination.
 - Package: `cl-cc/runtime/concurrency`
 - Key types: `rt-fiber`, `rt-tvar`
 - Key functions: `rt-spawn`, `rt-fiber-spawn`, `rt-channel-send`, `rt-atomically`
@@ -66,11 +69,11 @@
 
 ## os
 
-- Definition: Provides host process, clock, file, network, signal, FFI, and VM bridge operations.
+- Definition: Provides host process, clock, file, network, signal, foreign-function interface (FFI), and virtual-machine (VM) bridge operations.
 - Package: `cl-cc/runtime/os`, `cl-cc/runtime/os/infra`
 - Key types: `rt-process`, `rt-socket-address`
 - Key functions: `rt-open`, `rt-gettime-monotonic`, `rt-socket-send`, `rt-ffi-load-library`
-- Other contexts: `dynamic-binding` supplies runtime symbol value lookup and updates used by the VM callable bridge in OS infrastructure.
+- Other contexts: OS infrastructure registers selected runtime functions by name for the VM to call. `dynamic-binding` supplies runtime symbol value lookup and updates used by the VM bridge registry.
 
 ## profiling
 
@@ -109,7 +112,7 @@
 - Definition: Provides byte compression and decompression operations for the runtime.
 - Package: `cl-cc/runtime/compression`
 - Key types: None.
-- Key functions: None.
+- Key functions: `gzip-compress`, `gzip-decompress`, `zlib-compress`, `zlib-decompress`
 - Other contexts: `serialization` encodes runtime values; compression transforms byte sequences.
 
 ## resilience
@@ -118,12 +121,5 @@
 - Package: `cl-cc/runtime/resilience`
 - Key types: None.
 - Key functions: `rt-make-token-bucket`, `rt-token-bucket-acquire`, `rt-token-bucket-wait`
-- Other contexts: `os` provides monotonic time for token refill; `concurrency` schedules work while resilience controls admission rate.
+- Other contexts: `cl-resilience-kit` tracks elapsed time for token refill; `concurrency` schedules work while resilience controls admission rate.
 
-## distributed-state
-
-- Definition: Coordinates replicated state with CRDT data types and the Raft consensus protocol.
-- Package: `cl-cc/runtime/distributed-state`
-- Key types: `rt-raft-node`, `rt-raft-cluster`
-- Key functions: `rt-raft-propose`, `rt-gcounter-merge`, `rt-pncounter-value`
-- Other contexts: `concurrency` STM coordinates in-process transactions; distributed state coordinates replicas.
