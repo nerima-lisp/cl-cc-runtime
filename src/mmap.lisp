@@ -86,6 +86,8 @@
   "Create an OS-backed mmap region."
   (unless (rt-valid-mmap-size-p length)
     (error "Invalid mmap length: ~a" length))
+  (when (logtest flags +rt-map-fixed+)
+    (error "MAP_FIXED mappings are forbidden to protect the host Lisp heap."))
   (let* ((aligned (rt-page-align length))
          (native-flags (%rt-normalize-map-flags flags))
          (sap (sb-posix:mmap (if addr (%rt-mmap-sap addr) (sb-sys:int-sap 0))

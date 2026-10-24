@@ -581,3 +581,14 @@
       (cl-cc/runtime::rt-heap-maybe-shrink heap)
       (expect (cl-cc/runtime::rt-heap-maybe-shrink heap) :to-be-truthy)
       (expect (< (length (cl-cc/runtime::rt-heap-words heap)) words-before) :to-be-truthy))))
+
+(it-sequential
+  "rt-mmap rejects MAP_FIXED before the host mmap call."
+  (signals simple-error
+    (cl-cc/runtime::rt-mmap
+      1
+      cl-cc/runtime::+rt-page-size+
+      cl-cc/runtime::+rt-prot-none+
+      (logior cl-cc/runtime::+rt-map-fixed+ cl-cc/runtime::+rt-map-anonymous+)
+      nil
+      0)))
