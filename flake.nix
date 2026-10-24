@@ -12,7 +12,7 @@
     # repositories the way the ~320-line hand-rolled version of this file
     # used to.
     cl-nix-forge = {
-      url = "github:nerima-lisp/cl-nix-forge/v0.7.1";
+      url = "github:nerima-lisp/cl-nix-forge/v0.7.3";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -111,6 +111,7 @@
       # string-like value for its root. `./.` is the same directory as a
       # path literal.
       root = ./.;
+      sourceInclude = [ ./t/export-surface.txt ];
 
       meta = {
         description = "cl-cc runtime library: rt-* primitives, GC, heap, frame, value codec, and concurrency";
@@ -244,22 +245,6 @@
             "t/distributed-state"
           ];
           testSystems = [
-            "cl-cc-runtime/memory/test"
-            "cl-cc-runtime/values/test"
-            "cl-cc-runtime/images/test"
-            "cl-cc-runtime/concurrency/test"
-            "cl-cc-runtime/clos/test"
-            "cl-cc-runtime/conditions/test"
-            "cl-cc-runtime/dynamic-binding/test"
-            "cl-cc-runtime/execution/test"
-            "cl-cc-runtime/os/test"
-            "cl-cc-runtime/profiling/test"
-            "cl-cc-runtime/observability/test"
-            "cl-cc-runtime/serialization/test"
-            "cl-cc-runtime/cryptography/test"
-            "cl-cc-runtime/compression/test"
-            "cl-cc-runtime/resilience/test"
-            "cl-cc-runtime/distributed-state/test"
             "cl-cc-runtime/test"
           ];
         };
