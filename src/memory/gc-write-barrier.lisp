@@ -11,7 +11,7 @@
 ;;;                     rt-heap-set, rt-heap-object-header, header-marked-p
 ;;;
 ;;; Load order: after gc.lisp, before gc-major.lisp.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defvar *rt-gc-satb-thread-queues* (make-hash-table :test #'eq)
   "Heap -> per-thread SATB queues used by concurrent major GC.

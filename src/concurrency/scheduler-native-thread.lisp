@@ -1,6 +1,6 @@
 ;;;; scheduler-native-thread.lisp — Native OS thread wrapper (FR-1097), split
 ;;;; out of scheduler.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 
 ;;; Native OS threads (FR-1097)
 

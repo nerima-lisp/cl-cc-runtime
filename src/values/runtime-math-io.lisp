@@ -13,7 +13,7 @@
 ;;; Strings/characters are in runtime-strings.lisp; CLOS/generic dispatch in runtime-clos.lisp.
 ;;; Depends on runtime.lisp. Load order: after runtime-ops.lisp.
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/values)
 (defun rt-symbol-plist (sym) (symbol-plist sym))
 (defun rt-get-prop (sym indicator) (get sym indicator))
 (defun rt-put-prop (sym indicator val) (setf (get sym indicator) val))
@@ -46,78 +46,9 @@
 ;;; Conditions / Error Handling
 ;;; ------------------------------------------------------------
 
-(defun %rt-current-signal-heap ()
-  (and (boundp '*rt-current-gc-heap*)
-       *rt-current-gc-heap*))
-
-(defmacro %rt-with-signal-gc-inhibit (&body body)
-  "Run BODY while runtime signal handling temporarily inhibits GC when possible."
-  (let ((heap (gensym "HEAP"))
-        (old (gensym "OLD-INHIBIT")))
-    `(let* ((,heap (%rt-current-signal-heap))
-            (,old (and ,heap (rt-heap-gc-inhibit ,heap))))
-       (unwind-protect
-            (progn
-              (when (and ,heap (fboundp 'rt-gc-signal-handler-enter))
-                (rt-gc-signal-handler-enter ,heap))
-              ,@body)
-         (when (and ,heap (fboundp 'rt-gc-signal-handler-leave))
-           (rt-gc-signal-handler-leave ,heap ,old))))))
-
-(defun rt-signal-error (condition)
-  (%rt-with-signal-gc-inhibit
-    (multiple-value-bind (result handled-p) (rt-dispatch-signal condition)
-      (if handled-p
-          result
-          (progn
-            (rt-invoke-debugger-hook condition)
-            (error condition))))))
-
-(defun rt-signal (condition)
-  (%rt-with-signal-gc-inhibit
-    (multiple-value-bind (result handled-p) (rt-dispatch-signal condition)
-      (if handled-p
-          result
-          (signal condition)))))
-
-(defun rt-warn-fn (condition)
-  (%rt-with-signal-gc-inhibit
-    (multiple-value-bind (result handled-p) (rt-dispatch-signal condition)
-      (if handled-p
-          result
-          (warn "~A" condition)))))
-
-(defun rt-cerror (continue-string condition)
-  (%rt-with-signal-gc-inhibit
-    (rt-establish-restart 'continue (lambda () nil)
-      (lambda ()
-        (multiple-value-bind (result handled-p) (rt-dispatch-signal condition)
-          (if handled-p
-              result
-              (cerror continue-string "~A" condition)))))))
-
-(defun rt-invoke-restart (name &rest args)
-  (multiple-value-bind (result handled-p) (rt-dispatch-restart name args)
-    (if handled-p
-        result
-        (apply #'invoke-restart name args))))
-
-;;; ------------------------------------------------------------
-;;; Misc
-;;; ------------------------------------------------------------
-
-(defun rt-boundp (sym)
-  (if (nth-value 1 (gethash sym *rt-global-var-registry*)) 1 0))
-
-(defun rt-makunbound (sym)
-  (remhash sym *rt-global-var-registry*)
-  sym)
 (defun rt-random (n) (random n))
 (defun rt-make-random-state (&optional state)
   (if state (make-random-state state) (make-random-state)))
-(defun rt-get-universal-time () (get-universal-time))
-(defun rt-get-internal-real-time () (get-internal-real-time))
-(defun rt-get-internal-run-time () (get-internal-run-time))
 (defun rt-read-from-string (s) (read-from-string s))
 (defun rt-read-sexp (stream) (read stream))
 (defun rt-coerce (x type) (coerce x type))

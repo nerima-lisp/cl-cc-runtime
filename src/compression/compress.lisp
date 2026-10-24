@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/compression)
 (defun adler32 (o)
   (let ((a 1) (b 0))
     (loop for x across o

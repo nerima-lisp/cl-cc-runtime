@@ -11,7 +11,7 @@
 ;;;
 ;;; Internal helpers are prefixed with %gc-.
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; ------------------------------------------------------------
 ;;; Section 3a: Minor GC Helpers

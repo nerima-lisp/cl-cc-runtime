@@ -1,5 +1,5 @@
 ;;;; Core Image Save/Restore (FR-350, FR-352)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/images)
 
 (defconstant +image-magic+ #x434C4343)
 (defconstant +rt-image-version+ 1)

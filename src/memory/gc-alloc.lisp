@@ -1,6 +1,6 @@
 ;;;; gc-alloc.lisp — Young/old bump allocation and root registration tuning
 ;;;; constants, split out of gc-roots-objects.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;; Ensure the card-size constant is present even if this file is compiled or
 ;; loaded in isolation during incremental builds.
@@ -141,3 +141,12 @@ and retrying once when the space is exhausted."
            (%rt-gc-alloc-old-space heap size-words))
           (t
            (%rt-gc-alloc-young-space heap size-words))))))
+
+(in-package :cl-cc/runtime/memory)
+
+(defun rt-signal-oom (requested-words &key heap (limit-words nil) (used-words nil))
+  "Signal a STORAGE-CONDITION for runtime out-of-memory paths."
+  (error 'rt-oom-condition
+         :requested-words requested-words
+         :limit-words (or limit-words (and heap (rt-heap-max-heap-words heap)) 0)
+         :used-words (or used-words (and heap (ignore-errors (%rt-heap-live-used-words heap))) 0)))

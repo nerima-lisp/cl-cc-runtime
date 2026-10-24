@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/os)
 
 ;;; ------------------------------------------------------------
 ;;; I/O
@@ -71,3 +71,11 @@
 (define-rt-predicate rt-open-stream-p        open-stream-p)
 (define-rt-predicate rt-interactive-stream-p interactive-stream-p)
 (defun rt-stream-element-type (s) (stream-element-type s))
+
+(in-package :cl-cc/runtime/os)
+
+(defun rt-get-universal-time () (get-universal-time))
+
+(defun rt-get-internal-real-time () (get-internal-real-time))
+
+(defun rt-get-internal-run-time () (get-internal-run-time))

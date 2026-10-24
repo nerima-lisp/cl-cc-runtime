@@ -1,7 +1,7 @@
 ;;;; value-tags.lisp — NaN-boxed value tag/mask layout constants (the DATA
 ;;;; half of value.lisp's representation; predicates and codecs that operate
 ;;;; on it are the LOGIC half, in value.lisp and value-codec.lisp)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/values)
 
 (defconstant +max-u64+ #xFFFFFFFFFFFFFFFF
   "All-ones 64-bit mask.  Used to force u64 representation from integer

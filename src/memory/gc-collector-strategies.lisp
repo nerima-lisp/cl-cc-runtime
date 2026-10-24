@@ -2,7 +2,7 @@
 ;;;; FR-716 Colored Pointer GC, FR-717 SATB Write Barrier,
 ;;;; FR-718 Region-Based GC, FR-719 Epsilon GC
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; ──── FR-719: Epsilon GC / No-Op GC ────
 (defvar *gc-epsilon-enabled* nil

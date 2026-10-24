@@ -1,6 +1,6 @@
 ;;;; gc-binding-scan.lisp — Dynamic binding-stack and global-variable root
 ;;;; scanning, split out of gc-roots-objects.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun %rt-gc-thread-binding-stack (thread)
   "Return THREAD's dynamic binding stack, if any."

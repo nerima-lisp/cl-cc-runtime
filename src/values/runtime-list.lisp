@@ -1,5 +1,5 @@
 ;;;; runtime-list.lisp — Globals, type predicates, cons/list primitives, COW lists, coercions
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/values)
 
 ;;; ------------------------------------------------------------
 ;;; Global Bindings
@@ -46,10 +46,6 @@
 (define-rt-predicate rt-atomp        atom)
 
 (define-rt-predicate rt-keywordp     keywordp)
-
-;;; rt-functionp has a compound check — stays explicit
-(defun rt-functionp (x)
-  (if (or (functionp x) (rt-closure-obj-p x)) 1 0))
 
 (defun rt-typep (x type-name)
   (if (typep x (find-symbol (string type-name) :cl)) 1 0))

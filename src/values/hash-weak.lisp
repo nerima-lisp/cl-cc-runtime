@@ -1,9 +1,9 @@
 ;;;; packages/runtime/src/hash-weak.lisp - Weak hash table public constructor
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/values)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (shadow 'make-hash-table :cl-cc/runtime))
+  (shadow 'make-hash-table :cl-cc/runtime/values))
 
 (defun make-hash-table (&rest args)
   "Runtime MAKE-HASH-TABLE supporting :WEAKNESS.

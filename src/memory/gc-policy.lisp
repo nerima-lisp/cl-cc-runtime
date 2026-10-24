@@ -1,6 +1,6 @@
 ;;;; gc-policy.lisp — GC pause/pacer policy, dynamic tenuring, and call-frame
 ;;;; allocation. Object pinning for FFI is in gc-pinning.lisp.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun rt-gc-inhibit-p (heap)
   (rt-heap-gc-inhibit heap))
@@ -246,4 +246,27 @@ returning to reduce fragmentation risk."
     (sleep (/ (float size-words) (float *gc-allocation-rate-limit-words-per-sec*))))
   (when (> (rt-heap-occupancy-pct heap) (* 100.0d0 *gc-back-pressure-threshold*))
     (rt-gc-minor-collect heap))
+  heap)
+
+(in-package :cl-cc/runtime/memory)
+
+(defun rt-check-heap-pressure-thresholds (heap)
+  "Warn at fixed 80/90/95% heap pressure thresholds and return occupancy." 
+  (let ((occupancy (rt-heap-occupancy-pct heap)))
+    (dolist (threshold '(80 90 95))
+      (when (>= occupancy threshold)
+        (warn 'rt-gc-pressure-warning
+              :heap heap :occupancy occupancy :threshold threshold)))
+    occupancy))
+
+(defvar *rt-gc-post-sweep-hooks* nil)
+
+(defun rt-gc-register-post-sweep-hook (hook)
+  (check-type hook function)
+  (pushnew hook *rt-gc-post-sweep-hooks* :test #'eq)
+  hook)
+
+(defun %rt-gc-run-post-sweep-hooks (heap)
+  (dolist (hook *rt-gc-post-sweep-hooks*)
+    (funcall hook heap))
   heap)

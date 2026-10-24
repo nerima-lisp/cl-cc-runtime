@@ -1,5 +1,5 @@
 ;;;; Epoch-Based Reclamation (FR-320)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defconstant +ebr-epochs+ 3)
 (defstruct rt-ebr-local (epoch 0) (in-critical 0) (retired-0 nil) (retired-1 nil) (retired-2 nil))
 (defvar *ebr-global-epoch* 0)

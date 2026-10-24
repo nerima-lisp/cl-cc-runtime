@@ -3,7 +3,7 @@
 ;;;; computation is in runtime-clos-applicability.lisp; method invocation and
 ;;;; combination is in runtime-clos-invoke.lisp.
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/clos)
 
 ;;; ------------------------------------------------------------
 ;;; EQL Specializer Support

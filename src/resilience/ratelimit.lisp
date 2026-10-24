@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/resilience)
 
 (defstruct rt-token-bucket
   (rate 10.0 :type real)

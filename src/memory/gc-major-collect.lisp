@@ -1,6 +1,6 @@
 ;;;; gc-major-collect.lisp — Top-level major-GC orchestrator driving mark,
 ;;;; sweep, and compaction, split out of gc-major-sweep.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun rt-gc-major-collect (heap)
   "Perform a major GC of the old generation using tri-color mark-and-sweep.
@@ -74,7 +74,7 @@
                     (rt-gc-parallel-sweep heap *gc-worker-count*)
                     (%gc-sweep-old-space heap))))
         ;; FR-438: integrated class/code unload pass-through after sweeping.
-        (rt-gc-run-unload-pass heap)
+        (%rt-gc-run-post-sweep-hooks heap)
         (when (fboundp '%rt-gc-clean-adjustable-array-registry)
           (%rt-gc-clean-adjustable-array-registry heap)))
     ;; Always reset gc-state and increment count, even on error

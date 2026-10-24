@@ -1,6 +1,6 @@
 ;;;; runtime-dynamic-binding.lisp — Special-variable registration and the
 ;;;; per-thread dynamic binding stack, split out of runtime-math-io.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/dynamic-binding)
 
 ;;; ------------------------------------------------------------
 ;;; Symbols
@@ -118,3 +118,16 @@ kept in *RT-GLOBAL-VAR-REGISTRY* rather than in thread-local dynamic frames."
           (rt-register-special-variable sym :global-only-p t)
           (setf (gethash sym *rt-global-var-registry*) val))))
   val)
+
+(in-package :cl-cc/runtime/dynamic-binding)
+
+;;; ------------------------------------------------------------
+;;; Misc
+;;; ------------------------------------------------------------
+
+(defun rt-boundp (sym)
+  (if (nth-value 1 (gethash sym *rt-global-var-registry*)) 1 0))
+
+(defun rt-makunbound (sym)
+  (remhash sym *rt-global-var-registry*)
+  sym)

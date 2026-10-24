@@ -1,6 +1,6 @@
 ;;;; packages/runtime/src/heap-los.lisp — Large Object Space (FR-622)
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defparameter *large-object-threshold* 8192
   "Large Object Space threshold. Objects larger than this word count bypass nursery allocation.")

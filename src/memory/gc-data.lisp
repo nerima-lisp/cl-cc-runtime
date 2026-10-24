@@ -14,7 +14,7 @@
 ;;;
 ;;; Internal helpers are prefixed with %gc-.
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defparameter *gc-verify-after-collect* nil
   "When true, verify heap invariants after each GC cycle.")

@@ -1,6 +1,6 @@
 ;;;; crypto-base64.lisp — Base64 (RFC 4648, standard and URL-safe alphabets),
 ;;;; split out of crypto.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/cryptography)
 
 ;;; ── Base64 (RFC 4648) ──
 

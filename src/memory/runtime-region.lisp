@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defstruct (rt-region-token (:constructor %make-rt-region-token))
   "Runtime region lifetime token for region-based temporary allocations."

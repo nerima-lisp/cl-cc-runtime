@@ -7,7 +7,7 @@
 ;;;;
 ;;;; This file must be loaded AFTER sync.lisp in the ASDF component order.
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 
 ;; ── Lock wrappers (map to sync.lisp API) ──
 

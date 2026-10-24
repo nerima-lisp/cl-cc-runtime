@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/cryptography)
 
 ;;;; Cryptographic primitives — self-contained, dependency-free reference
 ;;;; implementations of SHA-256, SHA-512 (FIPS 180-4) and HMAC-SHA256

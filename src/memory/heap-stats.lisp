@@ -1,6 +1,6 @@
 ;;;; heap-stats.lisp — Heap occupancy, fragmentation, and compaction-trigger
 ;;;; queries, split out of heap-access.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun rt-heap-occupancy-pct (heap)
   "Return total young+old heap occupancy as a percentage.

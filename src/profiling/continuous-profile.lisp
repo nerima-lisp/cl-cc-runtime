@@ -1,6 +1,6 @@
 ;;;; packages/runtime/src/continuous-profile.lisp — FR-701 continuous profiling
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/profiling)
 
 (defconstant +rt-continuous-profile-default-rate-hz+ 100
   "Default continuous profiler sampling rate.")
@@ -232,8 +232,8 @@ OpenTelemetry Profiling JSON to OUTPUT (:STDOUT, pathname string, or NIL)."
                    :endpoint endpoint
                    :format format
                    :max-samples (max 1 max-samples)
-                   :trace-id (or trace-id (%rt-otel-random-hex 16))
-                   :span-id (or span-id (%rt-otel-random-hex 8))
+                   :trace-id (or trace-id (%rt-profile-random-hex 16))
+                   :span-id (or span-id (%rt-profile-random-hex 8))
                    :perf-map (%rt-profile-read-perf-map perf-map-file))))
     (setf (rt-continuous-profile-session-sampler-thread session)
           (sb-thread:make-thread (lambda () (%rt-profile-sampler-loop session))
@@ -286,3 +286,11 @@ instrumentation; background sampling uses the same storage path."
                   :stack frames
                   :count count)))
     (%rt-profile-add-sample session sample)))
+
+(defun %rt-profile-random-hex (bytes)
+  (with-output-to-string (out)
+    (dotimes (i bytes)
+      (let ((byte (random 256)))
+        (when (< byte 16)
+          (write-char #\0 out))
+        (format out "~X" byte)))))

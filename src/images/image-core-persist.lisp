@@ -1,6 +1,6 @@
 ;;;; image-core-persist.lisp — Core image file format: package/root state,
 ;;;; the on-disk payload envelope, and rt-save-core / rt-load-core
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/images)
 
 (defun %rt-core-package-state ()
   (loop for package in (list-all-packages)

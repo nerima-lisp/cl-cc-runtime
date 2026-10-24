@@ -1,6 +1,6 @@
 ;;;; gc-concurrent-sweep.lisp — Background worker-thread sweep pass, split out
 ;;;; of gc-major-sweep.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun rt-gc-concurrent-sweep-worker (heap)
   "Sweep old space for FR-620 concurrent sweeping infrastructure."

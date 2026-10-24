@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/observability)
 
 (defstruct rt-otel-event
   (name "")

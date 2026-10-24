@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defstruct rt-fiber
   (id 0) (thunk nil) (status :ready) (result nil) (error nil)
   (locals (make-hash-table :test #'eq)) (yielded-value nil)

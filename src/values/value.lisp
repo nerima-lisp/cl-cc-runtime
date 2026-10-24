@@ -47,7 +47,7 @@
 ;;; Host-facing RT-MAKE-ARRAY preserves these properties through the ANSI
 ;;; array object, so no property is inferred from the pointer tag alone.
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/values)
 
 (declaim (optimize (speed 3) (safety 1)))
 

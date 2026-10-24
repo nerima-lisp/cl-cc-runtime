@@ -1,6 +1,6 @@
 ;;;; packages/runtime/src/gc-finalizers.lisp - Finalizer scheduling (FR-732)
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defvar *rt-finalizer-registry* nil
   "Canonical list of (object . finalizer-function) pairs awaiting object death.")

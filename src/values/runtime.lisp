@@ -14,7 +14,7 @@
 ;;;   110 (6) = string: pointer to string
 ;;;   111 (7) = other heap object
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/values)
 
 ;;; ------------------------------------------------------------
 ;;; Tagged Pointer Constants
@@ -67,30 +67,6 @@
   (when (null *rt-values-buffer*)
     (rt-values-push val))
   val)
-
-;;; ------------------------------------------------------------
-;;; Closure Support
-;;; ------------------------------------------------------------
-
-(defstruct (rt-closure-obj (:conc-name rt-closure-))
-  fn
-  env)
-
-(defun rt-make-closure (fn env-list)
-  (make-rt-closure-obj :fn fn :env (coerce env-list 'vector)))
-
-(defun rt-closure-ref (closure idx)
-  (aref (rt-closure-env closure) idx))
-
-(defun rt-call-fn (fn &rest args)
-  (if (rt-closure-obj-p fn)
-      (apply (rt-closure-fn fn) args)
-      (apply fn args)))
-
-(defun rt-apply-fn (fn args-list)
-  (if (rt-closure-obj-p fn)
-      (apply (rt-closure-fn fn) args-list)
-      (apply fn args-list)))
 
 ;; Arrays/Vectors, Arithmetic, Bitwise, Comparisons, and Math rt-* wrappers
 ;; are in runtime-ops.lisp (loaded next).

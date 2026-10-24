@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/distributed-state)
 
 (defconstant +raft-follower+ 0)
 (defconstant +raft-candidate+ 1)

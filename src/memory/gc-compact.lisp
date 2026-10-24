@@ -1,6 +1,6 @@
 ;;;; gc-compact.lisp — Old-space compaction and its trigger heuristic, split
 ;;;; out of gc-major-sweep.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun rt-gc-should-run-compaction-p (heap)
   "Return true when FR-621 old-generation mark-compact should run."

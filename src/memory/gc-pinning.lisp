@@ -1,6 +1,6 @@
 ;;;; gc-pinning.lisp — Object pinning for FFI (rt-pin-object, rt-unpin-object,
 ;;;; with-pinned-objects), split out of gc-policy.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun %rt-pinned-table (heap &key create)
   (or (gethash heap *rt-pinned-objects*)

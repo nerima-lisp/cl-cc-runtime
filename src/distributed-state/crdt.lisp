@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/distributed-state)
 (defstruct rt-gcounter (slots (make-hash-table :test #'eql)))
 (defun rt-make-gcounter () (make-rt-gcounter))
 (defun rt-gcounter-increment (c nid &optional (d 1))

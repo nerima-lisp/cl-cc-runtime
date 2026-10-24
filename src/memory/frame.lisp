@@ -12,7 +12,7 @@
 ;;;
 ;;; Register indices are plain fixnums 0..255 (not keywords).
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (declaim (optimize (speed 3) (safety 1)))
 

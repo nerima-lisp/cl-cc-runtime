@@ -1,6 +1,6 @@
 ;;;; gc-heap-verify.lisp — Heap consistency verification (rt-gc-verify-heap),
 ;;;; split out of gc-roots-objects.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun rt-gc-verify-heap (heap)
   "Verify basic heap invariants and signal an error on corruption."

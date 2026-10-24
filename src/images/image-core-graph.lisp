@@ -1,6 +1,6 @@
 ;;;; image-core-graph.lisp — Position-independent object-graph encoding and
 ;;;; decoding for core image save/load (src/image-core-persist.lisp)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/images)
 
 (defun %rt-core-encode-graph (roots)
   "Copy reachable heap objects from ROOTS into a position-independent graph."

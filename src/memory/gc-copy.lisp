@@ -1,7 +1,7 @@
 ;;;; gc-copy.lisp — Cheney-scan object copying (%gc-copy-object,
 ;;;; %gc-ensure-copied) used by the minor-GC scanner in gc-minor.lisp, split
 ;;;; out of gc-tlab.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun %rt-gc-normalize-address (addr)
   (if (and (integerp addr) (val-pointer-p addr))

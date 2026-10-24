@@ -1,5 +1,5 @@
 ;;;; OS Abstraction Layer (FR-570, FR-571, FR-573)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/os)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (require :sb-posix))

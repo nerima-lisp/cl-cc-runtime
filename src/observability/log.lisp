@@ -3,7 +3,7 @@
 ;;;; LOG-DEBUG/INFO/WARN/ERROR/FATAL, WITH-LOG-CONTEXT, and friends are
 ;;;; cl-log-kit symbols imported and re-exported as-is (see package.lisp);
 ;;;; this file only wires up the runtime's default logger.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/observability)
 
 (defparameter *rt-logger* (make-logger :name "cl-cc.runtime" :handler (make-text-handler))
   "The runtime's default cl-log-kit logger. LOG-DEFAULT-* / LOG-* convenience

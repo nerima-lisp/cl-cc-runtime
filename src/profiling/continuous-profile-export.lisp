@@ -1,7 +1,7 @@
 ;;;; packages/runtime/src/continuous-profile-export.lisp — FR-701 continuous
 ;;;; profile export: JSON, OTel profiles signal, and pprof-JSON encodings
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/profiling)
 
 (defun %rt-profile-frame->json (frame)
   "Build a JSON object describing one resolved profile FRAME."

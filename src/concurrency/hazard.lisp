@@ -1,5 +1,5 @@
 ;;;; Hazard Pointers (FR-321)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 
 (defvar *hazard-thread-arrays* (make-hash-table))
 (defvar *hazard-slots-per-thread* 4)

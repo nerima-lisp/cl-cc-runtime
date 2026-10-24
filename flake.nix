@@ -12,7 +12,7 @@
     # repositories the way the ~320-line hand-rolled version of this file
     # used to.
     cl-nix-forge = {
-      url = "github:nerima-lisp/cl-nix-forge/v0.6.1";
+      url = "github:nerima-lisp/cl-nix-forge/v0.7.1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -201,51 +201,68 @@
       treefmt.evalModule = treefmt-nix.lib.evalModule;
 
       extraOutputs = ctx: {
-        checks.orphan-tests =
-          ctx.pkgs.runCommand "cl-cc-runtime-orphan-tests"
-            {
-              source = ctx.src;
-              nativeBuildInputs = with ctx.pkgs; [
-                coreutils
-                diffutils
-                findutils
-                gawk
-              ];
-            }
-            ''
-              set -euo pipefail
+        checks.feature-lint = ctx.cl.mkFeatureLintCheck {
+          src = ./.;
+          featureDefinitions = "nix/feature-dependencies.sexp";
+          glossary = "docs/src/reference/glossary.md";
+          glossaryHeadingPrefix = "## ";
+          exportSurface = "t/export-surface.txt";
+          mode = "transition";
+          legacyInternalRefs = "t/legacy-internal-refs.sexp";
+          forbiddenNames = [
+            "phases"
+            "misc"
+            "utils"
+            "helpers"
+          ];
+          numberedPrefixes = [
+            "FR-"
+            "W"
+          ];
+          packagePrefix = "cl-cc/runtime/";
+          infraSuffix = "/infra";
+        };
 
-              actual="$TMPDIR/actual-test-files"
-              registered="$TMPDIR/registered-test-files"
-              nested="$TMPDIR/nested-test-files"
-
-              find "$source/t" -type f -name '*-test.lisp' -printf '%P\n' \
-                | LC_ALL=C sort > "$actual"
-              find "$source/t" -mindepth 2 -type f -name '*-test.lisp' -printf '%P\n' \
-                | LC_ALL=C sort > "$nested"
-
-              if [ -s "$nested" ]; then
-                printf '%s\n' 'Nested test files are unsupported until this check resolves ASDF module paths:' >&2
-                cat "$nested" >&2
-                exit 1
-              fi
-
-              awk '
-                /^[(]defsystem "cl-cc-runtime\/test"/ { in_test = 1; next }
-                in_test && /^[[:space:]]*:perform/ { exit }
-                in_test && /^[[:space:]]*\(:file "[^"]*-test"\)+[[:space:]]*$/ {
-                  name = $0
-                  sub(/^.*[(]:file "/, "", name)
-                  sub(/".*$/, "", name)
-                  print name ".lisp"
-                }
-              ' "$source/cl-cc-runtime.asd" | LC_ALL=C sort > "$registered"
-
-              test -s "$actual"
-              test -s "$registered"
-              diff -u "$registered" "$actual"
-              touch "$out"
-            '';
+        checks.orphan-tests = ctx.cl.mkOrphanTestCheck {
+          src = ./.;
+          testRoots = [
+            "t/memory"
+            "t/values"
+            "t/images"
+            "t/concurrency"
+            "t/clos"
+            "t/conditions"
+            "t/dynamic-binding"
+            "t/execution"
+            "t/os"
+            "t/profiling"
+            "t/observability"
+            "t/serialization"
+            "t/cryptography"
+            "t/compression"
+            "t/resilience"
+            "t/distributed-state"
+          ];
+          testSystems = [
+            "cl-cc-runtime/memory/test"
+            "cl-cc-runtime/values/test"
+            "cl-cc-runtime/images/test"
+            "cl-cc-runtime/concurrency/test"
+            "cl-cc-runtime/clos/test"
+            "cl-cc-runtime/conditions/test"
+            "cl-cc-runtime/dynamic-binding/test"
+            "cl-cc-runtime/execution/test"
+            "cl-cc-runtime/os/test"
+            "cl-cc-runtime/profiling/test"
+            "cl-cc-runtime/observability/test"
+            "cl-cc-runtime/serialization/test"
+            "cl-cc-runtime/cryptography/test"
+            "cl-cc-runtime/compression/test"
+            "cl-cc-runtime/resilience/test"
+            "cl-cc-runtime/distributed-state/test"
+            "cl-cc-runtime/test"
+          ];
+        };
       };
     };
 }

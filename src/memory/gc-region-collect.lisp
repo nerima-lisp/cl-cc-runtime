@@ -1,5 +1,5 @@
 ;;;; gc-region-collect.lisp -- mixed-collection selection and evacuation failure.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun %rt-gc-region-refresh (heap region)
   "Recompute REGION occupancy from mark bits after major marking."

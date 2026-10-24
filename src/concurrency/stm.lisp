@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 
 ;;;; Software Transactional Memory (FR-740)
 ;;;;

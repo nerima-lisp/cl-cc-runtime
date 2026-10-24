@@ -5,7 +5,7 @@
 ;;; The implementation fails explicitly when XOM is requested on unsupported
 ;;; hardware instead of returning readable executable memory.
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/os)
 
 (defparameter *xom-enabled* nil
   "When true, finalize JIT code pages as execute-only where the platform supports

@@ -1,6 +1,6 @@
 ;;;; scheduler-work-stealing.lisp — Work-stealing parallel task scheduler
 ;;;; (deques, workers, steal loop), split out of scheduler.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 
 (defstruct rt-work-deque
   "Per-worker deque used by the work-stealing scheduler.

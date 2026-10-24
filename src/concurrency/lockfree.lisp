@@ -1,5 +1,5 @@
 ;;;; Lock-Free Data Structures (FR-322)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 
 (defstruct rt-lfstack-node
   (value nil)

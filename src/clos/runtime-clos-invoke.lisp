@@ -1,6 +1,6 @@
 ;;;; runtime-clos-invoke.lisp — Method invocation and combination
 ;;;; (rt-call-generic), split out of runtime-clos-dispatch.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/clos)
 
 (defun %rt-applicable-qualified-methods (gf args qualifier-key)
   "Return applicable qualified descriptors for GF/ARGS."

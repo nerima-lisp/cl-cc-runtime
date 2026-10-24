@@ -1,7 +1,7 @@
 ;;;; topology.lisp — CPU core count detection and rt-cpu-topology/affinity
 ;;;; entry points. NUMA node detection and memory tier info are in
 ;;;; topology-numa-memory.lisp.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/os)
 
 (defvar *rt-detected-cpu-cores* nil
   "Cached runtime-visible CPU core count for this process.")

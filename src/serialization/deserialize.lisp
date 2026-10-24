@@ -1,7 +1,7 @@
 ;;;; deserialize.lisp — Deserialization (read) path, ending in DESERIALIZE,
 ;;;; split out of serialize.lisp. Uses the wire-format tags and low-level
 ;;;; byte/integer readers serialize.lisp defines.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/serialization)
 
 (defun %read-string (ctx source)
   (%remember-read-object (%read-raw-string source) ctx))

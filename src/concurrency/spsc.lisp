@@ -1,5 +1,5 @@
 ;;;; SPSC Ring Buffer (FR-462)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defstruct rt-spsc-queue (buffer nil) (mask 0) (head 0) (tail 0) (producer nil) (consumer nil))
 (defun rt-make-spsc-queue (cap)
   (let ((c (max 2 (expt 2 (ceiling (log cap 2))))))

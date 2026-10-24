@@ -1,5 +1,5 @@
 ;;;; Synchronization Primitives (FR-370-373)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defstruct rt-mutex (name nil) (host-mutex (sb-thread:make-mutex)) (owner nil) (recursive-p nil))
 (defun rt-make-mutex (&key name recursive-p) (make-rt-mutex :name name :recursive-p recursive-p))
 (defun rt-mutex-lock (m &key timeout)

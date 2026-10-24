@@ -11,7 +11,7 @@
 ;;; The rt-heap struct and basic allocators remain in heap.lisp (loads before).
 ;;;
 ;;; Load order: after heap.lisp, before gc.lisp.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; ------------------------------------------------------------
 ;;; Card Table Helpers

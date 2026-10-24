@@ -6,7 +6,7 @@
 ;;; Depends on runtime.lisp (define-rt-predicate, define-rt-binary-predicate).
 ;;; Load order: after runtime-ops.lisp.
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/values)
 
 ;;; ------------------------------------------------------------
 ;;; Strings

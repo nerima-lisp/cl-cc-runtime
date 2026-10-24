@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; Precise safepoint and stack-map notes (FR-1115)
 ;;;
@@ -69,7 +69,7 @@ KIND documents the compiler/VM position: :FUNCTION-ENTRY, :LOOP-BACK-EDGE,
 inside WITHOUT-GCING), the request stays pending.  Otherwise a minor collection
 is serviced after briefly marking THREAD-ID as safe."
   (declare (ignore kind))
-  (rt-process-pending-signals)
+  (%rt-gc-process-pending-signals)
   (when *rt-preemption-pending*
     (when *rt-preemption-yield-hook*
       (funcall *rt-preemption-yield-hook* thread-id))
@@ -209,3 +209,27 @@ Input is an alist of (absolute-offset . kind).  Output is an alist of
                (and (integerp addr)
                     (%rt-gc-object-start-p heap addr))))
            records))))
+
+(defvar *rt-gc-pending-signal-processor* nil)
+
+(defun rt-gc-register-pending-signal-processor (processor)
+  (check-type processor function)
+  (setf *rt-gc-pending-signal-processor* processor))
+
+(defun %rt-gc-process-pending-signals ()
+  (when *rt-gc-pending-signal-processor*
+    (funcall *rt-gc-pending-signal-processor*)))
+
+(defun %rt-gc-call-with-signal-inhibit (thunk)
+  (let ((heap (and (boundp '*rt-current-gc-heap*) *rt-current-gc-heap*)))
+    (if heap
+        (let ((old-inhibit (rt-heap-gc-inhibit heap)))
+          (unwind-protect
+               (progn
+                 (rt-gc-signal-handler-enter heap)
+                 (funcall thunk))
+            (rt-gc-signal-handler-leave heap old-inhibit)))
+        (funcall thunk))))
+
+(eval-when (:load-toplevel :execute)
+  (rt-register-condition-signal-guard #'%rt-gc-call-with-signal-inhibit))

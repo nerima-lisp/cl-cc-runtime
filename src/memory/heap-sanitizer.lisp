@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; ------------------------------------------------------------
 ;;; Sanitizer runtime toggles (FR-489..493 minimal runtime path)

@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defconstant +alloc-large-threshold+ 32768)
 (defparameter *alloc-size-classes* '(8 16 32 64 128 256 512 1024 2048 4096))

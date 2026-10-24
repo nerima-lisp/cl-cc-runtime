@@ -1,5 +1,5 @@
 ;;;; Future/Promise (FR-283)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defstruct rt-future
   (value nil) (values nil) (resolved-p nil)
   (mutex (rt-make-mutex)) (cond (rt-make-condition-variable)))

@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defstruct rt-context (dl nil) (cancelled nil) (values nil) (parent nil))
 (defvar *rt-current-context* nil)
 (defmacro rt-with-context ((&key deadline) &body body)

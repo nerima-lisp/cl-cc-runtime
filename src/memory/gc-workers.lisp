@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; ------------------------------------------------------------
 ;;; FR-338: Parallel GC Worker Threads

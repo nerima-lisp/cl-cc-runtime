@@ -1,6 +1,6 @@
 ;;;; Algebraic effect handler runtime (FR-411)
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 
 (defstruct rt-effect
   "A performed effect with a keyword NAME and list PAYLOAD."

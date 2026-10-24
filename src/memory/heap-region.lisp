@@ -1,5 +1,5 @@
 ;;;; heap-region.lisp -- fixed-size old-space region metadata for mixed GC.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defconstant +rt-heap-region-size-words+ (floor (* 1024 1024) 8)
   "Default region size in heap words (one megabyte at eight bytes per word).")

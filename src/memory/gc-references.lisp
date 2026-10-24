@@ -2,7 +2,7 @@
 ;;;; support: soft/weak/phantom reference and hash-consing primitives. The
 ;;;; GC-time processing passes over them are in gc-weak-processing.lisp.
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defstruct (rt-soft-ref (:constructor %make-rt-soft-ref))
   referent
@@ -26,11 +26,6 @@
 
 (defvar *rt-reference-registry* nil)
 (defvar *rt-default-reference-queue* (make-rt-reference-queue))
-
-(defvar *rt-weak-hash-table-registry* nil
-  "All runtime weak hash tables.  The collector uses this metadata to remove
-entries whose weak key/value has died without treating the metadata itself as a
-strong reference.")
 
 (defstruct (rt-hash-cons-entry (:constructor %make-rt-hash-cons-entry))
   "Weak registration for hash-consed canonical objects."

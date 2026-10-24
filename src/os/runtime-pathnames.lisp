@@ -1,5 +1,5 @@
 ;;;; runtime-pathnames.lisp — Native bignum arithmetic, pathnames, compound streams, LOAD
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/os)
 
 ;;; ─── Native Bignum Support (ANSI CL Ch.12 Number Tower) ───
 ;;;
@@ -7,46 +7,6 @@
 ;;; overflows fixnum range.  Bignums are represented as tagged cons cells
 ;;; (:bignum . cl-integer).  The codegen fast path handles fixnum arithmetic
 ;;; inline; these functions handle the slow path (overflow / mixed types).
-
-(declaim (inline rt-native-bignum-p))
-
-(defun rt-native-bignum-allocate (n)
-  "Allocate a bignum value wrapping the CL integer N."
-  (cons :bignum n))
-
-(defun rt-native-bignum-p (value)
-  "Return T when VALUE is a bignum."
-  (and (consp value) (eq (car value) :bignum)))
-
-(defun rt-native-bignum-to-integer (value)
-  "Convert a fixed-size (fixnum or bignum) VALUE to a CL integer."
-  (if (rt-native-bignum-p value)
-      (cdr value)
-      (decode-fixnum value)))
-
-(defun rt-native-integer->value (n)
-  "Box a CL integer N into the runtime value representation.
-  Returns an encoded fixnum when N fits in 51-bit signed range;
-  otherwise returns a bignum."
-  (if (and (>= n #.(- (ash 1 50)))
-           (<= n #.(1- (ash 1 50))))
-      (encode-fixnum n)
-      (rt-native-bignum-allocate n)))
-
-(defun rt-native-bignum-add (a b)
-  "Add two fixed-size integer values A and B.  Returns fixnum when possible."
-  (rt-native-integer->value
-   (+ (rt-native-bignum-to-integer a) (rt-native-bignum-to-integer b))))
-
-(defun rt-native-bignum-sub (a b)
-  "Subtract B from A.  Returns fixnum when possible."
-  (rt-native-integer->value
-   (- (rt-native-bignum-to-integer a) (rt-native-bignum-to-integer b))))
-
-(defun rt-native-bignum-mul (a b)
-  "Multiply A and B.  Returns fixnum when possible."
-  (rt-native-integer->value
-   (* (rt-native-bignum-to-integer a) (rt-native-bignum-to-integer b))))
 
 ;;; ─── Pathname and File System Operations (Wave 4) ───
 
@@ -149,17 +109,3 @@
 
 ;;; ─── JIT-Callable Bignum Bridges (for native codegen slow path) ───
 
-(sb-alien:define-alien-callable cl_cc_bignum_add
-    sb-alien:long
-    ((a sb-alien:long) (b sb-alien:long))
-  (rt-native-bignum-add a b))
-
-(sb-alien:define-alien-callable cl_cc_bignum_sub
-    sb-alien:long
-    ((a sb-alien:long) (b sb-alien:long))
-  (rt-native-bignum-sub a b))
-
-(sb-alien:define-alien-callable cl_cc_bignum_mul
-    sb-alien:long
-    ((a sb-alien:long) (b sb-alien:long))
-  (rt-native-bignum-mul a b))

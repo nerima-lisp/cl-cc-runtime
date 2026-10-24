@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defvar *rt-parallel-threshold* 1024)
 (defvar *rt-fork-join-pool* nil)
 (defun rt-parallel-p (size) (>= size *rt-parallel-threshold*))

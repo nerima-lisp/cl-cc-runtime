@@ -10,7 +10,7 @@
 ;;;   predicates: val-fixnum-p, val-char-p, val-double-p, val-pointer-p).
 ;;; Load order: immediately after value.lisp.
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/values)
 
 (declaim (optimize (speed 3) (safety 1)))
 

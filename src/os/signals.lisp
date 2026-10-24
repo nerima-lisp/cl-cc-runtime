@@ -1,5 +1,5 @@
 ;;;; OS Signal Handling (FR-348, FR-572)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/os)
 
 (defconstant +rt-sigint+ 2)
 (defconstant +rt-sighup+ 1)
@@ -214,3 +214,6 @@ Common Lisp implementations."
   (clrhash *rt-sigaction-installed*)
   (rt-install-default-signal-handlers)
   t)
+
+(eval-when (:load-toplevel :execute)
+  (rt-gc-register-pending-signal-processor #'rt-process-pending-signals))

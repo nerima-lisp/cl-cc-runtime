@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 
 ;;;; Async/Await runtime surface (FR-741)
 ;;;;

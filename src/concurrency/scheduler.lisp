@@ -2,7 +2,7 @@
 ;;;;; Work-stealing scheduler in scheduler-work-stealing.lisp, thread pool in
 ;;;;; scheduler-thread-pool.lisp, native OS thread wrapper in
 ;;;;; scheduler-native-thread.lisp.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 
 (defstruct (rt-green-thread (:constructor %make-rt-green-thread))
   (id 0) (thunk nil) (status :ready) (result nil) (error nil)
@@ -47,7 +47,7 @@
                :priority priority
                :context ctx)))
     (%rt-scheduler-enqueue s th)
-    (let ((group-symbol (find-symbol "*RT-CURRENT-TASK-GROUP*" :cl-cc/runtime)))
+    (let ((group-symbol (find-symbol "*RT-CURRENT-TASK-GROUP*" :cl-cc/runtime/concurrency)))
       (when (and group-symbol (boundp group-symbol) (symbol-value group-symbol)
                  (fboundp 'rt-task-group-add))
         (funcall (symbol-function 'rt-task-group-add) (symbol-value group-symbol) th)))

@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 
 ;;;; Wait-for graph deadlock detection.
 ;;;;

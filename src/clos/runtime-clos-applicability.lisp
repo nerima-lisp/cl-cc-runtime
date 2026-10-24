@@ -1,7 +1,7 @@
 ;;;; runtime-clos-applicability.lisp — Method applicability and specificity
 ;;;; ranking (rt-compute-applicable-methods), split out of
 ;;;; runtime-clos-dispatch.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/clos)
 
 (defun %rt-recompute-dispatch-info (gf)
   "Recompute derived dispatch metadata for GF's registry entry."

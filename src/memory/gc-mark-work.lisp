@@ -1,7 +1,7 @@
 ;;;; gc-mark-work.lisp — Tri-color mark work: root seeding, grey-set
 ;;;; draining, and the concurrent mark worker, split out of
 ;;;; gc-major-mark.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; Section 5: Major GC — Tri-color Mark-Sweep
 

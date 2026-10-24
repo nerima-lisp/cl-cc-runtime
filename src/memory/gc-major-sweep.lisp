@@ -2,7 +2,7 @@
 ;;;; Compaction in gc-compact.lisp, the concurrent sweep worker in
 ;;;; gc-concurrent-sweep.lisp, and the major-GC orchestrator in
 ;;;; gc-major-collect.lisp.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun %gc-sweep-old-space (heap)
   "Sweep the old generation: reclaim all unmarked (dead) objects by adding them

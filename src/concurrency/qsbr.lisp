@@ -1,5 +1,5 @@
 ;;;; Quiescent State Based Reclamation (FR-452)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defvar *qsbr-threads* (make-hash-table))
 (defvar *qsbr-retired* nil)
 (defvar *qsbr-pending-free* nil)

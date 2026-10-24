@@ -2,7 +2,7 @@
 ;;;; word read/write primitives. Relocation/compressed-pointer support is in
 ;;;; heap-forwarding.lisp, NUMA placement in heap-numa.lisp, and
 ;;;; occupancy/fragmentation stats in heap-stats.lisp.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; ------------------------------------------------------------
 ;;; make-rt-heap Factory

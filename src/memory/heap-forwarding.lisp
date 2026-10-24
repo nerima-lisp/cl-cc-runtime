@@ -1,6 +1,6 @@
 ;;;; heap-forwarding.lisp — Concurrent-relocation forwarding table and
 ;;;; compressed object-reference codec, split out of heap-access.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; ------------------------------------------------------------
 ;;; Heap Word Access

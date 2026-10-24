@@ -1,6 +1,6 @@
 ;;;; scheduler-thread-pool.lisp — Fixed-size native thread pool built on
 ;;;; scheduler-native-thread.lisp, split out of scheduler.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 
 (defstruct rt-thread-pool
   (scheduler (rt-make-scheduler))

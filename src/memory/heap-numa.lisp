@@ -1,6 +1,6 @@
 ;;;; heap-numa.lisp — NUMA-aware allocation and GC worker affinity, split out
 ;;;; of heap-access.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; ------------------------------------------------------------
 ;;; FR-288: Large Page Support (portable implementation)

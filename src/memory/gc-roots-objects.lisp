@@ -3,7 +3,7 @@
 ;;;; Stack/binding scanning moved to gc-stackmaps.lisp and gc-binding-scan.lisp;
 ;;;; allocation moved to gc-alloc.lisp; rt-gc-verify-heap moved to
 ;;;; gc-heap-verify.lisp.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun %rt-gc-valid-header-p (header)
   (and (integerp header)

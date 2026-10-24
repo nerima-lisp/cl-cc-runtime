@@ -1,6 +1,6 @@
 ;;;; gc-sweep-telemetry — GC statistics, periodic/idle scheduling, and probes
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; Section 6: GC Statistics
 
@@ -135,3 +135,6 @@ Native replacement: DTrace SDT probe gc-probe-gc-end / eBPF uprobe."
       (format *trace-output* "GC-PROBE-GC-END ~S~%" phase)
       (force-output *trace-output*)))
   phase)
+
+(defun rt-gc-current-stats ()
+  (rt-gc-stats (or *rt-current-gc-heap* (make-rt-heap))))

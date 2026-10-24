@@ -5,7 +5,7 @@
 ;;;; native binary it uses libffi or direct dlopen/dlsym. The reverse
 ;;;; direction -- embedding this runtime so C code can call IN -- is the
 ;;;; unrelated cl-cc-* API in ffi-embedding-api.lisp.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/os)
 
 ;; ── Platform detection ──
 ;; ── Dynamic library loading ──

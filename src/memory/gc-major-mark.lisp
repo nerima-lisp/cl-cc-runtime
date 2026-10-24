@@ -11,7 +11,7 @@
 ;;; are in gc.lisp (loads before).
 ;;;
 ;;; Load order: after gc.lisp.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defparameter *rt-concurrent-gc-enabled-p* nil
   "When true, major collection enters :major-gc-concurrent state.")

@@ -1,5 +1,5 @@
 ;;;; CSP Channels (FR-282)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defstruct rt-channel
   (buffer nil) (capacity 0) (closed-p nil)
   (handoff nil) (handoff-present-p nil) (waiting-receivers 0)

@@ -1,6 +1,6 @@
 ;;;; image-core.lisp — Binary buffer I/O, RLE compression, and token encoding
 ;;;; primitives shared by image-core-graph.lisp and image-core-persist.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/images)
 
 (defun %rt-image-make-buffer ()
   (make-array 0 :element-type '(unsigned-byte 8) :adjustable t :fill-pointer 0))

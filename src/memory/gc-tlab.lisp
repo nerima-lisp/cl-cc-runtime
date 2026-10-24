@@ -1,6 +1,6 @@
 ;;;; gc-tlab.lisp — Thread-local allocation buffers (FR-343). Object copying
 ;;;; is in gc-copy.lisp, which loads first.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; Minor GC (%gc-scan-dirty-cards, %gc-cheney-scan, %gc-update-promoted,
 ;;; rt-gc-minor-collect) is in gc-minor.lisp (loads after this file).

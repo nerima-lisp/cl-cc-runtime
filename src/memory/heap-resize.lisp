@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun %rt-heap-rebox-shifted-address (heap value old-large-base old-large-free delta)
   "Shift VALUE when it points into the old large-object range."

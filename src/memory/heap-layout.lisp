@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defparameter *gc-tenuring-threshold* 3
   "Minor GC survival cycles before promotion to old generation.")

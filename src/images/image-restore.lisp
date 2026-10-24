@@ -1,5 +1,5 @@
 ;;;; image-restore.lisp — Image save/load/restore and hot reload
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/images)
 
 (defun %rt-image-string-bytes (string)
   (let ((bytes (%rt-image-make-buffer)))

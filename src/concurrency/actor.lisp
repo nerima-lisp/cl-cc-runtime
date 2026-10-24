@@ -1,4 +1,4 @@
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defstruct rt-actor
   (id (gensym "ACTOR-")) (name nil) (mailbox nil) (behavior nil)
   (task nil) (links nil) (monitors nil) (supervisor nil) (children nil)

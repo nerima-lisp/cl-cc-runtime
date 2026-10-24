@@ -1,7 +1,7 @@
 ;;; ─── Phase 139 Runtime Metrics ───
 ;;; FR-792: Prometheus-compatible counter/histogram/gauge metrics
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/observability)
 
 ;; ── Counter ──
 
@@ -154,7 +154,8 @@
 (defun gc-stats (&optional heap)
   "Return the public GC statistics plist.
 
-When HEAP is NIL, use *RT-CURRENT-GC-HEAP* if bound; otherwise return a fresh
-empty heap snapshot.  The stable public fields are :MINOR-GCS, :MAJOR-GCS,
-:TOTAL-COLLECTED-BYTES, and :PAUSE-MS-P99."
-  (rt-gc-stats (or heap *rt-current-gc-heap* (make-rt-heap))))
+When HEAP is NIL, use the current runtime heap if one is bound; otherwise
+return a fresh empty heap snapshot."
+  (if heap
+      (rt-gc-stats heap)
+      (rt-gc-current-stats)))

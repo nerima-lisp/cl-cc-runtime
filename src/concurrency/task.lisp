@@ -1,5 +1,5 @@
 ;;;; Structured Concurrency / Task Groups (FR-280)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defstruct rt-task-group
   (tasks nil) (errors nil) (cancelled-p nil) (parent nil)
   (mutex (rt-make-mutex)) (done (rt-make-condition-variable)))

@@ -21,7 +21,7 @@
 ;;;   bit 17     = forwarding flag (Cheney copy; when set, header encodes dest addr)
 ;;;   bit 16..0  = reserved / forwarding address (when forwarding flag is set)
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 ;;; ------------------------------------------------------------
 ;;; Configuration Parameters

@@ -1,7 +1,7 @@
 ;;;; serialize.lisp — Wire-format tags/context and the serialization (write)
 ;;;; path, ending in SERIALIZE. The deserialization (read) path is in
 ;;;; deserialize.lisp, which loads after it.
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/serialization)
 
 (defmacro define-serialization-tags (&body specs)
   `(progn

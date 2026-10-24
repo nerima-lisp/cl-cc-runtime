@@ -1,6 +1,6 @@
 ;;;; packages/runtime/src/gc-profile.lisp — GC allocation profiling and heap diagnostics
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defparameter *gc-profile-enabled* nil
   "When true, sample allocation sites every *gc-profile-interval* bytes.")
@@ -175,69 +175,6 @@ has neither signal.  Young objects without an access bit are treated as :WARM."
          (when (%rt-gc-pointer-value-matches-p heap (rt-heap-ref heap (+ addr offset)) target)
            (incf count)))))
     count))
-
-(defun %rt-gc-class-descriptor (class-addr)
-  (cond
-    ((hash-table-p class-addr) class-addr)
-    ((symbolp class-addr) (gethash class-addr *rt-class-registry*))
-    (t nil)))
-
-(defun %rt-gc-class-registry-key (class-addr descriptor)
-  (cond
-    ((symbolp class-addr) class-addr)
-    ((hash-table-p descriptor) (gethash :__name__ descriptor))
-    (t nil)))
-
-(defun %rt-gc-class-instance-count (heap class-addr descriptor)
-  "Return best-effort live instance count for CLASS-ADDR/DESCRIPTOR."
-  (cond
-    ((and descriptor (gethash :__instance-count__ descriptor))
-     (gethash :__instance-count__ descriptor))
-    ((integerp class-addr)
-     (%rt-gc-heap-reference-count heap class-addr))
-    (t 0)))
-
-(defun rt-gc-maybe-unload-class (heap class-addr)
-  "Unload CLASS-ADDR from the runtime class registry when it has zero instances.
-
-For heap-backed class descriptors CLASS-ADDR may be an address and the heap is
-scanned for references.  For runtime descriptor hash tables or symbols, an
-optional :__INSTANCE-COUNT__ registry field is honored; absent that, the class is
-considered instance-free.  Associated JIT code-cache entries are evicted by class
-key."
-  (check-type heap rt-heap)
-  (let* ((descriptor (%rt-gc-class-descriptor class-addr))
-         (class-key (%rt-gc-class-registry-key class-addr descriptor))
-         (instances (%rt-gc-class-instance-count heap class-addr descriptor)))
-    (when (zerop instances)
-      (when class-key
-        (remhash class-key *rt-class-registry*))
-      (let (evict-keys)
-        (maphash (lambda (key entry)
-                   (when (or (eql (rt-code-cache-entry-class-key entry) class-key)
-                             (eql (rt-code-cache-entry-class-key entry) class-addr))
-                     (push key evict-keys)))
-                 (rt-code-cache-entries *rt-code-cache*))
-        (dolist (key evict-keys)
-          (rt-code-cache-evict key)))
-      (list :unloaded-p t :class class-key :instances instances))))
-
-(defun rt-gc-run-unload-pass (heap)
-  "Run the integrated FR-438 class/code unload pass after major sweep.
-
-Only class descriptors explicitly marked with :__UNLOADABLE__ are considered by
-the automatic pass, avoiding accidental removal of bootstrap/runtime classes.
-Direct callers can still use RT-GC-MAYBE-UNLOAD-CLASS for a specific class."
-  (let (unloaded candidates)
-    (maphash (lambda (class-name descriptor)
-               (when (and (hash-table-p descriptor)
-                          (gethash :__unloadable__ descriptor))
-                 (push class-name candidates)))
-             *rt-class-registry*)
-    (dolist (class-name candidates)
-      (let ((result (rt-gc-maybe-unload-class heap class-name)))
-        (when result (push result unloaded))))
-    (nreverse unloaded)))
 
 (defun rt-gc-heap-dump-dot (heap &optional stream)
   "Return or write a DOT-format object graph for HEAP."

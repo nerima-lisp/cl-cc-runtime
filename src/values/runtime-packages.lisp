@@ -1,5 +1,5 @@
 ;;;; runtime-packages.lisp — Package system, symbol interning, function registry, bootstrap hooks
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/values)
 
 (defvar *rt-gensym-counter* 0
   "Runtime-local gensym counter used by `rt-gensym`."
@@ -204,106 +204,6 @@ host package universe."
     (%rt-register-package pkg-name))
   (rt-make-package :common-lisp :nicknames '(:cl))
   *rt-package-registry*)
-
-(defun %rt-bootstrap-symbol (sym-name)
-  "Return the bootstrap symbol SYM-NAME from :cl-cc/bootstrap when available."
-  (let ((pkg (find-package :cl-cc/bootstrap)))
-    (and pkg (find-symbol sym-name pkg))))
-
-(defparameter *rt-bootstrap-hook-names*
-  '((:installer           . "*VM-RUNTIME-CALLABLE-INSTALLER*")
-    (:register-hook       . "*RUNTIME-VM-CALLABLE-REGISTER-HOOK*")
-    (:registry-provider   . "*RUNTIME-PACKAGE-REGISTRY-PROVIDER*")
-    (:find-package-fn     . "*RUNTIME-FIND-PACKAGE-FN*")
-    (:intern-fn           . "*RUNTIME-INTERN-FN*")
-    (:set-symbol-value-fn . "*RUNTIME-SET-SYMBOL-VALUE-FN*"))
-  "Maps keyword keys to bootstrap symbol names in :cl-cc/bootstrap.")
-
-(defun %rt-bootstrap-hook-symbol (key)
-  "Return the bootstrap symbol for KEY from *rt-bootstrap-hook-names*."
-  (%rt-bootstrap-symbol (cdr (assoc key *rt-bootstrap-hook-names*))))
-
-(defun %rt-vm-runtime-callable-entries (php-current-closure)
-  "Return the alist of (name . function) runtime callables exposed to the
-VM bridge registry.  PHP-CURRENT-CLOSURE, when bound, adds the PHP hook."
-  `(("RT-1+" . ,#'rt-1+)
-    ("RT-1-" . ,#'rt-1-)
-    ("RT-+" . ,#'rt-+)
-    ("RT--" . ,#'rt--)
-    ("RT-*" . ,#'rt-*)
-    ("RT-/" . ,#'rt-/)
-    ("RT-<" . ,#'rt-<)
-    ("RT->" . ,#'rt->)
-    ("RT-<=" . ,#'rt-<=)
-    ("RT->=" . ,#'rt->=)
-    ("RT-MAX" . ,#'rt-max)
-    ("RT-MIN" . ,#'rt-min)
-    ("RT-LENGTH" . ,#'rt-length)
-    ,@(when (and php-current-closure
-                 (fboundp php-current-closure))
-        `(("PHP-CURRENT-CLOSURE" . ,(symbol-function php-current-closure))))
-    ("RT-CHAR-EQUAL" . ,#'rt-char-equal)
-    ("RT-CHAR=" . ,#'rt-char=)
-    ("RT-EQL" . ,#'rt-eql)
-    ("RT-EQUAL" . ,#'rt-equal)
-    ("RT-EQUALP" . ,#'rt-equalp)
-    ("RT-TYPEP" . ,#'rt-typep)
-    ("RT-ELT" . ,#'rt-elt)
-    ("RT-APPEND" . ,#'rt-append)
-    ("RT-FBOUNDP" . ,#'rt-fboundp)
-    ("RT-INTERN" . ,#'rt-intern)
-    ("RT-GENSYM" . ,#'rt-gensym)
-    ("RT-EXPORT" . ,#'rt-export)
-    ("RT-IMPORT" . ,#'rt-import)
-    ("RT-USE-PACKAGE" . ,#'rt-use-package)
-    ("RT-UNUSE-PACKAGE" . ,#'rt-unuse-package)
-    ("RT-SHADOW" . ,#'rt-shadow)
-    ("RT-UNINTERN" . ,#'rt-unintern)
-    ("RT-FIND-SYMBOL" . ,#'rt-find-symbol)
-    ("RT-PACKAGE-NAME" . ,#'rt-package-name)
-    ("RT-PACKAGE-NICKNAMES" . ,#'rt-package-nicknames)
-    ("RT-RENAME-PACKAGE" . ,#'rt-rename-package)
-    ("RT-DELETE-PACKAGE" . ,#'rt-delete-package)
-    ("RT-LIST-ALL-PACKAGES" . ,#'rt-list-all-packages)
-    ("RT-SYMBOL-PACKAGE" . ,#'rt-symbol-package)
-    ("RT-DO-SYMBOLS" . ,#'rt-do-symbols)
-    ("RT-SYMBOL-NAME" . ,#'rt-symbol-name)
-    ("RT-SYMBOL-VALUE" . ,#'rt-symbol-value)
-    ;; Wave 4: Pathname, file system, compound streams, LOAD
-    ("RT-MAKE-PATHNAME" . ,#'rt-make-pathname)
-    ("RT-MERGE-PATHNAMES" . ,#'rt-merge-pathnames)
-    ("RT-NAMESTRING" . ,#'rt-namestring)
-    ("RT-PATHNAME-NAME" . ,#'rt-pathname-name)
-    ("RT-PATHNAME-TYPE" . ,#'rt-pathname-type)
-    ("RT-PATHNAME-DIRECTORY" . ,#'rt-pathname-directory)
-    ("RT-PATHNAMEP" . ,#'rt-pathnamep)
-    ("RT-PROBE-FILE" . ,#'rt-probe-file)
-    ("RT-DELETE-FILE" . ,#'rt-delete-file)
-    ("RT-RENAME-FILE" . ,#'rt-rename-file)
-    ("RT-FILE-WRITE-DATE" . ,#'rt-file-write-date)
-    ("RT-DIRECTORY" . ,#'rt-directory)
-    ("RT-ENSURE-DIRECTORIES-EXIST" . ,#'rt-ensure-directories-exist)
-    ("RT-TRUENAME" . ,#'rt-truename)
-    ("RT-MAKE-BROADCAST-STREAM" . ,#'rt-make-broadcast-stream)
-    ("RT-MAKE-CONCATENATED-STREAM" . ,#'rt-make-concatenated-stream)
-    ("RT-MAKE-ECHO-STREAM" . ,#'rt-make-echo-stream)
-    ("RT-READ-SEQUENCE" . ,#'rt-read-sequence)
-    ("RT-WRITE-SEQUENCE" . ,#'rt-write-sequence)
-    ("RT-WRITE-TO-STRING" . ,#'rt-write-to-string)
-    ("RT-LOAD" . ,#'rt-load)))
-
-(defun %rt-register-vm-runtime-callables ()
-  "Register runtime helper callables into the VM bridge registry when VM is loaded."
-  (let* ((installer-sym (%rt-bootstrap-hook-symbol :installer))
-         (vm-register (and installer-sym
-                           (boundp installer-sym)
-                           (symbol-value installer-sym)))
-         (php-package (find-package :cl-cc/php))
-         (php-current-closure (and php-package
-                                   (find-symbol "%PHP-CURRENT-CLOSURE" php-package))))
-    (when vm-register
-      (dolist (entry (%rt-vm-runtime-callable-entries php-current-closure))
-        (funcall vm-register (car entry) (cdr entry))))))
 
 (defun rt-find-package (name)
   (and name (gethash (%rt-package-key name) *rt-package-registry*)))
@@ -567,23 +467,7 @@ In runtime registry, search all package symbol tables."
   "Return the name string of SYMBOL."
   (string symbol))
 
-;;; ─── Bootstrap Hook Installation ───
-
-(defun %rt-install-bootstrap-hook (key value)
-  "Install VALUE into the bootstrap hook symbol named by KEY when available."
-  (let ((sym (%rt-bootstrap-hook-symbol key)))
-    (when (and sym value)
-      (set sym value))))
-
 (eval-when (:load-toplevel :execute)
   (%rt-bootstrap-package-registry)
   (%rt-bootstrap-function-registry))
 
-#-cl-cc-self-hosting
-(eval-when (:load-toplevel :execute)
-  (%rt-install-bootstrap-hook :register-hook #'%rt-register-vm-runtime-callables)
-  (%rt-install-bootstrap-hook :registry-provider #'%rt-package-registry-provider)
-  (%rt-install-bootstrap-hook :find-package-fn #'rt-find-package)
-  (%rt-install-bootstrap-hook :intern-fn #'rt-intern)
-  (%rt-install-bootstrap-hook :set-symbol-value-fn #'rt-set-symbol-value)
-  (%rt-register-vm-runtime-callables))

@@ -1,6 +1,6 @@
 ;;;; topology-numa-memory.lisp — NUMA node topology, CPU affinity masks, and
 ;;;; memory tier (NVMe/HBM) detection, split out of topology.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/os)
 
 ;; SB-ALIEN is part of the SBCL core (not a loadable contrib), so no
 ;; (require :sb-alien) — requiring it fails on SBCL builds without a

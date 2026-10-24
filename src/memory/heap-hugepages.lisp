@@ -1,6 +1,6 @@
 ;;;; packages/runtime/src/heap-hugepages.lisp — Huge page allocation helpers (FR-623)
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defconstant +rt-huge-page-size+ (* 2 1024 1024)
   "Huge page size used by cl-cc runtime huge-page probes (2MiB).")
@@ -41,8 +41,7 @@ this function fails explicitly."
          (huge-flags (%rt-platform-huge-page-flags flags)))
     (when (and (boundp '*rt-mmap-next-address*)
                (integerp *rt-mmap-next-address*))
-      (setf *rt-mmap-next-address*
-            (rt-huge-page-align *rt-mmap-next-address*)))
+      (rt-mmap-align-next-address +rt-huge-page-size+))
     (setf *rt-huge-pages-active-p* nil)
     (error "RT-HUGE-PAGE-MMAP requires a native huge-page backend (length=~D flags=~D)."
            aligned-length huge-flags)))

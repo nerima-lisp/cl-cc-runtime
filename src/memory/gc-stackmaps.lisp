@@ -1,6 +1,6 @@
 ;;;; gc-stackmaps.lisp — Register/lookup and scan compiler-emitted stackmaps
 ;;;; for precise stack-frame root scanning, split out of gc-roots-objects.lisp
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/memory)
 
 (defun %rt-gc-thread-words (thread-state)
   "Return a list of conservative stack words described by THREAD-STATE."

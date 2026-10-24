@@ -1,5 +1,5 @@
 ;;;; Read-Copy-Update (FR-380)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/concurrency)
 (defvar *rt-rcu-readers* (make-hash-table))
 (defvar *rt-rcu-mutex* (rt-make-mutex))
 (defvar *rt-rcu-cond* (rt-make-condition-variable))

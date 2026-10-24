@@ -4,7 +4,7 @@
 ;;; Depends on runtime.lisp (define-rt-predicate, define-rt-binary-predicate).
 ;;; Load order: immediately after runtime.lisp.
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/values)
 
 ;;; ------------------------------------------------------------
 ;;; Arrays / Vectors
@@ -163,3 +163,47 @@ FFI integration layers."
 (defun rt-complex (r i) (complex r i))
 (defun rt-gcd (a b) (gcd a b))
 (defun rt-lcm (a b) (lcm a b))
+
+(in-package :cl-cc/runtime/values)
+
+(defun rt-native-bignum-allocate (n)
+  "Allocate a bignum value wrapping the CL integer N."
+  (cons :bignum n))
+
+(defun rt-native-bignum-p (value)
+  "Return T when VALUE is a bignum."
+  (and (consp value) (eq (car value) :bignum)))
+
+(defun rt-native-bignum-to-integer (value)
+  "Convert a fixed-size (fixnum or bignum) VALUE to a CL integer."
+  (if (rt-native-bignum-p value)
+      (cdr value)
+      (decode-fixnum value)))
+
+(defun rt-native-integer->value (n)
+  "Box a CL integer N into the runtime value representation.
+  Returns an encoded fixnum when N fits in 51-bit signed range;
+  otherwise returns a bignum."
+  (if (and (>= n #.(- (ash 1 50)))
+           (<= n #.(1- (ash 1 50))))
+      (encode-fixnum n)
+      (rt-native-bignum-allocate n)))
+
+(defun rt-native-bignum-add (a b)
+  "Add two fixed-size integer values A and B.  Returns fixnum when possible."
+  (rt-native-integer->value
+   (+ (rt-native-bignum-to-integer a) (rt-native-bignum-to-integer b))))
+
+(defun rt-native-bignum-sub (a b)
+  "Subtract B from A.  Returns fixnum when possible."
+  (rt-native-integer->value
+   (- (rt-native-bignum-to-integer a) (rt-native-bignum-to-integer b))))
+
+(defun rt-native-bignum-mul (a b)
+  "Multiply A and B.  Returns fixnum when possible."
+  (rt-native-integer->value
+   (* (rt-native-bignum-to-integer a) (rt-native-bignum-to-integer b))))
+
+(in-package :cl-cc/runtime/values)
+
+(declaim (inline rt-native-bignum-p))

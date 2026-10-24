@@ -1,5 +1,5 @@
 ;;;; Socket/Network Primitives (FR-574)
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/os)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (ignore-errors (require :sb-bsd-sockets)))

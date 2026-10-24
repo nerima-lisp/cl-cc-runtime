@@ -1,7 +1,7 @@
 ;;; ─── Phase 139 Hardware Performance Counters ───
 ;;; FR-793: perf_event (Linux) / kpc (macOS) based HW counter access
 
-(in-package :cl-cc/runtime)
+(in-package :cl-cc/runtime/profiling/infra)
 
 ;; ── Counter types ──
 
