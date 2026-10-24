@@ -274,3 +274,73 @@
     (cl-cc/runtime::val->cl-value (cl-cc/runtime::cl-value->val 2.71828d0))
     :to-equal
     2.71828d0))
+
+(it-sequential
+  "FFI array buffers keep a stable native pointer across GC and copy writes back on release."
+  (let* ((array (make-array 3 :element-type '(unsigned-byte 8)
+                            :initial-contents '(7 8 9)))
+         (buffer (cl-cc/runtime:rt-pin-unboxed-array array))
+         (pointer (cl-cc/runtime:rt-pinned-array-data-pointer buffer)))
+    (unwind-protect
+         (progn
+           (sb-sys:with-pinned-objects (array)
+             (expect (/= (sb-sys:sap-int pointer)
+                         (sb-sys:sap-int (sb-sys:vector-sap array)))
+                     :to-be-truthy))
+           (expect (sb-sys:sap-ref-8 pointer 0) :to-equal 7)
+           (setf (sb-sys:sap-ref-8 pointer 1) 42)
+           (sb-ext:gc :full t)
+           (expect (sb-sys:sap-ref-8 pointer 1) :to-equal 42)
+           (cl-cc/runtime:rt-release-pinned-array buffer)
+           (expect (aref array 1) :to-equal 42)
+           (expect (cl-cc/runtime:rt-pinned-unboxed-array-buffer-released-p buffer)
+                   :to-be-truthy)
+           (signals error (cl-cc/runtime:rt-pinned-array-data-pointer buffer))
+           (cl-cc/runtime:rt-release-pinned-array buffer))
+      (unless (cl-cc/runtime:rt-pinned-unboxed-array-buffer-released-p buffer)
+        (cl-cc/runtime:rt-release-pinned-array buffer)))))
+(it-sequential
+  "Concurrent release calls on one buffer are serialized."
+  (let* ((array (make-array 256 :element-type (quote (unsigned-byte 8))
+                            :initial-element 0))
+         (buffer (cl-cc/runtime:rt-pin-unboxed-array array))
+         (pointer (cl-cc/runtime:rt-pinned-array-data-pointer buffer))
+         (ready (sb-thread:make-semaphore 0))
+         (start (sb-thread:make-semaphore 0))
+         (threads nil)
+         (thread-count 0)
+         (workers-started nil)
+         (thread-errors (make-array 8 :initial-element nil)))
+    (setf (sb-sys:sap-ref-8 pointer 255) 42)
+    (unwind-protect
+         (progn
+           (loop for index below 8
+                 do (let ((worker-index index))
+                      (push (sb-thread:make-thread
+                             (lambda ()
+                               (sb-thread:signal-semaphore ready)
+                               (sb-thread:wait-on-semaphore start)
+                               (handler-case
+                                   (cl-cc/runtime:rt-release-pinned-array buffer)
+                                 (error (condition)
+                                   (setf (aref thread-errors worker-index) condition)))))
+                            threads)
+                      (incf thread-count)))
+           (loop repeat thread-count do (sb-thread:wait-on-semaphore ready))
+           (loop repeat thread-count do (sb-thread:signal-semaphore start))
+           (setf workers-started t)
+           (dolist (thread threads)
+             (sb-thread:join-thread thread))
+           (dotimes (index thread-count)
+             (expect (aref thread-errors index) :to-be-falsy))
+           (expect (aref array 255) :to-equal 42)
+           (expect (cl-cc/runtime:rt-pinned-unboxed-array-buffer-released-p buffer)
+                   :to-be-truthy))
+      (progn
+        (unless workers-started
+          (loop repeat thread-count do (sb-thread:signal-semaphore start)))
+        (dolist (thread threads)
+          (when (sb-thread:thread-alive-p thread)
+            (sb-thread:join-thread thread)))
+        (unless (cl-cc/runtime:rt-pinned-unboxed-array-buffer-released-p buffer)
+          (cl-cc/runtime:rt-release-pinned-array buffer))))))
