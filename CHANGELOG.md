@@ -4,15 +4,22 @@
 
 ### Fixed
 
-- Preserve `COMMON-LISP` as the canonical package name and `CL` as its nickname
-  in the runtime package registry.
-- Resolve host packages created after a runtime descriptor, promote cached
-  uninterned symbols into that host package, and preserve imported symbols.
-- Use one timeout budget across `rt-condition-wait-until` notifications and
-  stop without reevaluating its predicate after a timed-out wait releases the
-  mutex.
+- Keep `COMMON-LISP` as the canonical name for the runtime's Common Lisp
+  package, with `CL` as its nickname.
+- When `rt-make-package` creates a runtime package before its matching host
+  package exists, let `rt-intern` resolve it when it appears. Use the host
+  package's symbol for names the runtime already cached and preserve symbols
+  imported from other packages.
+- Use one timeout budget across notifications while `rt-condition-wait-until`
+  waits. On timeout, return `NIL` without another predicate call.
 - Return `nil` from `rt-actor-send` when timed mailbox-lock acquisition fails,
   without enqueueing the message.
+
+### Removed
+
+- Remove the runtime's conflict-free replicated data type (CRDT) and Raft
+  consensus APIs and tests. These distributed-state protocols are outside the
+  runtime library's feature set.
 
 ### Documentation
 

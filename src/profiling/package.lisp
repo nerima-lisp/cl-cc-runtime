@@ -1,20 +1,25 @@
 (defpackage #:cl-cc/runtime/profiling
   (:use #:cl)
-  (:import-from #:cl-cc/runtime/concurrency #:rt-make-semaphore #:rt-semaphore-signal #:rt-semaphore-wait)
+  (:import-from #:cl-cc/runtime/concurrency
+                #:rt-make-semaphore #:rt-semaphore-signal #:rt-semaphore-wait)
   (:import-from #:cl-cc/runtime/conditions #:rt-runtime-condition)
-  (:import-from #:cl-cc/runtime/memory #:rt-gc-profile-sample #:rt-gc-register-alloc-hook #:rt-gc-stats)
+  (:import-from #:cl-cc/runtime/memory
+                #:rt-gc-profile-sample #:rt-gc-register-alloc-hook #:rt-gc-stats)
   (:import-from #:cl-cc/runtime/observability
+                #:*rt-otel-span*
                 #:rt-otel-add-event #:rt-otel-end-span #:rt-otel-set-attribute
-                #:rt-otel-span-span-id #:rt-otel-span-trace-id #:rt-otel-start-span
-                #:%rt-json-attributes #:%rt-json-scalar)
-  (:import-from #:cl-cc/runtime/os #:rt-close #:rt-gettime-monotonic #:rt-open #:rt-read #:rt-write)
+                #:rt-otel-span-span-id #:rt-otel-span-trace-id #:rt-otel-start-span)
+  (:import-from #:observability-kit
+                #:make-instrumentation-context
+                #:proper-list-p)
+  (:import-from #:cl-cc/runtime/os
+                #:rt-close #:rt-gettime-monotonic #:rt-open #:rt-read #:rt-write)
   (:intern
    #:%rt-profile-collapsed-stack
    #:%rt-profile-normalize-frame
    #:%rt-profile-resolve-perf-symbol
    #:%rt-profile-trim-samples
-   #:rt-profile-frame-p
-  )
+   #:rt-profile-frame-p)
   (:export
    #:*rt-continuous-profile-session*
    #:make-rt-continuous-profile-session

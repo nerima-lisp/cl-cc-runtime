@@ -8,6 +8,7 @@
                    (let ((data (read stream nil :eof)))
                      (cl-weave:expect (read stream nil :eof) :to-be :eof)
                      data))))
+         (keep-rows (remove-if-not (lambda (row) (eq (second row) :keep)) rows))
          (facade-package (find-package "CL-CC/RUNTIME")))
     (cl-weave:expect facade-package :to-be-truthy)
     (cl-weave:expect (length rows) :to-equal 1418)
@@ -16,9 +17,9 @@
         (push (symbol-name symbol) actual-names))
       (cl-weave:expect (sort actual-names (lambda (left right) (string< left right)))
               :to-equal
-              (sort (mapcar (lambda (row) (nth 5 row)) rows)
+              (sort (mapcar (lambda (row) (nth 5 row)) keep-rows)
                     (lambda (left right) (string< left right)))))
-    (dolist (row rows)
+    (dolist (row keep-rows)
       (destructuring-bind (kind policy facade-name feature-name home-name symbol-name)
           row
         (cl-weave:expect kind :to-be :symbol)

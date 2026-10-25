@@ -1,155 +1,160 @@
 ;;; ─── Phase 139 Runtime Metrics ───
 ;;; FR-792: Prometheus-compatible counter/histogram/gauge metrics
 
-(in-package :cl-cc/runtime/observability)
+(progn
+  #.(progn (in-package #:cl-cc/runtime/observability) nil)
 
-;; ── Counter ──
+  (defvar *rt-meter-provider* (make-meter-provider))
+  (defvar *rt-meter* (make-meter *rt-meter-provider* "cl-cc/runtime"))
+  (defvar *rt-metrics-registry* (meter-registry *rt-meter*))
 
-(defstruct rt-counter
-  "A monotonically increasing integer counter with optional labels."
-  (name "" :type (or string keyword))
-  (value 0 :type integer)
-  (labels nil :type list))
+  (defstruct (rt-counter (:constructor %make-rt-counter (name labels metric)))
+    name
+    labels
+    metric)
 
-(defun rt-make-counter (name &key labels)
-  (make-rt-counter :name name :labels labels))
+  (defstruct (rt-gauge (:constructor %make-rt-gauge (name metric)))
+    name
+    metric)
 
-(defun rt-counter-increment! (counter &optional (n 1))
-  (declare (type fixnum n))
-  (incf (rt-counter-value counter) n)
-  (rt-counter-value counter))
+  (defstruct (rt-histogram (:constructor %make-rt-histogram (name metric)))
+    name
+    metric)
 
-;; ── Histogram ──
+  (defun %rt-metric-label-pairs (labels)
+    (cond
+      ((null labels) nil)
+      ((and (proper-list-p labels) (every #'consp labels)) labels)
+      ((proper-list-p labels)
+       (unless (evenp (length labels))
+         (error "Metric labels must be an alist or an even property list."))
+       (loop for (name value) on labels by #'cddr
+             collect (cons name value)))
+      (t
+       (error "Metric labels must be an alist or property list."))))
 
-(defstruct rt-histogram
-  "A histogram tracking value distributions across configurable buckets."
-  (name "" :type (or string keyword))
-  (buckets nil :type list)
-  (counts nil :type list)
-  (sum 0d0 :type double-float)
-  (count 0 :type fixnum))
+  (defun %rt-metric-label-names (labels)
+    (mapcar (lambda (pair)
+              (string-downcase (string (car pair))))
+            (%rt-metric-label-pairs labels)))
 
-(defun rt-make-histogram (name &rest args)
-  (let ((buckets (cond
-                   ((and args (keywordp (first args)))
-                    (getf args :buckets))
-                   ((<= (length args) 1)
-                    (first args))
-                   (t
-                    (error "Invalid rt-make-histogram arguments: ~S" args)))))
-    (let ((sorted (sort (copy-list buckets) #'<)))
-      (make-rt-histogram :name name :buckets sorted
-                         :counts (make-list (length sorted) :initial-element 0)))))
+  ;; The kit declaration macros require a source-level symbol.  MAKE-SYMBOL
+  ;; carries the runtime name as data; EVAL expands the fixed macro form.
+  (defun %rt-define-kit-metric (kind name &key labels buckets)
+    (let* ((metric-name-symbol
+             (make-symbol (string-downcase (string name))))
+           (declaration
+             (ecase kind
+               (:counter
+                (append (list 'define-counter '*rt-meter* metric-name-symbol)
+                        (when labels
+                          (list :label-names
+                                (list 'quote (%rt-metric-label-names labels))))))
+               (:gauge
+                (list 'define-gauge '*rt-meter* metric-name-symbol))
+               (:histogram
+                (append (list 'define-histogram '*rt-meter* metric-name-symbol)
+                        (when buckets
+                          (list :buckets (list 'quote buckets))))))))
+      (eval declaration)))
 
-(defun rt-histogram-observe! (histogram value)
-  (incf (rt-histogram-count histogram))
-  (incf (rt-histogram-sum histogram) (float value 1d0))
-  (let ((buckets (rt-histogram-buckets histogram))
-        (counts (rt-histogram-counts histogram)))
-    (loop for b in buckets
-          for i from 0
-          when (<= value b)
-          do (incf (nth i counts))
-             (return-from rt-histogram-observe! value))
-    ;; overflow bucket
-    (incf (nth (1- (length counts)) counts))
-    value))
+  (defun %rt-metric-samples (metric)
+    (metric-snapshot-samples (metric-snapshot metric)))
 
-;; ── Gauge ──
+  (defun %rt-metric-value (metric)
+    (let ((sample (first (%rt-metric-samples metric))))
+      (if sample (metric-sample-value sample) 0)))
 
-(defstruct rt-gauge
-  "A gauge representing a value that can go up and down."
-  (name "" :type (or string keyword))
-  (value 0d0 :type double-float))
+  (defun rt-make-counter (name &key labels)
+    (let* ((metric (%rt-define-kit-metric :counter name :labels labels))
+           (counter (%make-rt-counter (metric-name metric) labels metric)))
+      (when labels
+        (metric-inc metric 0 :labels labels))
+      counter))
 
-(defun rt-make-gauge (name)
-  (make-rt-gauge :name name))
+  (defun rt-counter-increment! (counter &optional (n 1))
+    (let ((metric (rt-counter-metric counter))
+          (labels (rt-counter-labels counter)))
+      (if labels
+          (metric-inc metric n :labels labels)
+          (metric-inc metric n))))
 
-(defun rt-gauge-set! (gauge value)
-  (setf (rt-gauge-value gauge) (float value 1d0)))
+  (defun rt-counter-value (counter)
+    (%rt-metric-value (rt-counter-metric counter)))
 
-;; ── Prometheus Text Format ──
+  (defun rt-make-gauge (name)
+    (let ((metric (%rt-define-kit-metric :gauge name)))
+      (%make-rt-gauge (metric-name metric) metric)))
 
-(defvar *rt-metrics-registry* (make-hash-table :test #'equal)
-  "Global registry of all metric objects, keyed by name.")
+  (defun rt-gauge-set! (gauge value)
+    (metric-set (rt-gauge-metric gauge) value))
 
-(defun rt-register-metric (metric)
-  (setf (gethash (typecase metric
-                   (rt-counter (rt-counter-name metric))
-                   (rt-histogram (rt-histogram-name metric))
-                   (rt-gauge (rt-gauge-name metric))
-                   (t "unknown"))
-                 *rt-metrics-registry*)
-        metric))
+  (defun rt-gauge-value (gauge)
+    (%rt-metric-value (rt-gauge-metric gauge)))
 
-(defun rt-metrics-format-prometheus (&optional (stream *standard-output*))
-  "Write Prometheus text format to STREAM."
-  (maphash (lambda (name metric)
-             (declare (ignore name))
-             (typecase metric
-               (rt-counter
-                (format stream "# TYPE ~a counter~%" (rt-counter-name metric))
-                (format stream "~a ~d~%" (rt-counter-name metric)
-                        (rt-counter-value metric)))
-               (rt-histogram
-                (format stream "# TYPE ~a histogram~%" (rt-histogram-name metric))
-                (loop for b in (rt-histogram-buckets metric)
-                      for c in (rt-histogram-counts metric)
-                      do (format stream "~a_bucket{le=\"~a\"} ~d~%"
-                                 (rt-histogram-name metric) b c))
-                (format stream "~a_bucket{le=\"+Inf\"} ~d~%"
-                        (rt-histogram-name metric)
-                        (rt-histogram-count metric))
-                (format stream "~a_sum ~f~%" (rt-histogram-name metric)
-                        (rt-histogram-sum metric))
-                (format stream "~a_count ~d~%" (rt-histogram-name metric)
-                        (rt-histogram-count metric)))
-               (rt-gauge
-                (format stream "# TYPE ~a gauge~%" (rt-gauge-name metric))
-                (format stream "~a ~f~%" (rt-gauge-name metric)
-                        (rt-gauge-value metric)))))
-           *rt-metrics-registry*))
+  (defun rt-make-histogram (name &rest args)
+    (let ((buckets
+            (cond
+              ((and args (keywordp (first args)))
+               (unless (and (eq (first args) :buckets)
+                            (= (length args) 2))
+                 (error "Invalid rt-make-histogram arguments: ~S" args))
+               (second args))
+              ((<= (length args) 1)
+               (first args))
+              (t
+               (error "Invalid rt-make-histogram arguments: ~S" args)))))
+      (let ((metric (%rt-define-kit-metric :histogram name :buckets buckets)))
+        (%make-rt-histogram (metric-name metric) metric))))
 
-(defun %metric-name-string (name)
-  "Return NAME as a lowercase string suitable for Prometheus metric names."
-  (string-downcase (format nil "~A" name)))
+  (defun %rt-histogram-sample (histogram)
+    (first (%rt-metric-samples (rt-histogram-metric histogram))))
 
-(defun %metric-label-key-string (key)
-  "Return label KEY as a lowercase string."
-  (string-downcase (format nil "~A" key)))
+  (defun rt-histogram-observe! (histogram value)
+    (metric-observe (rt-histogram-metric histogram) value))
 
-(defun prometheus-text-format (metrics)
-  "Return Prometheus text for METRICS list."
-  (with-output-to-string (s)
-    (dolist (m metrics)
-      (typecase m
-        (rt-counter
-         (let ((name (%metric-name-string (rt-counter-name m))))
-           (format s "# TYPE ~a counter~%" name)
-           (let ((lbls (rt-counter-labels m)))
-             (if lbls
-                 ;; Normalize label keys to lowercase
-                 (let ((normalized-lbls
-                        (loop for (k v) on lbls by #'cddr
-                              collect (%metric-label-key-string k)
-                              collect v)))
-                   (format s "~a{~{~a=\"~a\"~^,~}} ~d~%"
-                           name normalized-lbls (rt-counter-value m)))
-                 (format s "~a ~d~%" name (rt-counter-value m))))))
-        (rt-histogram
-         (let ((name (%metric-name-string (rt-histogram-name m))))
-           (format s "# TYPE ~a histogram~%" name)
-           (loop for b in (rt-histogram-buckets m)
-                 for c in (rt-histogram-counts m)
-                 do (format s "~a_bucket{le=\"~a\"} ~d~%" name b c))
-           (format s "~a_bucket{le=\"+Inf\"} ~d~%"
-                   name (rt-histogram-count m))
-           (format s "~a_sum ~f~%" name (rt-histogram-sum m))
-           (format s "~a_count ~d~%" name (rt-histogram-count m))))
-        (rt-gauge
-         (let ((name (%metric-name-string (rt-gauge-name m))))
-           (format s "# TYPE ~a gauge~%" name)
-           (format s "~a ~f~%" name (rt-gauge-value m))))))))
+  (defun rt-histogram-buckets (histogram)
+    (let ((sample (%rt-histogram-sample histogram)))
+      (when sample
+        (mapcar #'car (butlast (metric-sample-buckets sample))))))
+
+  (defun rt-histogram-counts (histogram)
+    (let ((sample (%rt-histogram-sample histogram)))
+      (when sample
+        (mapcar #'cdr (metric-sample-buckets sample)))))
+
+  (defun rt-histogram-count (histogram)
+    (let ((sample (%rt-histogram-sample histogram)))
+      (if sample
+          (or (metric-sample-count sample) 0)
+          0)))
+
+  (defun rt-histogram-sum (histogram)
+    (let ((sample (%rt-histogram-sample histogram)))
+      (if sample
+          (or (metric-sample-sum sample) 0)
+          0)))
+
+  (defun %rt-kit-metric (metric)
+    (typecase metric
+      (rt-counter (rt-counter-metric metric))
+      (rt-gauge (rt-gauge-metric metric))
+      (rt-histogram (rt-histogram-metric metric))
+      (t
+       (error "Cannot register unsupported runtime metric: ~S" metric))))
+
+  (defun rt-register-metric (metric)
+    (%rt-kit-metric metric)
+    metric)
+
+  (defun rt-metrics-format-prometheus (&optional (stream *standard-output*))
+    (render-prometheus *rt-metrics-registry* :stream stream))
+
+  (defun prometheus-text-format (metrics)
+    (render-prometheus
+     (mapcar (lambda (metric)
+               (metric-snapshot (%rt-kit-metric metric)))
+             metrics))))
 
 (defun gc-stats (&optional heap)
   "Return the public GC statistics plist.

@@ -21,7 +21,10 @@
   :homepage "https://github.com/nerima-lisp/cl-cc-runtime"
   :bug-tracker "https://github.com/nerima-lisp/cl-cc-runtime/issues"
   :source-control (:git "https://github.com/nerima-lisp/cl-cc-runtime.git")
-  :depends-on ("cl-log-kit" "cl-process-kit" "cl-json-kit" "cl-host-kit")
+  :depends-on ("cl-log-kit" "cl-process-kit" "cl-json-kit" "cl-host-kit"
+               "cl-observability-kit" "cl-observability-kit/prometheus"
+               "cl-observability-kit/otlp" "cl-deflate-kit" "cl-crypto-kit"
+               "cl-resilience-kit")
   :pathname "src"
   :serial t
   :components
@@ -43,7 +46,6 @@
    (:module "package-resilience" :pathname "resilience" :serial t :components ((:file "package")))
    (:module "package-serialization" :pathname "serialization" :serial t :components ((:file "package")))
    (:module "package-cryptography" :pathname "cryptography" :serial t :components ((:file "package")))
-   (:module "package-distributed-state" :pathname "distributed-state" :serial t :components ((:file "package")))
    (:file "package")
    (:module "implementation-values" :pathname "values" :serial t :components ((:file "runtime")
       (:file "runtime-list")
@@ -159,9 +161,7 @@
    (:module "implementation-serialization" :pathname "serialization" :serial t :components ((:file "serialize")
       (:file "deserialize")))
    (:module "implementation-cryptography" :pathname "cryptography" :serial t :components ((:file "crypto")
-      (:file "crypto-base64")))
-   (:module "implementation-distributed-state" :pathname "distributed-state" :serial t :components ((:file "consensus")
-      (:file "crdt"))))
+      (:file "crypto-base64"))))
   :in-order-to ((test-op (test-op "cl-cc-runtime/test"))))
 
 ;;; The aggregate test system contains one nested module per feature. The
@@ -179,10 +179,7 @@
   :pathname "t"
   :serial t
   :components
-  ((:module "distributed-state" :pathname "distributed-state" :serial t :components ((:file "package")
-      (:file "consensus-test")
-      (:file "crdt-test")))
-   (:module "cryptography" :pathname "cryptography" :serial t :components ((:file "package")
+  ((:module "cryptography" :pathname "cryptography" :serial t :components ((:file "package")
       (:file "crypto-test")))
    (:module "profiling" :pathname "profiling" :serial t :components ((:file "package")
       (:file "continuous-profile-test")
@@ -263,6 +260,7 @@
       (:file "image-core-test")
       (:file "image-test")))
    (:module "observability" :pathname "observability" :serial t :components ((:file "package")
+      (:file "otel-test")
       (:file "metrics-test")))
    (:module "compression" :pathname "compression" :serial t :components ((:file "package")
       (:file "compress-test")))

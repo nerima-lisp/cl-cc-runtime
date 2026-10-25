@@ -102,11 +102,4 @@
   :facade-packages ("cl-cc/runtime")
   :domain-package "cl-cc/runtime/resilience"
   :infra-package nil
-  :depends-on ("os"))
- (:feature "distributed-state"
-  :source-dirs ("src/distributed-state")
-  :test-dir "t/distributed-state"
-  :facade-packages ("cl-cc/runtime")
-  :domain-package "cl-cc/runtime/distributed-state"
-  :infra-package nil
   :depends-on ()))

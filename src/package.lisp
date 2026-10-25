@@ -12,7 +12,7 @@
                 #:*rt-method-context-stack* #:*rt-primitive-type-classifiers*
   )
   (:import-from #:cl-cc/runtime/compression
-                #:adler32 #:crc32 #:gzip-compress #:gzip-decompress #:zlib-compress
+                #:gzip-compress #:gzip-decompress #:zlib-compress
                 #:zlib-decompress
   )
   (:import-from #:cl-cc/runtime/concurrency
@@ -115,20 +115,6 @@
   (:import-from #:cl-cc/runtime/cryptography
                 #:rt-base64-decode #:rt-base64-encode #:rt-hmac-sha256 #:rt-sha256 #:rt-sha256-string
                 #:rt-sha512
-  )
-  (:import-from #:cl-cc/runtime/distributed-state
-                #:+raft-candidate+ #:+raft-follower+ #:+raft-leader+ #:make-rt-raft-entry #:rt-consensus-init
-                #:rt-crdt-init #:rt-gcounter-increment #:rt-gcounter-merge #:rt-gcounter-value #:rt-lwwregister-assign
-                #:rt-lwwregister-read #:rt-make-gcounter #:rt-make-lwwregister #:rt-make-pncounter #:rt-make-raft-cluster
-                #:rt-make-raft-node #:rt-pncounter-decrement #:rt-pncounter-increment #:rt-pncounter-value #:rt-raft-advance-commit
-                #:rt-raft-append-entries #:rt-raft-apply #:rt-raft-become-leader #:rt-raft-cluster #:rt-raft-cluster-leader-id
-                #:rt-raft-cluster-node-ids #:rt-raft-cluster-nodes #:rt-raft-entry #:rt-raft-entry-command #:rt-raft-entry-index
-                #:rt-raft-entry-term #:rt-raft-node #:rt-raft-node-commit-index #:rt-raft-node-current-term #:rt-raft-node-election-timeout
-                #:rt-raft-node-election-timer #:rt-raft-node-id #:rt-raft-node-last-applied #:rt-raft-node-log #:rt-raft-node-state
-                #:rt-raft-node-state-machine #:rt-raft-node-voted-for #:rt-raft-propose #:rt-raft-request-vote #:rt-raft-snapshot
-                #:rt-raft-start-election #:rt-raft-tick
-                #:%rt-raft-handle-append-entries #:%rt-raft-last-log-index #:%rt-raft-step-down
-                #:rt-raft-node-match-index #:rt-raft-node-next-index #:rt-raft-node-votes-received
   )
   (:import-from #:cl-cc/runtime/dynamic-binding
                 #:rt-boundp #:rt-make-symbol #:rt-makunbound #:rt-set-symbol-value #:rt-symbol-value
@@ -333,7 +319,7 @@
   (:import-from #:cl-cc/runtime/resilience
                 #:rt-make-token-bucket #:rt-token-bucket-acquire #:rt-token-bucket-stats #:rt-token-bucket-wait
                 #:rt-token-bucket-accepted #:rt-token-bucket-burst #:rt-token-bucket-dropped
-                #:rt-token-bucket-last #:rt-token-bucket-rate #:rt-token-bucket-refill #:rt-token-bucket-tokens
+                #:rt-token-bucket-last #:rt-token-bucket-rate #:rt-token-bucket-tokens
                 #:rt-token-bucket-try-acquire
   )
   (:import-from #:cl-cc/runtime/serialization
@@ -441,7 +427,7 @@
    #:+frame-pool-size+ #:+frame-register-count+ #:+frame-return-reg+ #:+frame-spill-start+ #:+gc-card-size-words+
    #:+gc-region-size+ #:+level-debug+ #:+level-error+ #:+level-fatal+ #:+level-info+
    #:+level-warn+ #:+nan-boxing-quiet-nan+ #:+nan-tag-base+ #:+ptr-base+ #:+ptr-mask+
-   #:+raft-candidate+ #:+raft-follower+ #:+raft-leader+ #:+rt-af-inet+ #:+rt-af-inet6+
+   #:+rt-af-inet+ #:+rt-af-inet6+
    #:+rt-affinity-mask-bytes+ #:+rt-array-metadata-version+ #:+rt-array-type-tag+ #:+rt-bignum-digit-base+ #:+rt-bignum-type-tag+
    #:+rt-map-fixed+ #:+rt-prot-none+ #:+rt-sighup+ #:+rt-sigint+ #:+rt-sigterm+
    #:+rt-sigusr1+ #:+rt-sigusr2+ #:+rt-sigwinch+ #:+rt-sock-dgram+ #:+rt-sock-stream+
@@ -471,7 +457,7 @@
    #:make-cl-cc-state #:make-cl-cc-value #:make-function-handler #:make-gc-region #:make-json-handler
    #:make-logger #:make-object-pool #:make-rt-continuous-profile-session #:make-rt-effect #:make-rt-ephemeron
    #:make-rt-handler #:make-rt-handler-state #:make-rt-header #:make-rt-heap #:make-rt-otel-event
-   #:make-rt-otel-span #:make-rt-profile-frame #:make-rt-profile-sample #:make-rt-raft-entry #:make-rt-restart
+   #:make-rt-otel-span #:make-rt-profile-frame #:make-rt-profile-sample #:make-rt-restart
    #:make-rt-socket-address #:make-rt-stackmap #:make-rt-tlab #:make-rt-weak-hash-entry #:make-text-handler
    #:memory-tier-info #:mmap-advice #:mmap-array #:mmap-close #:mmap-file
    #:mmap-sync #:opt-pass-stm #:perf-counters-unsupported #:pointer-color #:pointer-tag
@@ -507,13 +493,13 @@
    #:rt-code-cache-store #:rt-code-char #:rt-coerce #:rt-coerce-to-list #:rt-coerce-to-string
    #:rt-coerce-to-vector #:rt-complex #:rt-compress-object-ref #:rt-compress-stackmap-slots #:rt-compute-applicable-methods
    #:rt-concatenate-seqs #:rt-condition-notify #:rt-condition-notify-all #:rt-condition-wait #:rt-condition-wait-until
-   #:rt-conjugate #:rt-connect #:rt-cons #:rt-consensus-init #:rt-consp
+   #:rt-conjugate #:rt-connect #:rt-cons #:rt-consp
    #:rt-context-cancel #:rt-context-cancelled-p #:rt-context-get-deadline #:rt-context-spawn #:rt-context-value
    #:rt-continuous-profile->otel-span #:rt-continuous-profile-session #:rt-continuous-profile-session-endpoint #:rt-continuous-profile-session-name #:rt-continuous-profile-session-output
    #:rt-continuous-profile-session-running-p #:rt-continuous-profile-session-sample-log #:rt-continuous-profile-session-sample-rate-hz #:rt-continuous-profile-session-samples #:rt-continuous-profile-session-span-id
    #:rt-continuous-profile-session-trace-id #:rt-continuous-profile-to-otel-json #:rt-continuous-profile-to-pprof-json #:rt-control-error #:rt-copy-list
    #:rt-copy-tree #:rt-cos #:rt-cosh #:rt-counter-increment! #:rt-cpu-topology
-   #:rt-crdt-init #:rt-current-handler #:rt-current-thread #:rt-current-thread-id #:rt-deadlock-after-lock
+   #:rt-current-handler #:rt-current-thread #:rt-current-thread-id #:rt-deadlock-after-lock
    #:rt-deadlock-after-unlock #:rt-deadlock-before-lock #:rt-deadlock-detect #:rt-deadlock-init #:rt-dec
    #:rt-decode-float #:rt-decompress-object-ref #:rt-decompress-stackmap-slots #:rt-defclass #:rt-define-foreign-function
    #:rt-define-foreign-struct #:rt-delete-file #:rt-denominator #:rt-destroy-thread #:rt-digit-char
@@ -551,7 +537,7 @@
    #:rt-gc-satb-enqueue #:rt-gc-scan-stackmaps #:rt-gc-select-policy #:rt-gc-should-run-compaction-p #:rt-gc-simd-zero-fill
    #:rt-gc-stack-allocated-object-p #:rt-gc-stats #:rt-gc-tlab-alloc #:rt-gc-tlab-retire-all #:rt-gc-unload-code
    #:rt-gc-unregister-thread #:rt-gc-verify-heap #:rt-gc-verify-tri-color-invariant #:rt-gc-write-barrier #:rt-gcd
-   #:rt-gcounter-increment #:rt-gcounter-merge #:rt-gcounter-value #:rt-ge #:rt-gensym
+   #:rt-ge #:rt-gensym
    #:rt-get-global #:rt-get-internal-real-time #:rt-get-internal-run-time #:rt-get-output-stream-string #:rt-get-prop
    #:rt-get-signal-handler #:rt-get-universal-time #:rt-getcwd #:rt-getenv #:rt-gethash
    #:rt-gettime-monotonic #:rt-gettime-real #:rt-graphic-char-p #:rt-green-thread #:rt-green-thread-error
@@ -585,14 +571,13 @@
    #:rt-listp #:rt-load-core #:rt-load-image #:rt-lock #:rt-lockfree-init
    #:rt-log #:rt-logand #:rt-logbitp #:rt-logcount #:rt-logeqv
    #:rt-logior #:rt-lognot #:rt-logtest #:rt-logxor #:rt-los-alloc
-   #:rt-lower-case-p #:rt-lt #:rt-lwwregister-assign #:rt-lwwregister-read #:rt-make-actor
+   #:rt-lower-case-p #:rt-lt #:rt-make-actor
    #:rt-make-array #:rt-make-barrier #:rt-make-broadcast-stream #:rt-make-channel #:rt-make-closure
    #:rt-make-concatenated-stream #:rt-make-condition-variable #:rt-make-counter #:rt-make-echo-stream #:rt-make-ephemeron
-   #:rt-make-fiber #:rt-make-future #:rt-make-gauge #:rt-make-gcounter #:rt-make-hash-table
+   #:rt-make-fiber #:rt-make-future #:rt-make-gauge #:rt-make-hash-table
    #:rt-make-histogram #:rt-make-immortal #:rt-make-instance #:rt-make-instance-0 #:rt-make-lfhash-map
-   #:rt-make-lfqueue #:rt-make-lfstack #:rt-make-list #:rt-make-lock #:rt-make-lwwregister
-   #:rt-make-mutex #:rt-make-once #:rt-make-package #:rt-make-pathname-native #:rt-make-phantom-ref
-   #:rt-make-pncounter #:rt-make-raft-cluster #:rt-make-raft-node #:rt-make-random-state #:rt-make-recursive-mutex
+   #:rt-make-lfqueue #:rt-make-lfstack #:rt-make-list #:rt-make-lock #:rt-make-mutex #:rt-make-once #:rt-make-package #:rt-make-pathname-native #:rt-make-phantom-ref
+   #:rt-make-random-state #:rt-make-recursive-mutex
    #:rt-make-region #:rt-make-rwlock #:rt-make-scheduler #:rt-make-semaphore #:rt-make-socket-stream
    #:rt-make-soft-ref #:rt-make-spsc-queue #:rt-make-string #:rt-make-string-output-stream #:rt-make-string-stream
    #:rt-make-symbol #:rt-make-synonym-stream #:rt-make-thread #:rt-make-token-bucket #:rt-make-tvar
@@ -619,8 +604,7 @@
    #:rt-peek-char #:rt-perf-enable-counter #:rt-perf-init #:rt-perf-read-counter #:rt-perform
    #:rt-phantom-ref #:rt-phase #:rt-pin-object #:rt-pin-unboxed-array #:rt-pinned-array-data-pointer
    #:rt-pinned-unboxed-array-buffer-array #:rt-pinned-unboxed-array-buffer-length #:rt-pinned-unboxed-array-buffer-p #:rt-pinned-unboxed-array-buffer-released-p #:rt-platform
-   #:rt-platform-darwin-p #:rt-platform-linux-p #:rt-plusp #:rt-pncounter-decrement #:rt-pncounter-increment
-   #:rt-pncounter-value #:rt-poison-return-address #:rt-pop-handler #:rt-pop-list #:rt-pop-restart
+   #:rt-platform-darwin-p #:rt-platform-linux-p #:rt-plusp #:rt-poison-return-address #:rt-pop-handler #:rt-pop-list #:rt-pop-restart
    #:rt-prin1 #:rt-princ #:rt-print #:rt-probe-file #:rt-process
    #:rt-process-alive-p #:rt-process-error #:rt-process-exit-code #:rt-process-input #:rt-process-kill
    #:rt-process-output #:rt-process-p #:rt-process-pending-signals #:rt-process-pid #:rt-process-status
@@ -629,12 +613,7 @@
    #:rt-profile-sample-stack #:rt-profile-sample-thread-id #:rt-profile-sample-timestamp-nanos #:rt-profile-sample-trace-id #:rt-program-error
    #:rt-push-handler #:rt-push-list #:rt-push-restart #:rt-put-prop #:rt-qsbr-init
    #:rt-qsbr-quiescent #:rt-qsbr-register-thread #:rt-qsbr-retire #:rt-qsbr-synchronize #:rt-qsbr-thread-count
-   #:rt-qsbr-unregister-thread #:rt-raft-advance-commit #:rt-raft-append-entries #:rt-raft-apply #:rt-raft-become-leader
-   #:rt-raft-cluster #:rt-raft-cluster-leader-id #:rt-raft-cluster-node-ids #:rt-raft-cluster-nodes #:rt-raft-entry
-   #:rt-raft-entry-command #:rt-raft-entry-index #:rt-raft-entry-term #:rt-raft-node #:rt-raft-node-commit-index
-   #:rt-raft-node-current-term #:rt-raft-node-election-timeout #:rt-raft-node-election-timer #:rt-raft-node-id #:rt-raft-node-last-applied
-   #:rt-raft-node-log #:rt-raft-node-state #:rt-raft-node-state-machine #:rt-raft-node-voted-for #:rt-raft-propose
-   #:rt-raft-request-vote #:rt-raft-snapshot #:rt-raft-start-election #:rt-raft-tick #:rt-random
+   #:rt-qsbr-unregister-thread #:rt-random
    #:rt-rational #:rt-rationalize #:rt-rcu-assign-pointer #:rt-rcu-call #:rt-rcu-dereference
    #:rt-rcu-init #:rt-rcu-read-lock #:rt-rcu-synchronize #:rt-read #:rt-read-byte
    #:rt-read-char #:rt-read-from-string #:rt-read-line #:rt-read-sequence #:rt-read-sexp

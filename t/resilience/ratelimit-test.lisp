@@ -4,86 +4,204 @@
 (describe
   "token bucket construction (ratelimit.lisp)"
   (it
-    "starts full: initial tokens equal the burst"
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 5.0 :burst 20.0)))
-      (expect (cl-cc/runtime::rt-token-bucket-tokens b) :to-equal 20.0)
-      (expect (cl-cc/runtime::rt-token-bucket-burst b) :to-equal 20.0)
-      (expect (cl-cc/runtime::rt-token-bucket-rate b) :to-equal 5.0))))
+    "starts with its configured burst capacity"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket
+             :rate 0.0
+             :burst 20.0)))
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket 20)
+              :to-be-truthy)
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+              :to-be-null)))
+  (it
+    "inherits kit validation for capacity and refill rate"
+    (expect
+     (lambda ()
+       (cl-cc/runtime::rt-make-token-bucket :burst 0))
+     :to-throw
+     'error)
+    (expect
+     (lambda ()
+       (cl-cc/runtime::rt-make-token-bucket :rate -1))
+     :to-throw
+     'error)))
 
-(describe "token bucket acquisition (ratelimit.lisp)"
-  (it "try-acquire succeeds while tokens remain, decrementing and counting accepts"
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 3.0)))
-      (expect (cl-cc/runtime::rt-token-bucket-try-acquire b) :to-be-truthy)
-      (expect (cl-cc/runtime::rt-token-bucket-try-acquire b) :to-be-truthy)
-      (expect (cl-cc/runtime::rt-token-bucket-try-acquire b) :to-be-truthy)
-      (expect (cl-cc/runtime::rt-token-bucket-accepted b) :to-be 3)))
+(describe
+  "token bucket acquisition and wait (ratelimit.lisp)"
+  (it
+    "try-acquire succeeds while tokens remain, counting accepts"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 3.0)))
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+              :to-be-truthy)
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+              :to-be-truthy)
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+              :to-be-truthy)
+      (expect (cl-cc/runtime::rt-token-bucket-accepted bucket) :to-be 3)))
+  (it
+    "try-acquire fails once the bucket is empty, counting a drop"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 1.0)))
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+              :to-be-truthy)
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+              :to-be-null)
+      (expect (cl-cc/runtime::rt-token-bucket-dropped bucket) :to-be 1)))
+  (it
+    "try-acquire can claim several tokens at once"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 10.0)))
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket 4)
+              :to-be-truthy)
+      (expect (getf (cl-cc/runtime::rt-token-bucket-stats bucket) :tokens)
+              :to-equal 6d0)))
+  (it
+    "rejects a request larger than capacity without consuming tokens"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 2.0)))
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket 3)
+              :to-be-null)
+      (let ((stats (cl-cc/runtime::rt-token-bucket-stats bucket)))
+        (expect (getf stats :tokens) :to-equal 2d0)
+        (expect (getf stats :dropped) :to-be 1))
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket 2)
+              :to-be-truthy)))
+  (it
+    "rt-token-bucket-acquire is an alias for try-acquire"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 1.0)))
+      (expect (cl-cc/runtime::rt-token-bucket-acquire bucket)
+              :to-be-truthy)
+      (expect (cl-cc/runtime::rt-token-bucket-acquire bucket)
+              :to-be-null)))
+  (it
+    "inherits kit validation for nonpositive requests"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 1.0)))
+      (expect
+       (lambda () (cl-cc/runtime::rt-token-bucket-try-acquire bucket 0))
+       :to-throw
+       'error)))
+  (it
+    "wait returns immediately when a token is available"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 1000.0 :burst 5.0)))
+      (expect (cl-cc/runtime::rt-token-bucket-wait bucket) :to-be-truthy)))
+  (it
+    "wait retries until refill makes the request available"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 10.0 :burst 1.0)))
+      (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+      (expect
+       (cl-cc/runtime::rt-token-bucket-wait bucket 1 :timeout 1.0)
+       :to-be-truthy)))
+  (it
+    "wait returns nil when the timeout is shorter than retry-after"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 1.0 :burst 1.0)))
+      (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+      (expect
+       (cl-cc/runtime::rt-token-bucket-wait bucket 1 :timeout 0.05)
+       :to-be-null)))
+  (it
+    "wait rejects requests larger than capacity without waiting"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 1.0 :burst 1.0)))
+      (expect (cl-cc/runtime::rt-token-bucket-wait bucket 2) :to-be-null)
+      (expect (cl-cc/runtime::rt-token-bucket-dropped bucket) :to-be 1)))
+  (it
+    "wait rejects an exhausted bucket that cannot refill"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 1.0)))
+      (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+      (expect (cl-cc/runtime::rt-token-bucket-wait bucket) :to-be-null)
+      (expect (cl-cc/runtime::rt-token-bucket-dropped bucket) :to-be 1))))
 
-  (it "try-acquire fails once the bucket is empty, counting a drop"
-    ;; rate 0 => no refill, so 1 token then exhaustion is deterministic.
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 1.0)))
-      (expect (cl-cc/runtime::rt-token-bucket-try-acquire b) :to-be-truthy)
-      (expect (cl-cc/runtime::rt-token-bucket-try-acquire b) :to-be-null)
-      (expect (cl-cc/runtime::rt-token-bucket-dropped b) :to-be 1)))
+(describe
+  "token bucket refill (ratelimit.lisp)"
+  (it
+    "delegates elapsed-time refill and the burst cap to the kit"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 1000.0 :burst 2.0)))
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket 2)
+              :to-be-truthy)
+      (sleep 0.02)
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket 3)
+              :to-be-null)
+      (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket 2)
+              :to-be-truthy)
+      (expect (getf (cl-cc/runtime::rt-token-bucket-stats bucket) :tokens)
+              :to-equal 0d0)))
+  (it
+    "refills at the configured rate below the burst cap"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 4.0 :burst 100.0)))
+      (expect (cl-cc/runtime::rt-token-bucket-acquire bucket 100)
+              :to-be-truthy)
+      (sleep 1.0)
+      (expect (cl-cc/runtime::rt-token-bucket-acquire bucket 6)
+              :to-be-null)
+      (expect (cl-cc/runtime::rt-token-bucket-acquire bucket 3)
+              :to-be-truthy)
+      (let ((tokens
+              (getf (cl-cc/runtime::rt-token-bucket-stats bucket) :tokens)))
+        (expect (<= 0d0 tokens 3d0) :to-be-truthy)))))
 
-  (it "try-acquire can claim several tokens at once"
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 10.0)))
-      (expect (cl-cc/runtime::rt-token-bucket-try-acquire b 4) :to-be-truthy)
-      (expect (cl-cc/runtime::rt-token-bucket-tokens b) :to-equal 6.0)))
-
-  (it "requesting more than the bucket holds is refused"
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 2.0)))
-      (expect (cl-cc/runtime::rt-token-bucket-try-acquire b 5) :to-be-null)
-      (expect (cl-cc/runtime::rt-token-bucket-tokens b) :to-equal 2.0)))
-
-  (it "rt-token-bucket-acquire is an alias for try-acquire"
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 1.0)))
-      (expect (cl-cc/runtime::rt-token-bucket-acquire b) :to-be-truthy)
-      (expect (cl-cc/runtime::rt-token-bucket-acquire b) :to-be-null)))
-
-  (it "rt-token-bucket-wait returns immediately when a token is available"
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 1000.0 :burst 5.0)))
-      (expect (cl-cc/runtime::rt-token-bucket-wait b) :to-be-truthy)))
-
-  (it "rt-token-bucket-wait honors a generous timeout when a token does become available in time"
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 1000.0 :burst 1.0)))
-      (cl-cc/runtime::rt-token-bucket-try-acquire b)
-      (expect (cl-cc/runtime::rt-token-bucket-wait b 1 :timeout 1.0) :to-be-truthy)))
-
-  (it "rt-token-bucket-wait returns nil rather than blocking forever when TIMEOUT elapses first"
-    ;; rate 1.0 means the bucket refills at one token per second, so a 1-token
-    ;; request cannot be satisfied inside a 50ms timeout: this proves the wait
-    ;; actually bounds itself instead of spinning until a token appears.
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 1.0 :burst 1.0)))
-      (cl-cc/runtime::rt-token-bucket-try-acquire b)
-      (expect (cl-cc/runtime::rt-token-bucket-wait b 1 :timeout 0.05) :to-be-null))))
-
-(describe "token bucket refill (ratelimit.lisp)"
-  (it "refill adds rate*elapsed tokens but never exceeds the burst cap"
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 100.0 :burst 10.0)))
-      ;; Drain, then rewind the last-refill timestamp one second into the past:
-      ;; 100 tokens/s * 1s = 100 requested, clamped to the burst of 10.
-      (setf (cl-cc/runtime::rt-token-bucket-tokens b) 0.0
-            (cl-cc/runtime::rt-token-bucket-last b)
-            (- (cl-cc/runtime::rt-gettime-monotonic) 1.0))
-      (cl-cc/runtime::rt-token-bucket-refill b)
-      (expect (cl-cc/runtime::rt-token-bucket-tokens b) :to-equal 10.0)))
-
-  (it "refill partially replenishes below the cap"
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 4.0 :burst 100.0)))
-      (setf (cl-cc/runtime::rt-token-bucket-tokens b) 0.0
-            (cl-cc/runtime::rt-token-bucket-last b)
-            (- (cl-cc/runtime::rt-gettime-monotonic) 1.0))
-      (let ((tokens (cl-cc/runtime::rt-token-bucket-refill b)))
-        ;; ~4 tokens after 1s; allow slack for scheduling jitter in the clock.
-        (expect (<= 3.0 tokens 6.0) :to-be-truthy)))))
-
-(describe "token bucket stats (ratelimit.lisp)"
-  (it "stats reports live token, accepted, and dropped counters"
-    (let ((b (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 2.0)))
-      (cl-cc/runtime::rt-token-bucket-try-acquire b)   ; accept
-      (cl-cc/runtime::rt-token-bucket-try-acquire b)   ; accept
-      (cl-cc/runtime::rt-token-bucket-try-acquire b)   ; drop
-      (let ((stats (cl-cc/runtime::rt-token-bucket-stats b)))
+(describe
+  "token bucket stats (ratelimit.lisp)"
+  (it
+    "reports kit tokens and wrapper accepted and dropped counters"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 0.0 :burst 2.0)))
+      (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+      (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+      (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
+      (let ((stats (cl-cc/runtime::rt-token-bucket-stats bucket)))
         (expect (getf stats :accepted) :to-be 2)
         (expect (getf stats :dropped) :to-be 1)
-        (expect (getf stats :tokens) :to-equal 0.0)))))
+        (expect (getf stats :tokens) :to-equal 0d0)))))
+(describe
+  "token bucket concurrent statistics"
+  (it
+    "records all concurrent accepted and dropped requests"
+    (let* ((thread-count 8)
+           (iterations 500)
+           (accepted-bucket
+             (rt-make-token-bucket :rate 0.0 :burst (* thread-count iterations)))
+           (dropped-bucket (rt-make-token-bucket :rate 0.0 :burst 1.0))
+           (ready (sb-thread:make-semaphore :count 0))
+           (start (sb-thread:make-semaphore :count 0))
+           (threads nil)
+           (workers-released nil))
+      (unwind-protect
+           (progn
+             (loop repeat thread-count
+                   do (push
+                       (sb-thread:make-thread
+                        (lambda ()
+                          (sb-thread:signal-semaphore ready)
+                          (sb-thread:wait-on-semaphore start)
+                          (loop repeat iterations
+                                do (progn
+                                     (rt-token-bucket-acquire accepted-bucket)
+                                     (rt-token-bucket-acquire dropped-bucket 2)))))
+                       threads))
+             (loop repeat thread-count do (sb-thread:wait-on-semaphore ready))
+             (loop repeat thread-count do (sb-thread:signal-semaphore start))
+             (setf workers-released t)
+             (dolist (thread threads)
+               (sb-thread:join-thread thread))
+             (let ((accepted-stats (rt-token-bucket-stats accepted-bucket))
+                   (dropped-stats (rt-token-bucket-stats dropped-bucket)))
+               (expect (getf accepted-stats :accepted)
+                       :to-be (* thread-count iterations))
+               (expect (getf accepted-stats :dropped) :to-be 0)
+               (expect (getf dropped-stats :accepted) :to-be 0)
+               (expect (getf dropped-stats :dropped)
+                       :to-be (* thread-count iterations))))
+        (progn
+          (unless workers-released
+            (loop repeat thread-count do (sb-thread:signal-semaphore start)))
+          (dolist (thread threads)
+            (ignore-errors (sb-thread:join-thread thread))))))))

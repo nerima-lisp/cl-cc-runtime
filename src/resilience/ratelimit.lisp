@@ -1,60 +1,54 @@
 (in-package :cl-cc/runtime/resilience)
 
 (defstruct rt-token-bucket
-  (rate 10.0 :type real)
-  (burst 10.0 :type real)
-  (tokens 10.0 :type real)
-  (last 0.0 :type real)
+  (limiter nil)
   (dropped 0 :type integer)
-  (accepted 0 :type integer))
+  (accepted 0 :type integer)
+  (stats-lock (sb-thread:make-mutex :name "cl-cc rate limiter stats")))
 
 (defun rt-make-token-bucket (&key (rate 10.0) (burst 10.0))
-  (make-rt-token-bucket :rate rate :burst burst :tokens burst :last (rt-gettime-monotonic)))
-
-(defun rt-token-bucket-refill (bucket)
-  (let* ((now (rt-gettime-monotonic))
-         (elapsed (max 0.0 (- now (rt-token-bucket-last bucket))))
-         (tokens (min (rt-token-bucket-burst bucket)
-                      (+ (rt-token-bucket-tokens bucket)
-                         (* elapsed (rt-token-bucket-rate bucket))))))
-    (setf (rt-token-bucket-tokens bucket) tokens
-          (rt-token-bucket-last bucket) now)
-    tokens))
+  (make-rt-token-bucket
+   :limiter (make-rate-limiter :refill-rate rate :capacity burst)))
+(defun %rt-token-bucket-record-result (bucket acquired-p)
+  (sb-thread:with-mutex ((rt-token-bucket-stats-lock bucket))
+    (if acquired-p
+        (incf (rt-token-bucket-accepted bucket))
+        (incf (rt-token-bucket-dropped bucket))))
+  acquired-p)
 
 (defun rt-token-bucket-try-acquire (bucket &optional (n 1))
-  (rt-token-bucket-refill bucket)
-  (if (>= (rt-token-bucket-tokens bucket) n)
-      (progn
-        (decf (rt-token-bucket-tokens bucket) n)
-        (incf (rt-token-bucket-accepted bucket))
-        t)
-      (progn
-        (incf (rt-token-bucket-dropped bucket))
-        nil)))
+  (multiple-value-bind (acquired-p retry-after)
+      (rate-limiter-acquire (rt-token-bucket-limiter bucket) :tokens n)
+    (declare (ignore retry-after))
+    (%rt-token-bucket-record-result bucket acquired-p)))
 
 (defun rt-token-bucket-acquire (bucket &optional (n 1))
   (rt-token-bucket-try-acquire bucket n))
 
 (defun rt-token-bucket-wait (bucket &optional (n 1) &key timeout)
-  "Block until BUCKET has N tokens, retrying at the bucket's own refill
-cadence, and return T once acquired. With TIMEOUT (seconds), give up and
-return NIL after that many seconds rather than blocking forever -- N tokens
-never arrive at all when N exceeds BUCKET's burst capacity, so an unbounded
-caller-supplied N is otherwise an unbounded wait."
-  (let ((deadline (and timeout (+ (get-internal-real-time)
-                                  (round (* timeout internal-time-units-per-second))))))
-    (loop until (rt-token-bucket-try-acquire bucket n)
-          do (let ((interval (max 0.001 (/ n (max 0.001 (rt-token-bucket-rate bucket))))))
-               (when deadline
-                 (let ((remaining (/ (- deadline (get-internal-real-time))
-                                     (float internal-time-units-per-second))))
-                   (when (<= remaining 0)
-                     (return-from rt-token-bucket-wait nil))
-                   (setf interval (min interval remaining))))
-               (sleep interval))))
-  t)
+  (multiple-value-bind (acquired-p retry-after)
+      (rate-limiter-acquire (rt-token-bucket-limiter bucket)
+                            :tokens n
+                            :wait-p t
+                            :max-wait timeout)
+    (declare (ignore retry-after))
+    (%rt-token-bucket-record-result bucket acquired-p)))
+
+(defun rt-token-bucket-rate (bucket)
+  (rate-limiter-refill-rate (rt-token-bucket-limiter bucket)))
+
+(defun rt-token-bucket-burst (bucket)
+  (rate-limiter-capacity (rt-token-bucket-limiter bucket)))
+
+(defun rt-token-bucket-last (bucket)
+  (rate-limiter-last-refill (rt-token-bucket-limiter bucket)))
+
+(defun rt-token-bucket-tokens (bucket)
+  (rate-limiter-tokens (rt-token-bucket-limiter bucket)))
 
 (defun rt-token-bucket-stats (bucket)
-  (list :tokens (rt-token-bucket-tokens bucket)
-        :accepted (rt-token-bucket-accepted bucket)
-        :dropped (rt-token-bucket-dropped bucket)))
+  (let ((tokens (rate-limiter-tokens (rt-token-bucket-limiter bucket))))
+    (sb-thread:with-mutex ((rt-token-bucket-stats-lock bucket))
+      (list :tokens tokens
+            :accepted (rt-token-bucket-accepted bucket)
+            :dropped (rt-token-bucket-dropped bucket)))))

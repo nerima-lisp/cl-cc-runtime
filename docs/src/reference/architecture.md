@@ -3,48 +3,52 @@
 This page describes how `src/` is divided and why. It is for readers changing
 the library, not using it.
 
-## One package, many files
+## Feature packages and the facade
 
-There is exactly one package, `cl-cc/runtime`, defined in `src/package.lisp`,
-and the Lisp source files sit directly in `src/`.
+The implementation is divided into feature packages under `src/<feature>/`,
+with each package declared in that directory's `package.lisp`. The
+`cl-cc/runtime` package in `src/package.lisp` remains the compiler-facing
+facade: generated calls keep their existing package name while implementation
+code can depend on narrower feature interfaces.
 
-The consumer of this library is a code generator, which emits calls by name. Splitting
-the runtime into `cl-cc/runtime.gc`, `cl-cc/runtime.value` and so on would push
-that split into the emitted code, so every time a file moved between packages
-the compiler back end would have to change too. One package makes the file
-layout an internal detail.
-
-`src/package.lisp` declares the exported interface, and ASDF `:serial t`
-fixes the load order. `package.lisp` and the similarly manifest-shaped
-`runtime-packages.lisp` are the two files in this tree exempt from the file
-length guidance in `CODING_STANDARD.md`: a package definition is a flat list, not a place
-where splitting reduces complexity the way it does for logic.
+`cl-cc-runtime.asd` loads feature package definitions before their
+implementations and records the test modules under `t/<feature>/`.
+`nix/feature-dependencies.sexp` records the allowed direction of feature
+dependencies; feature-lint checks those declarations against package imports.
+Memory, OS, and profiling also have `/infra` packages for implementation
+details that should not become domain interfaces.
 
 ## Layers
 
 The following groups locate related implementation files. The ASDF component
 list, not this table, determines their load order.
 
-| Layer | Files | Contents |
+| Feature | Directory | Responsibility |
 |---|---|---|
-| Representation | `value*`, `frame*`, `runtime-region` | NaN-boxed values, register frames, arena regions |
-| Memory | `heap-*`, `gc-*` | Heap layout, allocation, the collector |
-| Primitives | `runtime*` | The `rt-*` operators the compiler emits calls to |
-| Concurrency | `sync`, `scheduler`, `channel`, `actor`, `stm`, `fiber`, `async*`, `effects`, `lockfree`, `ebr`, `hazard`, `rcu`, `qsbr`, `spsc` | Scheduling, synchronization, continuations, and memory reclamation |
-| Platform and observability | `os`, `signals`, `net`, `mmap`, `ffi`, `io-uring`, `perf`, `otel`, `metrics`, `continuous-profile`, `log`, `topology` | The host boundary and instrumentation |
-
-`image*`, `cluster`, `consensus`, `crdt`, `mvcc`, `crypto`, `compress`,
-`serialize` and `gpu` implement additional services.
+| `memory` | `src/memory/` | Heap, garbage collection, allocation, and memory mapping |
+| `values` | `src/values/` | Runtime value representation and codecs |
+| `images` | `src/images/` | Runtime image creation and restoration |
+| `concurrency` | `src/concurrency/` | Scheduling, synchronization, tasks, and memory reclamation |
+| `clos` | `src/clos/` | Runtime classes, instances, and generic dispatch |
+| `conditions` | `src/conditions/` | Runtime condition types and signaling |
+| `dynamic-binding` | `src/dynamic-binding/` | Runtime dynamic-variable binding |
+| `execution` | `src/execution/` | Runtime code cache and execution support |
+| `os` | `src/os/` | Operating-system, network, and foreign-function interface (FFI) operations |
+| `profiling` | `src/profiling/` | Performance counters and continuous profiling |
+| `observability` | `src/observability/` | Logging, metrics, and tracing adapters |
+| `serialization` | `src/serialization/` | Runtime object serialization and deserialization |
+| `cryptography` | `src/cryptography/` | Digest, HMAC, and Base64 interfaces |
+| `compression` | `src/compression/` | zlib and gzip interfaces |
+| `resilience` | `src/resilience/` | Rate limiting |
 
 ## Why the heap is split across so many files
 
 The `heap-` and `gc-` files are split by collection phase and allocation policy:
 
 - `heap-data` holds the struct and the tunables; almost everything includes it.
-- `heap-core`, `heap-layout`, `heap-access` are allocation and word access;
-  `heap-forwarding`, `heap-numa` and `heap-stats` are relocation/compressed
-  pointers, NUMA placement, and occupancy queries, split out of `heap-access`
-  because each reads independently of the word-access primitives.
+- `heap-core`, `heap-layout`, and `heap-access` implement allocation, object
+  layout, and word access. `heap-forwarding`, `heap-numa`, and `heap-stats`
+  handle pointer forwarding, NUMA placement, and occupancy queries.
 - `heap-free-list`, `heap-resize`, `heap-los`, `heap-hugepages` are the
   allocator's policies for old space, growth, large objects and page size.
 - `gc-minor`, `gc-major-mark`, `gc-mark-work`, `gc-major-sweep`, `gc-compact`,
@@ -67,8 +71,16 @@ passing a marking test alone does not verify it.
 ## Dependencies
 
 `cl-cc-runtime.asd` declares direct dependencies on `cl-log-kit`,
-`cl-process-kit`, `cl-json-kit`, and `cl-host-kit`. Their revisions are pinned
-in `flake.lock`.
+`cl-process-kit`, `cl-json-kit`, `cl-host-kit`, `cl-observability-kit`,
+`cl-deflate-kit`, `cl-crypto-kit`, and `cl-resilience-kit`. Their revisions
+are pinned in `flake.lock`.
+
+The runtime keeps adapters for its public tracing, metrics, compression,
+cryptography, and rate-limiting entry points. The corresponding kits provide
+those primitives where available; Base64 remains local because the pinned
+kits do not provide that API. Logging already uses `cl-log-kit`. Runtime-specific
+formatting, string conversion, profile sampling, and hardware performance
+counters stay in this repository.
 
 `cl-host-kit` supplies process execution for the CPU feature probe in
 `xom.lisp`, environment-name filtering in `os.lisp`, and string splitting
@@ -80,10 +92,9 @@ That validation is separate from the uses of `cl-host-kit` above.
 
 The green-thread scheduler is single-native-threaded: `rt-spawn` queues a thunk
 and `rt-scheduler-run` drains the queue on the calling thread. The lock-free
-structures, the four reclamation schemes and the work-stealing scheduler are
-the parts that assume real parallelism.
-
-`checks.default` in `flake.nix` sets `timeoutSeconds = 600`.
+structures, work-stealing scheduler, and four memory-reclamation implementations
+assume real parallelism: read-copy-update (RCU), epoch-based reclamation (EBR),
+quiescent-state-based reclamation (QSBR), and hazard pointers.
 
 ### Queues and continuations
 
@@ -92,12 +103,12 @@ the parts that assume real parallelism.
 drains the other queue. Their `:once` option processes at most one ready item
 and returns `nil` if none is ready.
 
-`rt-yield` and `rt-sleep-task` update green-thread queues and return normally;
-they do not capture or suspend the current Lisp call stack. When the thunk
-returns, the scheduler marks it done. A later queued invocation starts that
-same thunk again. Fiber yield/block calls also return normally. For a fiber
-to resume at a different point, install an explicit continuation with
-`rt-fiber-set-continuation` or `rt-fiber-block` and return from the current call.
+`rt-yield` and `rt-sleep-task` return to the current Lisp code; neither captures
+or suspends its call stack. If the thunk returns after either call, the scheduler
+can queue that same thunk for another run, which starts it from its first form.
+Fiber yield/block calls also return normally. To resume a fiber from a saved
+point, install an explicit continuation with `rt-fiber-set-continuation` or
+`rt-fiber-block`, then return from the current call.
 
 `rt-fiber-await` yields and calls `rt-await*` on a pending future. The await
 poll loop runs the global green scheduler, not the fiber queue. A future whose
@@ -119,19 +130,19 @@ stored fiber continuation that can be resumed after the call has returned.
 ## Testing
 
 `t/` mirrors `src/` roughly one file per subsystem, with the largest subsystems
-(GC, runtime primitives) split further. Tests run under
-[cl-weave](https://github.com/nerima-lisp/cl-weave)'s native vocabulary
-directly: `describe`/`it`/`it-sequential`/`it-sequential-each`/`it-property`
-and `expect`. Use that vocabulary when adding tests.
+(GC, runtime primitives) split further. Tests use
+[cl-weave](https://github.com/nerima-lisp/cl-weave)'s forms directly:
+`describe`, `it`, `it-sequential`, `it-sequential-each`, `it-property`, and
+`expect`. Use these forms when adding tests.
 
 Most subsystem tests run with `it-sequential` rather than plain `it`: many
 share mutable global state (heaps, registries, scheduler queues). Preserve
 sequential execution unless independence has been verified.
 
 `t/mutation-test.lisp` reads `rt-return-address-poisoned-p` from `src/` and
-uses `cl-weave:run-mutations` to re-run a case battery against mutations of
-its body. The test requires a mutation score of 1.0; it does not establish
-mutation coverage of other functions.
+uses `cl-weave:run-mutations` to rerun the same test cases against generated
+mutations of that function body. The test requires every generated mutation to
+be detected (a mutation score of 1.0); it covers only this function.
 
 Test files are named `<source>-test.lisp` after the `src/` file they cover, as
 CODING_STANDARD.md requires. Where one source needs several angles the name

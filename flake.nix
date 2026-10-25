@@ -12,7 +12,7 @@
     # repositories the way the ~320-line hand-rolled version of this file
     # used to.
     cl-nix-forge = {
-      url = "github:nerima-lisp/cl-nix-forge/v0.7.3";
+      url = "github:nerima-lisp/cl-nix-forge/v0.7.4";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -46,6 +46,9 @@
       url = "github:nerima-lisp/cl-log-kit/v2.2.0";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.cl-nix-forge.follows = "cl-nix-forge";
+      # Both ASDF dependencies must resolve the same system name. Observability
+      # requires 0.6.1; log-kit accepts that version for its 0.5.0 minimum.
+      inputs.cl-concurrent-kit.follows = "cl-observability-kit/cl-concurrent-kit";
     };
     cl-json-kit = {
       url = "github:nerima-lisp/cl-json-kit/v1.2.0";
@@ -70,6 +73,32 @@
       inputs.cl-nix-forge.follows = "cl-nix-forge";
     };
 
+    cl-observability-kit = {
+      url = "github:nerima-lisp/cl-observability-kit/v1.1.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.cl-nix-forge.follows = "cl-nix-forge";
+      inputs.cl-weave.follows = "cl-weave";
+      inputs.cl-log-kit.follows = "cl-log-kit";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+    };
+    cl-deflate-kit = {
+      url = "github:nerima-lisp/cl-deflate-kit/v0.3.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.cl-weave.follows = "cl-weave";
+    };
+    cl-crypto-kit = {
+      url = "github:nerima-lisp/cl-crypto-kit/v0.2.1";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.cl-weave.follows = "cl-weave";
+    };
+    cl-resilience-kit = {
+      url = "github:nerima-lisp/cl-resilience-kit/v1.0.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.cl-nix-forge.follows = "cl-nix-forge";
+      inputs.cl-weave.follows = "cl-weave";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+    };
+
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -86,6 +115,10 @@
       cl-json-kit,
       cl-process-kit,
       cl-host-kit,
+      cl-observability-kit,
+      cl-deflate-kit,
+      cl-crypto-kit,
+      cl-resilience-kit,
       treefmt-nix,
     }:
     let
@@ -153,12 +186,49 @@
       # and test suite are unaffected. Revisit if cl-process-kit ever bumps
       # its own cl-log-kit pin, at which point this whole paragraph -- and
       # the duplicate -- disappears.
-      lispDependencies = ctx: [
-        cl-log-kit.packages.${ctx.system}.cl-log-kit
-        cl-process-kit.packages.${ctx.system}.cl-process-kit
-        (ctx.cl.fromDerivation { drv = cl-json-kit.packages.${ctx.system}.cl-json-kit; })
-        cl-host-kit.packages.${ctx.system}.cl-host-kit
-      ];
+      lispDependencies =
+        ctx:
+        let
+          observability = cl-observability-kit.packages.${ctx.system}.cl-observability-kit;
+          # Its default package prebuilds the main ASDF system only. Compile
+          # the optional adapters into the same source-tree derivation so
+          # consumers never try writing FASLs into the immutable package output.
+          observabilityAdapters = ctx.cl.lispDerivation (
+            observability.args
+            // {
+              lispSystem = null;
+              lispSystems = [
+                "cl-observability-kit/prometheus"
+                "cl-observability-kit/otlp"
+              ];
+            }
+          );
+          # These input flakes install source only; compile their ASDF systems
+          # here so consumers never write FASLs into immutable store outputs.
+          deflate = ctx.cl.lispDerivation {
+            pname = "cl-deflate-kit";
+            version = "0.3.0";
+            src = cl-deflate-kit.outPath;
+            lispSystem = "cl-deflate-kit";
+          };
+          crypto = ctx.cl.lispDerivation {
+            pname = "cl-crypto-kit";
+            version = "0.2.1";
+            src = cl-crypto-kit.outPath;
+            lispSystem = "cl-crypto-kit";
+          };
+        in
+        [
+          cl-log-kit.packages.${ctx.system}.cl-log-kit
+          cl-process-kit.packages.${ctx.system}.cl-process-kit
+          (ctx.cl.fromDerivation { drv = cl-json-kit.packages.${ctx.system}.cl-json-kit; })
+          cl-host-kit.packages.${ctx.system}.cl-host-kit
+          observability
+          observabilityAdapters
+          deflate
+          crypto
+          cl-resilience-kit.packages.${ctx.system}.cl-resilience-kit
+        ];
 
       # cl-weave is a dependency of cl-cc-runtime/test and of nothing else
       # (see cl-cc-runtime.asd), so it is a CHECK dependency: it must not
@@ -174,9 +244,9 @@
       # the command a contributor runs by hand and the gate CI runs cannot
       # drift apart. 600s, not the preset's own 600s default left implicit:
       # spelled out because it is a deliberate choice, not an accident of the
-      # default -- this suite starts real threads for the lock-free, STM,
-      # scheduler and consensus tests, so it is not a pure-library suite and a
-      # shorter budget would make CI flaky under load.
+      # default -- this suite starts real threads for the lock-free, STM, and
+      # scheduler tests, so it is not a pure-library suite and a shorter budget
+      # would make CI flaky under load.
       timeoutSeconds = 600;
 
       # The site is built from the repository root rather than from docs/, so
@@ -242,7 +312,6 @@
             "t/cryptography"
             "t/compression"
             "t/resilience"
-            "t/distributed-state"
           ];
           testSystems = [
             "cl-cc-runtime/test"
