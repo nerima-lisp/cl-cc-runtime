@@ -144,7 +144,10 @@
       # string-like value for its root. `./.` is the same directory as a
       # path literal.
       root = ./.;
-      sourceInclude = [ ./t/export-surface.txt ];
+      sourceInclude = [
+        ./t/export-surface.txt
+        ./include/cl-cc.h
+      ];
 
       meta = {
         description = "cl-cc runtime library: rt-* primitives, GC, heap, frame, value codec, and concurrency";
