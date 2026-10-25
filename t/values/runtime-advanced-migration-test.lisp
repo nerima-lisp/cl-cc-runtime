@@ -132,7 +132,7 @@
 (it-sequential "rt-intern-preserves-seeded-host-package-symbols"
   (let* ((pkg (cl-cc/runtime/values:rt-find-package :cl))
          (sym (cl-cc/runtime/values:rt-intern "CAR" pkg)))
-    (expect sym :to-be cl:car)))
+    (expect sym :to-be 'cl:car)))
 
 (it-sequential "rt-coerce-works"
   (expect (cl-cc/runtime/values:rt-coerce #(1 2 3) 'list) :to-equal '(1 2 3)))

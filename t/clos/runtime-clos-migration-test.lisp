@@ -154,18 +154,24 @@
       (expect log :to-equal '(:after-1 :after-2 :primary :before)))))
 
 (it-sequential "rt-call-generic-custom-method-combination-folds-qualified-methods"
-  (let ((cl-cc/runtime/clos:*rt-class-registry* (make-hash-table :test #'eq)))
+  (let ((cl-cc/runtime/clos:*rt-class-registry*
+         (make-hash-table :test #'eq))
+        (cl-cc/runtime/clos:*rt-generic-function-registry*
+         (make-hash-table :test #'equal)))
     (let* ((klass (cl-cc/runtime/clos:rt-defclass 'rt-sum-node '() '()))
            (obj (make-hash-table :test #'eq))
            (gf (make-hash-table :test #'equal)))
       (setf (gethash :__class__ obj) klass
             (gethash :__name__ gf) 'rt-sum
             (gethash :__method-combination__ gf) '+)
-      (cl-cc/runtime/clos:rt-register-method gf '(:__+__ rt-sum-node)
-                                        (lambda (_) (declare (ignore _)) 10))
-      (cl-cc/runtime/clos:rt-register-method gf '(:__+__ t)
-                                        (lambda (_) (declare (ignore _)) 7))
-      (expect (= 17 (cl-cc/runtime/clos:rt-call-generic gf obj)) :to-be-truthy))))
+      (cl-cc/runtime/clos:rt-register-method
+       gf '(:__+__ rt-sum-node)
+       (lambda (_) (declare (ignore _)) 10))
+      (cl-cc/runtime/clos:rt-register-method
+       gf '(:__+__ t)
+       (lambda (_) (declare (ignore _)) 7))
+      (expect (= 17 (cl-cc/runtime/clos:rt-call-generic gf obj))
+              :to-be-truthy))))
 
 (it-sequential "rt-register-method-with-qualifier-normalizes-qualified-key"
   (let ((gf (make-hash-table :test #'equal))

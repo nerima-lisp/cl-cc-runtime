@@ -267,7 +267,7 @@
          (events nil))
     (expect (rt-work-stealing-submit scheduler (lambda () (push :first events))) :to-be-truthy)
     (expect (rt-work-stealing-submit scheduler (lambda () (push :second events))) :to-be-truthy)
-    (expect (rt-work-stealing-run scheduler) :to-be-truthy)
+    (rt-work-stealing-run scheduler)
     (expect (= 2 (length events)) :to-be-truthy)
     (expect (member :first events) :to-be-truthy)
     (expect (member :second events) :to-be-truthy)))

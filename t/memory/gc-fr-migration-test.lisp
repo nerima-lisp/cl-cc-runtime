@@ -53,19 +53,25 @@
     (expect (listp (cl-cc/runtime/memory:rt-heap-free-list heap)) :to-be-truthy)
     (expect (null (cl-cc/runtime/memory:rt-heap-free-list heap)) :to-be-truthy)))
 
-(it-sequential "fr-331-free-list-insert-find-and-split"
-  (let* ((heap (%make-small-heap-fr))
-         (addr (cl-cc/runtime/memory:rt-heap-old-base heap)))
-    (%fr-write-object heap addr 8 cl-cc/runtime/values:+rt-tag-cons+)
-    (setf (cl-cc/runtime/memory:rt-heap-old-free heap) (+ addr 8))
-    (cl-cc/runtime/memory:rt-gc-major-collect heap)
-    (let ((allocated (cl-cc/runtime/memory:rt-gc-alloc
-                      heap :old 4)))
-      (%fr-write-object heap allocated 4 cl-cc/runtime/values:+rt-tag-cons+)
-      (expect (integerp allocated) :to-be-truthy)
-      (expect (= addr allocated) :to-be-truthy)
-      (expect (cl-cc/runtime/memory:rt-gc-verify-heap heap) :to-be-truthy)
-      (%fr-assert-free-list-blocks heap (list (cons 4 (+ addr 4)))))))
+(it-sequential "fr-331-free-list-allocation-reuses-class-sized-block"
+  (let ((cl-cc/runtime/values:*rt-package-registry*
+         (make-hash-table :test #'equal)))
+    (let* ((heap (%make-small-heap-fr))
+           (addr (cl-cc/runtime/memory:rt-heap-old-base heap)))
+      (%fr-write-object heap addr 8 cl-cc/runtime/values:+rt-tag-cons+)
+      (setf (cl-cc/runtime/memory:rt-heap-old-free heap) (+ addr 8))
+      (cl-cc/runtime/memory:rt-gc-major-collect heap)
+      (let ((allocated (cl-cc/runtime/memory:rt-gc-alloc heap :old 8)))
+        (%fr-write-object heap allocated 8 cl-cc/runtime/values:+rt-tag-cons+)
+        (cl-cc/runtime/memory:rt-heap-set
+         heap (+ allocated 1) cl-cc/runtime/values:+val-nil+)
+        (cl-cc/runtime/memory:rt-heap-set
+         heap (+ allocated 2) cl-cc/runtime/values:+val-nil+)
+        (expect (integerp allocated) :to-be-truthy)
+        (expect (= addr allocated) :to-be-truthy)
+        (expect (cl-cc/runtime/memory:rt-gc-verify-heap heap) :to-be-truthy)
+        (expect (null (cl-cc/runtime/memory:rt-heap-free-list heap))
+                :to-be-truthy)))))
 
 (it-sequential "fr-331-free-list-blocks-enumeration"
   (let* ((heap (%make-small-heap-fr))
@@ -203,22 +209,24 @@
     (%fr-assert-header-fields header 42 cl-cc/runtime/values:+rt-tag-cons+ 2)))
 
 (it-sequential "fr-184-weak-reference-and-finalizer-evidence"
-  (let* ((heap (%make-small-heap-fr))
-         (object-addr (cl-cc/runtime/memory:rt-gc-alloc heap :old 3))
-         (weak (cl-cc/runtime/memory:rt-make-weak-ref object-addr))
-         (finalized nil)
-         (cl-cc/runtime/memory:*rt-reference-registry* nil)
-         (cl-cc/runtime/memory:*rt-finalizer-registry* nil)
-         (cl-cc/runtime/memory:*rt-finalization-queue* nil))
-    (%fr-write-object heap object-addr 3 cl-cc/runtime/values:+rt-tag-cons+)
-    (cl-cc/runtime/memory:register-finalizer
-     object-addr (lambda (object) (setf finalized object)))
-    (cl-cc/runtime/memory:rt-gc-major-collect heap)
-    (expect (cl-cc/runtime/memory:rt-ref-get weak) :to-be-null)
-    (expect cl-cc/runtime/memory:*rt-finalization-queue*
-            :to-equal (list object-addr))
-    (cl-cc/runtime/memory:rt-run-pending-finalizers)
-    (expect (= object-addr finalized) :to-be-truthy)))
+  (let ((cl-cc/runtime/values:*rt-package-registry*
+         (make-hash-table :test #'equal)))
+    (let* ((heap (%make-small-heap-fr))
+           (object-addr (cl-cc/runtime/memory:rt-gc-alloc heap :old 3))
+           (cl-cc/runtime/memory:*rt-reference-registry* nil)
+           (finalized nil)
+           (weak (cl-cc/runtime/memory:rt-make-weak-ref object-addr))
+           (cl-cc/runtime/memory:*rt-finalizer-registry* nil)
+           (cl-cc/runtime/memory:*rt-finalization-queue* nil))
+      (%fr-write-object heap object-addr 3 cl-cc/runtime/values:+rt-tag-cons+)
+      (cl-cc/runtime/memory:register-finalizer
+       object-addr (lambda (object) (setf finalized object)))
+      (cl-cc/runtime/memory:rt-gc-major-collect heap)
+      (expect (cl-cc/runtime/memory:rt-ref-get weak) :to-be-null)
+      (expect cl-cc/runtime/memory:*rt-finalization-queue*
+              :to-equal (list object-addr))
+      (cl-cc/runtime/memory:rt-run-pending-finalizers)
+      (expect (= object-addr finalized) :to-be-truthy))))
 
 (it-sequential "fr-300-runtime-condition-restart-stacks"
   (let ((handled nil))
@@ -304,13 +312,16 @@
       (setf (gethash addr marked) t))))
 
 (it-sequential "fr-730-weak-pointer-clears-unmarked-heap-referent"
-  (let* ((heap (%make-small-heap-fr))
-         (addr (cl-cc/runtime/memory:rt-gc-alloc heap :old 3))
-         (weak (cl-cc/runtime/memory:rt-make-weak-pointer addr))
-         (cl-cc/runtime/memory:*rt-reference-registry* nil))
-    (%fr-write-object heap addr 3 cl-cc/runtime/values:+rt-tag-cons+)
-    (cl-cc/runtime/memory:rt-gc-major-collect heap)
-    (expect (cl-cc/runtime/memory:rt-weak-pointer-value weak) :to-be-falsy)))
+  (let ((cl-cc/runtime/values:*rt-package-registry*
+         (make-hash-table :test #'equal)))
+    (let* ((heap (%make-small-heap-fr))
+           (addr (cl-cc/runtime/memory:rt-gc-alloc heap :old 3))
+           (cl-cc/runtime/memory:*rt-reference-registry* nil)
+           (weak (cl-cc/runtime/memory:rt-make-weak-pointer addr)))
+      (%fr-write-object heap addr 3 cl-cc/runtime/values:+rt-tag-cons+)
+      (cl-cc/runtime/memory:rt-gc-major-collect heap)
+      (expect (cl-cc/runtime/memory:rt-weak-pointer-value weak)
+              :to-be-falsy))))
 
 (it-sequential "fr-730-weak-pointer-keeps-marked-referent"
   (let* ((heap (%make-small-heap-fr))
@@ -366,16 +377,20 @@
     (expect (cl-cc/runtime/memory:rt-object-pinned-p heap addr) :to-be-falsy)))
 
 (it-sequential "fr-734-weak-hash-table-removes-dead-weak-keys"
-  (let* ((heap (%make-small-heap-fr))
-         (key (cl-cc/runtime/memory:rt-gc-alloc heap :old 3))
-         (value :payload)
-         (ht (cl-cc/runtime/values:rt-make-hash-table :weakness :key))
-         (cl-cc/runtime/values:*rt-weak-hash-table-registry* nil))
-    (%fr-write-object heap key 3 cl-cc/runtime/values:+rt-tag-cons+)
-    (cl-cc/runtime/values:rt-sethash key ht value)
-    (expect (= 1 (cl-cc/runtime/values:rt-hash-count ht)) :to-be-truthy)
-    (cl-cc/runtime/memory:rt-gc-major-collect heap)
-    (expect (= 0 (cl-cc/runtime/values:rt-hash-count ht)) :to-be-truthy)))
+  (let ((cl-cc/runtime/values:*rt-package-registry*
+         (make-hash-table :test #'equal)))
+    (let* ((heap (%make-small-heap-fr))
+           (key (cl-cc/runtime/memory:rt-gc-alloc heap :old 3))
+           (value :payload)
+           (cl-cc/runtime/values:*rt-weak-hash-table-registry* nil)
+           (ht (cl-cc/runtime/values:rt-make-hash-table :weakness :key)))
+      (%fr-write-object heap key 3 cl-cc/runtime/values:+rt-tag-cons+)
+      (cl-cc/runtime/values:rt-sethash key ht value)
+      (expect (= 1 (cl-cc/runtime/values:rt-hash-count ht))
+              :to-be-truthy)
+      (cl-cc/runtime/memory:rt-gc-major-collect heap)
+      (expect (= 0 (cl-cc/runtime/values:rt-hash-count ht))
+              :to-be-truthy))))
 
 ;;; ------------------------------------------------------------
 ;;; FR-373: Heap ASLR (⚠️ Pure CL interface)

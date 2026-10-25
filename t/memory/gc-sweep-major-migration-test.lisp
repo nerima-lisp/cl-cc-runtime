@@ -15,29 +15,52 @@
 ;;; ------------------------------------------------------------
 
 (it-sequential "gc-sweep-old-space-reclaims-dead-objects"
-  (let ((cl-cc/runtime/memory:*gc-compaction-enabled* nil))
-    (let* ((heap (cl-cc/runtime/memory:make-rt-heap :young-size 64 :old-size 64))
-           (old-base (cl-cc/runtime/memory:rt-heap-old-base heap))
-           (live-addr old-base)
-           (dead-addr (+ old-base 3))
-           (live-root (cons nil live-addr)))
-      (cl-cc/runtime/memory:rt-heap-set-header
-       heap live-addr
-       (cl-cc/runtime/memory:make-rt-header 3 1 :gc-bits 0))
-      (cl-cc/runtime/memory:rt-heap-set-header
-       heap dead-addr
-       (cl-cc/runtime/memory:make-rt-header 3 1 :gc-bits 0))
-      (setf (cl-cc/runtime/memory:rt-heap-old-free heap) (+ old-base 6))
-      (cl-cc/runtime/memory:rt-gc-add-root heap live-root)
-      (cl-cc/runtime/memory:rt-gc-major-collect heap)
-      (let ((stats (cl-cc/runtime/memory:rt-gc-stats heap)))
-        (expect (>= (getf stats :words-collected) 3) :to-be-truthy)
-        (expect (> (getf stats :free-list-count) 0) :to-be-truthy))
-      (expect (cl-cc/runtime/memory:rt-gc-verify-heap heap) :to-be-truthy)
-      (cl-cc/runtime/memory:rt-gc-remove-root heap live-root))))
+  (let ((cl-cc/runtime/values:*rt-package-registry*
+         (make-hash-table :test #'equal)))
+    (progv
+        (list (find-symbol "*GC-COMPACTION-ENABLED*"
+                           "CL-CC/RUNTIME/MEMORY"))
+        (list nil)
+      (let* ((heap (cl-cc/runtime/memory:make-rt-heap
+                    :young-size 64
+                    :old-size 64))
+             (old-base (cl-cc/runtime/memory:rt-heap-old-base heap))
+             (live-addr old-base)
+             (dead-addr (+ old-base 3))
+             (live-root (cons nil live-addr)))
+        (cl-cc/runtime/memory:rt-heap-set-header
+         heap live-addr
+         (cl-cc/runtime/memory:make-rt-header 3 1 :gc-bits 0))
+        (cl-cc/runtime/memory:rt-heap-set-header
+         heap dead-addr
+         (cl-cc/runtime/memory:make-rt-header 3 1 :gc-bits 0))
+        (cl-cc/runtime/memory:rt-heap-set
+         heap (+ live-addr 1)
+         cl-cc/runtime/values:+val-nil+)
+        (cl-cc/runtime/memory:rt-heap-set
+         heap (+ live-addr 2)
+         cl-cc/runtime/values:+val-nil+)
+        (cl-cc/runtime/memory:rt-heap-set
+         heap (+ dead-addr 1)
+         cl-cc/runtime/values:+val-nil+)
+        (cl-cc/runtime/memory:rt-heap-set
+         heap (+ dead-addr 2)
+         cl-cc/runtime/values:+val-nil+)
+        (setf (cl-cc/runtime/memory:rt-heap-old-free heap)
+              (+ old-base 6))
+        (cl-cc/runtime/memory:rt-gc-add-root heap live-root)
+        (cl-cc/runtime/memory:rt-gc-major-collect heap)
+        (let ((stats (cl-cc/runtime/memory:rt-gc-stats heap)))
+          (expect (>= (getf stats :words-collected) 3) :to-be-truthy)
+          (expect (> (getf stats :free-list-count) 0) :to-be-truthy))
+        (expect (cl-cc/runtime/memory:rt-gc-verify-heap heap) :to-be-truthy)
+        (cl-cc/runtime/memory:rt-gc-remove-root heap live-root)))))
 
 (it-sequential "gc-sweep-old-space-all-live-no-reclaim"
-  (let ((cl-cc/runtime/memory:*gc-compaction-enabled* nil))
+  (progv
+    (list (find-symbol "*GC-COMPACTION-ENABLED*"
+                       "CL-CC/RUNTIME/MEMORY"))
+    (list nil)
     (let* ((heap (cl-cc/runtime/memory:make-rt-heap :young-size 64 :old-size 64))
            (old-base (cl-cc/runtime/memory:rt-heap-old-base heap))
            (root-a (cons nil old-base))
@@ -76,7 +99,10 @@
     (expect (cl-cc/runtime/memory:rt-heap-gc-state heap) :to-be :normal)))
 
 (it-sequential "gc-major-collect-reclaims-unreachable-old-object"
-  (let ((cl-cc/runtime/memory:*gc-compaction-enabled* nil))
+  (progv
+    (list (find-symbol "*GC-COMPACTION-ENABLED*"
+                       "CL-CC/RUNTIME/MEMORY"))
+    (list nil)
     (let* ((heap (cl-cc/runtime/memory:make-rt-heap :young-size 128 :old-size 128))
            (old-base (cl-cc/runtime/memory:rt-heap-old-base heap)))
       (cl-cc/runtime/memory:rt-heap-set-header
@@ -88,7 +114,10 @@
               :to-be-truthy))))
 
 (it-sequential "gc-major-collect-preserves-rooted-old-object"
-  (let ((cl-cc/runtime/memory:*gc-compaction-enabled* nil))
+  (progv
+    (list (find-symbol "*GC-COMPACTION-ENABLED*"
+                       "CL-CC/RUNTIME/MEMORY"))
+    (list nil)
     (let* ((heap (cl-cc/runtime/memory:make-rt-heap :young-size 128 :old-size 128))
            (old-base (cl-cc/runtime/memory:rt-heap-old-base heap))
            (root (cons nil old-base)))
