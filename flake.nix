@@ -186,7 +186,8 @@
       # and test suite are unaffected. Revisit if cl-process-kit ever bumps
       # its own cl-log-kit pin, at which point this whole paragraph -- and
       # the duplicate -- disappears.
-      lispDependencies = ctx:
+      lispDependencies =
+        ctx:
         let
           observability = cl-observability-kit.packages.${ctx.system}.cl-observability-kit;
           # Its default package prebuilds the main ASDF system only. Compile
