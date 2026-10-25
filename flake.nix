@@ -186,22 +186,40 @@
       # and test suite are unaffected. Revisit if cl-process-kit ever bumps
       # its own cl-log-kit pin, at which point this whole paragraph -- and
       # the duplicate -- disappears.
-      lispDependencies = ctx: [
-        cl-log-kit.packages.${ctx.system}.cl-log-kit
-        cl-process-kit.packages.${ctx.system}.cl-process-kit
-        (ctx.cl.fromDerivation { drv = cl-json-kit.packages.${ctx.system}.cl-json-kit; })
-        cl-host-kit.packages.${ctx.system}.cl-host-kit
-        cl-observability-kit.packages.${ctx.system}.cl-observability-kit
-        (ctx.cl.fromDerivation {
-          drv = cl-deflate-kit.packages.${ctx.system}.default;
-          recursive = true;
-        })
-        (ctx.cl.fromDerivation {
-          drv = cl-crypto-kit.packages.${ctx.system}.default;
-          recursive = true;
-        })
-        cl-resilience-kit.packages.${ctx.system}.cl-resilience-kit
-      ];
+      lispDependencies = ctx:
+        let
+          observability = cl-observability-kit.packages.${ctx.system}.cl-observability-kit;
+          # Its default package prebuilds the main ASDF system only. Compile
+          # the optional adapters into the same source-tree derivation so
+          # consumers never try writing FASLs into the immutable package output.
+          observabilityAdapters = ctx.cl.lispDerivation (
+            observability.args
+            // {
+              lispSystem = null;
+              lispSystems = [
+                "cl-observability-kit/prometheus"
+                "cl-observability-kit/otlp"
+              ];
+            }
+          );
+        in
+        [
+          cl-log-kit.packages.${ctx.system}.cl-log-kit
+          cl-process-kit.packages.${ctx.system}.cl-process-kit
+          (ctx.cl.fromDerivation { drv = cl-json-kit.packages.${ctx.system}.cl-json-kit; })
+          cl-host-kit.packages.${ctx.system}.cl-host-kit
+          observability
+          observabilityAdapters
+          (ctx.cl.fromDerivation {
+            drv = cl-deflate-kit.packages.${ctx.system}.default;
+            recursive = true;
+          })
+          (ctx.cl.fromDerivation {
+            drv = cl-crypto-kit.packages.${ctx.system}.default;
+            recursive = true;
+          })
+          cl-resilience-kit.packages.${ctx.system}.cl-resilience-kit
+        ];
 
       # cl-weave is a dependency of cl-cc-runtime/test and of nothing else
       # (see cl-cc-runtime.asd), so it is a CHECK dependency: it must not
