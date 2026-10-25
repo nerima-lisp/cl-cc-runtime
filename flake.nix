@@ -192,8 +192,14 @@
         (ctx.cl.fromDerivation { drv = cl-json-kit.packages.${ctx.system}.cl-json-kit; })
         cl-host-kit.packages.${ctx.system}.cl-host-kit
         cl-observability-kit.packages.${ctx.system}.cl-observability-kit
-        (ctx.cl.fromDerivation { drv = cl-deflate-kit.packages.${ctx.system}.default; })
-        (ctx.cl.fromDerivation { drv = cl-crypto-kit.packages.${ctx.system}.default; })
+        (ctx.cl.fromDerivation {
+          drv = cl-deflate-kit.packages.${ctx.system}.default;
+          recursive = true;
+        })
+        (ctx.cl.fromDerivation {
+          drv = cl-crypto-kit.packages.${ctx.system}.default;
+          recursive = true;
+        })
         cl-resilience-kit.packages.${ctx.system}.cl-resilience-kit
       ];
 
