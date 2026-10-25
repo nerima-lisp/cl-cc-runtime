@@ -1,4 +1,5 @@
-(defun cl-cc/runtime/values/test::%assert-facade-export-surface ()
+(in-package :cl-cc/runtime/values/test)
+  (defun %assert-facade-export-surface ()
   (let* ((rows (with-open-file (stream
                                 (asdf:system-relative-pathname
                                  "cl-cc-runtime/test"
@@ -8,37 +9,53 @@
                    (let ((data (read stream nil :eof)))
                      (cl-weave:expect (read stream nil :eof) :to-be :eof)
                      data))))
-         (keep-rows (remove-if-not (lambda (row) (eq (second row) :keep)) rows))
+         (kept-rows
+           (remove-if-not (lambda (row) (eq (second row) :keep)) rows))
          (facade-package (find-package "CL-CC/RUNTIME")))
     (cl-weave:expect facade-package :to-be-truthy)
     (cl-weave:expect (length rows) :to-equal 1418)
+    (cl-weave:expect (length kept-rows) :to-equal 1371)
     (let ((actual-names nil))
       (do-external-symbols (symbol facade-package)
         (push (symbol-name symbol) actual-names))
-      (cl-weave:expect (sort actual-names (lambda (left right) (string< left right)))
-              :to-equal
-              (sort (mapcar (lambda (row) (nth 5 row)) keep-rows)
-                    (lambda (left right) (string< left right)))))
-    (dolist (row keep-rows)
-      (destructuring-bind (kind policy facade-name feature-name home-name symbol-name)
+      (cl-weave:expect
+        (sort actual-names (lambda (left right) (string< left right)))
+        :to-equal
+        (sort (mapcar (lambda (row) (nth 5 row)) kept-rows)
+              (lambda (left right) (string< left right)))))
+    (dolist (row rows)
+      (destructuring-bind
+          (kind policy facade-name feature-name home-name symbol-name
+           &optional reason)
           row
         (cl-weave:expect kind :to-be :symbol)
-        (cl-weave:expect policy :to-be :keep)
         (cl-weave:expect facade-name :to-equal "cl-cc/runtime")
-        (let ((feature-package (find-package (string-upcase feature-name)))
-              (home-package (find-package (string-upcase home-name))))
-          (cl-weave:expect feature-package :to-be-truthy)
-          (cl-weave:expect home-package :to-be-truthy)
-          (multiple-value-bind (facade-symbol facade-status)
-              (find-symbol symbol-name facade-package)
-            (multiple-value-bind (feature-symbol feature-status)
-                (find-symbol symbol-name feature-package)
-              (multiple-value-bind (home-symbol home-status)
-                  (find-symbol symbol-name home-package)
-                (cl-weave:expect facade-status :to-be :external)
-                (cl-weave:expect feature-status :to-be :external)
-                (cl-weave:expect home-status :to-be :external)
-                (cl-weave:expect (eq facade-symbol feature-symbol) :to-be-truthy)
-                (cl-weave:expect (eq facade-symbol home-symbol) :to-be-truthy)
-                (cl-weave:expect (eq (symbol-package facade-symbol) home-package)
-                        :to-be-truthy)))))))))
+        (ecase policy
+          (:keep
+           (let ((feature-package (find-package (string-upcase feature-name)))
+                 (home-package (find-package (string-upcase home-name))))
+             (cl-weave:expect feature-package :to-be-truthy)
+             (cl-weave:expect home-package :to-be-truthy)
+             (multiple-value-bind (facade-symbol facade-status)
+                 (find-symbol symbol-name facade-package)
+               (multiple-value-bind (feature-symbol feature-status)
+                   (find-symbol symbol-name feature-package)
+                 (multiple-value-bind (home-symbol home-status)
+                     (find-symbol symbol-name home-package)
+                   (cl-weave:expect facade-status :to-be :external)
+                   (cl-weave:expect feature-status :to-be :external)
+                   (cl-weave:expect home-status :to-be :external)
+                   (cl-weave:expect (eq facade-symbol feature-symbol)
+                                    :to-be-truthy)
+                   (cl-weave:expect (eq facade-symbol home-symbol)
+                                    :to-be-truthy)
+                   (cl-weave:expect
+                     (eq (symbol-package facade-symbol) home-package)
+                     :to-be-truthy))))))
+          (:remove
+           (cl-weave:expect reason :to-equal "CHANGELOG.md#removed")
+           (cl-weave:expect
+             (eq (nth-value 1 (find-symbol symbol-name facade-package))
+                 :external)
+             :to-be nil)))))))
+

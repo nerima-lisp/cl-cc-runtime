@@ -25,20 +25,20 @@
 (defun %make-wb-heap ()
   "Create a minimal heap for write-barrier tests.
    young-from-base=0 (addrs 0..15), old-base=32 (addrs 32..63)."
-  (cl-cc/runtime::make-rt-heap :young-size 32 :old-size 32))
+  (cl-cc/runtime/memory:make-rt-heap :young-size 32 :old-size 32))
 
 (defun %wb-write-marked-header (heap addr size tag)
   "Write a marked (black) object header at ADDR."
-  (let* ((h (cl-cc/runtime::make-rt-header size tag :gc-bits 0))
-         (hm (cl-cc/runtime::header-set-mark h)))
-    (cl-cc/runtime::rt-heap-set-header heap addr hm)))
+  (let* ((h (cl-cc/runtime/memory:make-rt-header size tag :gc-bits 0))
+         (hm (cl-cc/runtime/memory:header-set-mark h)))
+    (cl-cc/runtime/memory:rt-heap-set-header heap addr hm)))
 
 (defun %wb-write-unmarked-header (heap addr size tag)
   "Write an unmarked object header at ADDR."
-  (cl-cc/runtime::rt-heap-set-header
+  (cl-cc/runtime/memory:rt-heap-set-header
     heap
     addr
-    (cl-cc/runtime::make-rt-header size tag :gc-bits 0)))
+    (cl-cc/runtime/memory:make-rt-header size tag :gc-bits 0)))
 
 ;;; ------------------------------------------------------------
 ;;; Test: Write actually stores the value
@@ -47,8 +47,8 @@
          (obj  32)   ; old-space object
          (slot 1))
     (%wb-write-unmarked-header heap obj 3 7)
-    (cl-cc/runtime::rt-gc-write-barrier heap obj slot 99)
-    (expect (cl-cc/runtime::rt-heap-ref heap (+ obj slot)) :to-equal 99)))
+    (cl-cc/runtime/memory:rt-gc-write-barrier heap obj slot 99)
+    (expect (cl-cc/runtime/memory:rt-heap-ref heap (+ obj slot)) :to-equal 99)))
 
 ;;; ------------------------------------------------------------
 ;;; SATB Snapshot Tests
@@ -57,30 +57,30 @@
   "During :normal state, SATB queue stays empty regardless of mark bit."
   (let* ((heap (%make-wb-heap)))
     (%wb-write-marked-header heap 32 3 7)
-    (cl-cc/runtime::rt-heap-set heap 33 5)
-    (cl-cc/runtime::rt-gc-write-barrier heap 32 1 99)
-    (expect (cl-cc/runtime::rt-heap-satb-queue heap) :to-be-null)))
+    (cl-cc/runtime/memory:rt-heap-set heap 33 5)
+    (cl-cc/runtime/memory:rt-gc-write-barrier heap 32 1 99)
+    (expect (cl-cc/runtime/memory:rt-heap-satb-queue heap) :to-be-null)))
 
 (it-sequential "During :major-gc, writing over a heap pointer in a black object snapshots the old value." (let* ((heap (%make-wb-heap))
          (obj  32)   ; old-space
          (slot 1))
     ;; Set up: marked object, gc-state = :major-gc, old slot value = young addr 5
     (%wb-write-marked-header heap obj 3 7)
-    (cl-cc/runtime::rt-heap-set heap (+ obj slot) 5)  ; old-value = 5 (young addr)
-    (setf (cl-cc/runtime::rt-heap-gc-state heap) :major-gc)
+    (cl-cc/runtime/memory:rt-heap-set heap (+ obj slot) 5)  ; old-value = 5 (young addr)
+    (setf (cl-cc/runtime/memory:rt-heap-gc-state heap) :major-gc)
     ;; Overwrite with a different value
-    (cl-cc/runtime::rt-gc-write-barrier heap obj slot 42)
+    (cl-cc/runtime/memory:rt-gc-write-barrier heap obj slot 42)
     ;; Old value 5 should be in the SATB queue
-    (expect (member 5 (cl-cc/runtime::rt-heap-satb-queue heap)) :to-be-truthy)))
+    (expect (member 5 (cl-cc/runtime/memory:rt-heap-satb-queue heap)) :to-be-truthy)))
 
 (it-sequential "During :major-gc, writing to an UNMARKED (white/gray) object does not snapshot." (let* ((heap (%make-wb-heap))
          (obj  32)
          (slot 1))
     (%wb-write-unmarked-header heap obj 3 7)
-    (cl-cc/runtime::rt-heap-set heap (+ obj slot) 5)  ; old-value = young addr
-    (setf (cl-cc/runtime::rt-heap-gc-state heap) :major-gc)
-    (cl-cc/runtime::rt-gc-write-barrier heap obj slot 42)
-    (expect (cl-cc/runtime::rt-heap-satb-queue heap) :to-equal nil)))
+    (cl-cc/runtime/memory:rt-heap-set heap (+ obj slot) 5)  ; old-value = young addr
+    (setf (cl-cc/runtime/memory:rt-heap-gc-state heap) :major-gc)
+    (cl-cc/runtime/memory:rt-gc-write-barrier heap obj slot 42)
+    (expect (cl-cc/runtime/memory:rt-heap-satb-queue heap) :to-equal nil)))
 
 (it-sequential
   "During :major-gc-concurrent, overwriting a heap pointer in a black object snapshots old value."
@@ -88,11 +88,11 @@
          (obj 32)
          (slot 1))
     (%wb-write-marked-header heap obj 3 7)
-    (cl-cc/runtime::rt-heap-set heap (+ obj slot) 5)
-    (setf (cl-cc/runtime::rt-heap-gc-state heap) :major-gc-concurrent)
-    (cl-cc/runtime::rt-gc-write-barrier heap obj slot 42)
+    (cl-cc/runtime/memory:rt-heap-set heap (+ obj slot) 5)
+    (setf (cl-cc/runtime/memory:rt-heap-gc-state heap) :major-gc-concurrent)
+    (cl-cc/runtime/memory:rt-gc-write-barrier heap obj slot 42)
     (expect
-      (member 5 (cl-cc/runtime::rt-gc-drain-satb-thread-queues heap))
+      (member 5 (cl-cc/runtime/memory:rt-gc-drain-satb-thread-queues heap))
       :to-be-truthy)))
 
 (it-sequential "During :major-gc, old value that is not a heap address is not snapshotted." (let* ((heap (%make-wb-heap))
@@ -100,10 +100,10 @@
          (slot 1))
     (%wb-write-marked-header heap obj 3 7)
     ;; Old value = 999 (outside heap: young 0..15, old 32..63)
-    (cl-cc/runtime::rt-heap-set heap (+ obj slot) 999)
-    (setf (cl-cc/runtime::rt-heap-gc-state heap) :major-gc)
-    (cl-cc/runtime::rt-gc-write-barrier heap obj slot 42)
-    (expect (cl-cc/runtime::rt-heap-satb-queue heap) :to-equal nil)))
+    (cl-cc/runtime/memory:rt-heap-set heap (+ obj slot) 999)
+    (setf (cl-cc/runtime/memory:rt-heap-gc-state heap) :major-gc)
+    (cl-cc/runtime/memory:rt-gc-write-barrier heap obj slot 42)
+    (expect (cl-cc/runtime/memory:rt-heap-satb-queue heap) :to-equal nil)))
 
 ;;; ------------------------------------------------------------
 ;;; Card Table Tests
@@ -117,7 +117,7 @@
   (declare (ignore label))
   (let* ((heap (%make-wb-heap)))
     (%wb-write-unmarked-header heap obj 3 7)
-    (cl-cc/runtime::rt-gc-write-barrier heap obj 1 new-val)
+    (cl-cc/runtime/memory:rt-gc-write-barrier heap obj 1 new-val)
     (if expected-dirty
-        (expect (cl-cc/runtime::rt-card-dirty-p heap 32) :to-be-truthy)
-        (expect (cl-cc/runtime::rt-card-dirty-p heap 32) :to-be-falsy))))
+        (expect (cl-cc/runtime/memory:rt-card-dirty-p heap 32) :to-be-truthy)
+        (expect (cl-cc/runtime/memory:rt-card-dirty-p heap 32) :to-be-falsy))))

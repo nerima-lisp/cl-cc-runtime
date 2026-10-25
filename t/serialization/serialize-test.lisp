@@ -6,7 +6,7 @@
     (next :initarg :next :accessor serialize-test-node-next)))
 
 (defun assert-runtime-serialization-roundtrip (value &key (test #'equalp))
-  (let ((copy (cl-cc/runtime::deserialize (cl-cc/runtime::serialize value))))
+  (let ((copy (cl-cc/runtime/serialization:deserialize (cl-cc/runtime/serialization:serialize value))))
     (expect (funcall test value copy) :to-be-truthy)
     copy))
 
@@ -22,7 +22,7 @@
   "serialize/deserialize preserves circular references."
   (let ((cell (cons :head nil)))
     (setf (cdr cell) cell)
-    (let ((copy (cl-cc/runtime::deserialize (cl-cc/runtime::serialize cell))))
+    (let ((copy (cl-cc/runtime/serialization:deserialize (cl-cc/runtime/serialization:serialize cell))))
       (expect (cdr copy) :to-be copy)
       (expect (car copy) :to-be :head))))
 

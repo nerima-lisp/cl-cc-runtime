@@ -1,1 +1,1 @@
-(defpackage :cl-cc/runtime/conditions/test (:use :cl :cl-weave :cl-cc/runtime/conditions) (:shadowing-import-from :cl-weave #:describe))
+(defpackage :cl-cc/runtime/conditions/test (:use :cl :cl-weave :cl-cc/runtime/conditions) (:shadowing-import-from :cl-weave #:describe) (:import-from :cl-cc/runtime/conditions #:rt-stack-overflow #:rt-stack-overflow-depth #:rt-stack-overflow-limit) (:import-from :cl-cc/runtime/execution #:*max-call-stack-depth* #:*rt-call-stack-depth*))

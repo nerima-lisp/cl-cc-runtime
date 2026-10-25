@@ -1,1 +1,1 @@
-(defpackage :cl-cc/runtime/observability/test (:use :cl :cl-weave :cl-cc/runtime/observability) (:shadowing-import-from :cl-weave #:describe))
+(defpackage :cl-cc/runtime/observability/test (:use :cl :cl-weave :cl-cc/runtime/observability) (:shadowing-import-from :cl-weave #:describe) (:import-from :cl-cc/runtime/observability #:rt-counter-value #:rt-gauge-value #:rt-histogram-buckets #:rt-histogram-count #:rt-histogram-counts #:rt-histogram-sum))

@@ -42,25 +42,25 @@
             (expect (<= timestamp after) :to-be-truthy)))))
     (let* ((sample-time 1700000000123456789)
            (session
-             (cl-cc/runtime::rt-start-continuous-profile
+             (cl-cc/runtime/profiling:rt-start-continuous-profile
               :name "fr701"
               :output nil
               :attributes '(("service.name" . "cl-cc-test")))))
-      (cl-cc/runtime::rt-record-profile-sample
+      (cl-cc/runtime/profiling:rt-record-profile-sample
        '("main" "worker")
        :count 3
        :thread-id "counter-check"
        :session session)
       (expect
        (gethash "main;worker"
-                (cl-cc/runtime::rt-continuous-profile-session-samples session))
+                (cl-cc/runtime/profiling:rt-continuous-profile-session-samples session))
        :to-equal 3)
-      (cl-cc/runtime::rt-record-profile-sample
+      (cl-cc/runtime/profiling:rt-record-profile-sample
        '("timestamped")
        :timestamp-nanos sample-time
        :thread-id "timestamp-check"
        :session session)
-      (cl-cc/runtime::rt-stop-continuous-profile session)
+      (cl-cc/runtime/profiling:rt-stop-continuous-profile session)
       (let ((caller-span
               (cl-cc/runtime/observability:rt-otel-start-span "caller")))
         (unwind-protect
@@ -88,21 +88,21 @@
 ;;; ---------------------------------------------------------------------------
 (it-sequential "Address inside an entry returns the symbol name; tests two distinct entries and inclusive-start boundary." (let ((perf-map '((100 200 "entry-A") (300 400 "entry-B"))))
     ;; Exact start (inclusive)
-    (expect (cl-cc/runtime::%rt-profile-resolve-perf-symbol 100 perf-map) :to-equal "entry-A")
+    (expect (%rt-profile-resolve-perf-symbol 100 perf-map) :to-equal "entry-A")
     ;; Interior address
-    (expect (cl-cc/runtime::%rt-profile-resolve-perf-symbol 150 perf-map) :to-equal "entry-A")
+    (expect (%rt-profile-resolve-perf-symbol 150 perf-map) :to-equal "entry-A")
     ;; Second entry, interior
-    (expect (cl-cc/runtime::%rt-profile-resolve-perf-symbol 350 perf-map) :to-equal "entry-B")))
+    (expect (%rt-profile-resolve-perf-symbol 350 perf-map) :to-equal "entry-B")))
 
 (it-sequential "Address before, at-end (exclusive), and nil all return nil." (let ((perf-map '((100 200 "entry-A"))))
     ;; Before range
-    (expect (cl-cc/runtime::%rt-profile-resolve-perf-symbol 50 perf-map) :to-equal nil)
+    (expect (%rt-profile-resolve-perf-symbol 50 perf-map) :to-equal nil)
     ;; Exclusive end
-    (expect (cl-cc/runtime::%rt-profile-resolve-perf-symbol 200 perf-map) :to-equal nil)
+    (expect (%rt-profile-resolve-perf-symbol 200 perf-map) :to-equal nil)
     ;; Past range
-    (expect (cl-cc/runtime::%rt-profile-resolve-perf-symbol 999 perf-map) :to-equal nil)
+    (expect (%rt-profile-resolve-perf-symbol 999 perf-map) :to-equal nil)
     ;; Nil address
-    (expect (cl-cc/runtime::%rt-profile-resolve-perf-symbol nil perf-map) :to-equal nil)))
+    (expect (%rt-profile-resolve-perf-symbol nil perf-map) :to-equal nil)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; %rt-profile-collapsed-stack
@@ -111,11 +111,11 @@
   "Three rt-profile-frame objects produce a semicolon-joined string top;middle;bottom."
   (let ((stack
         (list
-          (cl-cc/runtime::make-rt-profile-frame :function "top")
-          (cl-cc/runtime::make-rt-profile-frame :function "middle")
-          (cl-cc/runtime::make-rt-profile-frame :function "bottom"))))
+          (cl-cc/runtime/profiling:make-rt-profile-frame :function "top")
+          (cl-cc/runtime/profiling:make-rt-profile-frame :function "middle")
+          (cl-cc/runtime/profiling:make-rt-profile-frame :function "bottom"))))
     (expect
-      (cl-cc/runtime::%rt-profile-collapsed-stack stack)
+      (%rt-profile-collapsed-stack stack)
       :to-equal
       "top;middle;bottom")))
 
@@ -123,38 +123,38 @@
   "Plain string list produces semicolon-joined result."
   (let ((stack (list "alpha" "beta" "gamma")))
     (expect
-      (cl-cc/runtime::%rt-profile-collapsed-stack stack)
+      (%rt-profile-collapsed-stack stack)
       :to-equal
       "alpha;beta;gamma")))
 
 (it-sequential
   "Single-element list produces name with no semicolons."
-  (let ((stack (list (cl-cc/runtime::make-rt-profile-frame :function "only"))))
-    (expect (cl-cc/runtime::%rt-profile-collapsed-stack stack) :to-equal "only")))
+  (let ((stack (list (cl-cc/runtime/profiling:make-rt-profile-frame :function "only"))))
+    (expect (%rt-profile-collapsed-stack stack) :to-equal "only")))
 
 ;;; ---------------------------------------------------------------------------
 ;;; %rt-profile-normalize-frame
 ;;; ---------------------------------------------------------------------------
 (it-sequential
   "A bare string is coerced into an rt-profile-frame."
-  (let ((result (cl-cc/runtime::%rt-profile-normalize-frame "my-fn")))
-    (expect (cl-cc/runtime::rt-profile-frame-p result) :to-be-truthy)
-    (expect (cl-cc/runtime::rt-profile-frame-function result) :to-equal "my-fn")))
+  (let ((result (%rt-profile-normalize-frame "my-fn")))
+    (expect (rt-profile-frame-p result) :to-be-truthy)
+    (expect (cl-cc/runtime/profiling:rt-profile-frame-function result) :to-equal "my-fn")))
 
 (it-sequential
   "An already-resolved rt-profile-frame is returned by identity."
-  (let* ((frame (cl-cc/runtime::make-rt-profile-frame :function "existing"))
-         (result (cl-cc/runtime::%rt-profile-normalize-frame frame)))
+  (let* ((frame (cl-cc/runtime/profiling:make-rt-profile-frame :function "existing"))
+         (result (%rt-profile-normalize-frame frame)))
     (expect result :to-be frame)))
 
 (it-sequential
   "A frame with :address gets its :perf-symbol populated from the perf-map."
   (let* ((perf-map '((1000 2000 "perf-symbol-name")))
-         (frame (cl-cc/runtime::make-rt-profile-frame :function "fn" :address 1500))
-         (result (cl-cc/runtime::%rt-profile-normalize-frame frame perf-map)))
+         (frame (cl-cc/runtime/profiling:make-rt-profile-frame :function "fn" :address 1500))
+         (result (%rt-profile-normalize-frame frame perf-map)))
     (expect result :to-be frame)
     (expect
-      (cl-cc/runtime::rt-profile-frame-perf-symbol result)
+      (cl-cc/runtime/profiling:rt-profile-frame-perf-symbol result)
       :to-equal
       "perf-symbol-name")))
 
@@ -164,7 +164,7 @@
 (it-sequential
   "Fill-pointer below max-samples leaves the log unchanged."
   (let ((session
-        (cl-cc/runtime::make-rt-continuous-profile-session
+        (cl-cc/runtime/profiling:make-rt-continuous-profile-session
           :name
           "trim-under"
           :max-samples
@@ -173,20 +173,20 @@
           (make-array 4 :adjustable t :fill-pointer 0))))
     (vector-push-extend
       "a"
-      (cl-cc/runtime::rt-continuous-profile-session-sample-log session))
+      (cl-cc/runtime/profiling:rt-continuous-profile-session-sample-log session))
     (vector-push-extend
       "b"
-      (cl-cc/runtime::rt-continuous-profile-session-sample-log session))
-    (cl-cc/runtime::%rt-profile-trim-samples session)
+      (cl-cc/runtime/profiling:rt-continuous-profile-session-sample-log session))
+    (%rt-profile-trim-samples session)
     (expect
-      (fill-pointer (cl-cc/runtime::rt-continuous-profile-session-sample-log session))
+      (fill-pointer (cl-cc/runtime/profiling:rt-continuous-profile-session-sample-log session))
       :to-equal
       2)))
 
 (it-sequential
   "5 entries with max-samples 3 trims to 3 and retains the three most-recent entries (c,d,e) in order."
   (let ((session
-        (cl-cc/runtime::make-rt-continuous-profile-session
+        (cl-cc/runtime/profiling:make-rt-continuous-profile-session
           :name
           "trim-at"
           :max-samples
@@ -196,9 +196,9 @@
     (dolist (x '("a" "b" "c" "d" "e"))
       (vector-push-extend
         x
-        (cl-cc/runtime::rt-continuous-profile-session-sample-log session)))
-    (cl-cc/runtime::%rt-profile-trim-samples session)
-    (let ((log (cl-cc/runtime::rt-continuous-profile-session-sample-log session)))
+        (cl-cc/runtime/profiling:rt-continuous-profile-session-sample-log session)))
+    (%rt-profile-trim-samples session)
+    (let ((log (cl-cc/runtime/profiling:rt-continuous-profile-session-sample-log session)))
       (expect (fill-pointer log) :to-equal 3)
       (expect (aref log 0) :to-equal "c")
       (expect (aref log 1) :to-equal "d")
@@ -210,7 +210,7 @@
 (it-sequential
   "output nil returns the OTel JSON string containing resourceProfiles without touching any file."
   (let ((session
-        (cl-cc/runtime::make-rt-continuous-profile-session
+        (cl-cc/runtime/profiling:make-rt-continuous-profile-session
           :name
           "export-nil"
           :output
@@ -221,32 +221,32 @@
           0
           :stopped-at-nanos
           1000000)))
-    (let ((result (cl-cc/runtime::rt-export-continuous-profile session :output nil)))
+    (let ((result (cl-cc/runtime/profiling:rt-export-continuous-profile session :output nil)))
       (expect (stringp result) :to-be-truthy)
       (expect (search "resourceProfiles" result) :to-be-truthy))))
 
 (it-sequential
   ":format :pprof-json encodes string fields as string-table indexes."
   (let* ((session
-           (make-rt-continuous-profile-session
+           (cl-cc/runtime/profiling:make-rt-continuous-profile-session
             :name "export-pprof"
             :output nil
             :format :pprof-json
             :started-at-nanos 1700000000000000000
             :stopped-at-nanos 1700000000001000000))
-         (sample-log (rt-continuous-profile-session-sample-log session)))
+         (sample-log (cl-cc/runtime/profiling:rt-continuous-profile-session-sample-log session)))
     (vector-push-extend
      (make-rt-profile-sample
       :timestamp-nanos 1700000000000500000
       :thread-id "worker-thread"
       :trace-id "trace-id"
       :span-id "span-id"
-      :stack (list (make-rt-profile-frame
+      :stack (list (cl-cc/runtime/profiling:make-rt-profile-frame
                     :function "worker"
                     :source-file "worker.lisp"
                     :perf-symbol "perf-worker")))
      sample-log)
-    (let ((result (rt-export-continuous-profile
+    (let ((result (cl-cc/runtime/profiling:rt-export-continuous-profile
                    session
                    :format :pprof-json
                    :output nil)))
@@ -269,7 +269,7 @@
 (it-sequential
   "output :stdout writes to *standard-output* and still returns the payload string; checks for cl-cc/runtime in OTel JSON."
   (let ((session
-        (cl-cc/runtime::make-rt-continuous-profile-session
+        (cl-cc/runtime/profiling:make-rt-continuous-profile-session
           :name
           "export-stdout"
           :output
@@ -282,7 +282,7 @@
           1000000)))
     (let* ((captured
           (with-output-to-string (*standard-output*)
-            (let ((result (cl-cc/runtime::rt-export-continuous-profile session :output :stdout)))
+            (let ((result (cl-cc/runtime/profiling:rt-export-continuous-profile session :output :stdout)))
               (expect (stringp result) :to-be-truthy)
               (expect (search "cl-cc/runtime" result) :to-be-truthy)))))
       (expect (search "cl-cc/runtime" captured) :to-be-truthy))))
@@ -290,7 +290,7 @@
 (it-sequential
   "FR-701: the background sampler captures timestamped stack samples and exports OTel/pprof JSON."
   (let ((session
-        (cl-cc/runtime::rt-start-continuous-profile
+        (cl-cc/runtime/profiling:rt-start-continuous-profile
           :name
           "fr701-sampler"
           :sample-rate-hz
@@ -302,11 +302,11 @@
           :span-id
           "0123456789abcdef")))
     (expect
-      (cl-cc/runtime::rt-wait-for-continuous-profile-sample session :timeout 1)
+      (cl-cc/runtime/profiling:rt-wait-for-continuous-profile-sample session :timeout 1)
       :to-be-truthy)
-    (cl-cc/runtime::rt-record-profile-sample
+    (cl-cc/runtime/profiling:rt-record-profile-sample
       (list
-        (cl-cc/runtime::make-rt-profile-frame
+        (cl-cc/runtime/profiling:make-rt-profile-frame
           :function
           "manual-worker"
           :source-file
@@ -317,12 +317,12 @@
       "test-thread"
       :session
       session)
-    (cl-cc/runtime::rt-stop-continuous-profile session)
+    (cl-cc/runtime/profiling:rt-stop-continuous-profile session)
     (expect
-      (> (length (cl-cc/runtime::rt-continuous-profile-session-sample-log session)) 0)
+      (> (length (cl-cc/runtime/profiling:rt-continuous-profile-session-sample-log session)) 0)
       :to-be-truthy)
-    (let ((otel (cl-cc/runtime::rt-continuous-profile-to-otel-json session))
-          (pprof (cl-cc/runtime::rt-continuous-profile-to-pprof-json session)))
+    (let ((otel (cl-cc/runtime/profiling:rt-continuous-profile-to-otel-json session))
+          (pprof (cl-cc/runtime/profiling:rt-continuous-profile-to-pprof-json session)))
       (expect
         (search "\"trace_id\":\"0123456789abcdef0123456789abcdef\"" otel)
         :to-be-truthy)

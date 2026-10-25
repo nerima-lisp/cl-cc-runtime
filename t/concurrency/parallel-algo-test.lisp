@@ -9,16 +9,16 @@
 ;;; ── Threshold + fork-join ─────────────────────────────────────────
 (it-sequential
   "rt-parallel-p is true exactly when size reaches the threshold."
-  (let ((cl-cc/runtime::*rt-parallel-threshold* 8))
-    (expect (cl-cc/runtime::rt-parallel-p 7) :to-be-falsy)
-    (expect (cl-cc/runtime::rt-parallel-p 8) :to-be-truthy)
-    (expect (cl-cc/runtime::rt-parallel-p 9) :to-be-truthy)))
+  (let ((*rt-parallel-threshold* 8))
+    (expect (rt-parallel-p 7) :to-be-falsy)
+    (expect (rt-parallel-p 8) :to-be-truthy)
+    (expect (rt-parallel-p 9) :to-be-truthy)))
 
 (it-sequential
   "With no scheduler present fork-join simply combines both thunks' values."
-  (let ((cl-cc/runtime::*rt-global-scheduler* nil))
+  (let ((*rt-global-scheduler* nil))
     (expect
-      (cl-cc/runtime::rt-fork-join
+      (rt-fork-join
         (lambda ()
           3)
         (lambda ()
@@ -31,7 +31,7 @@
   "With a scheduler, fork-join still returns the combined result."
   (rt-scheduler-init)
   (expect
-    (cl-cc/runtime::rt-fork-join
+    (rt-fork-join
       (lambda ()
         3)
       (lambda ()
@@ -60,7 +60,7 @@
 (it-sequential
   "With a low threshold and a scheduler, the fork/join merge path sorts too."
   (rt-scheduler-init)
-  (let ((cl-cc/runtime::*rt-parallel-threshold* 2))
+  (let ((*rt-parallel-threshold* 2))
     (expect (rt-parallel-sort '(4 2 7 1 6 3 5) #'<) :to-equal '(1 2 3 4 5 6 7))))
 
 (cl-weave:it-property "parallel sort yields a sorted permutation"
@@ -76,12 +76,12 @@
 ;;; ── Scan / reduce ─────────────────────────────────────────────────
 (it-sequential
   "Exclusive scan stores the accumulator before folding each element."
-  (expect (cl-cc/runtime::rt-parallel-scan #(1 2 3) #'+ 0) :to-equalp #(0 1 3)))
+  (expect (rt-parallel-scan #(1 2 3) #'+ 0) :to-equalp #(0 1 3)))
 
 (it-sequential
   "Inclusive scan stores the accumulator after folding each element."
   (expect
-    (cl-cc/runtime::rt-parallel-scan #(1 2 3) #'+ 0 :inclusive t)
+    (rt-parallel-scan #(1 2 3) #'+ 0 :inclusive t)
     :to-equalp
     #(1 3 6)))
 
@@ -121,7 +121,7 @@
 (it-sequential
   "With a scheduler and low threshold the spawned map returns FN of each item."
   (rt-scheduler-init)
-  (let ((cl-cc/runtime::*rt-parallel-threshold* 1))
+  (let ((*rt-parallel-threshold* 1))
     (expect
       (rt-parallel-map
         (lambda (x)
@@ -143,6 +143,6 @@
 
 (it-sequential
   "Init restores the default split threshold and reports success."
-  (let ((cl-cc/runtime::*rt-parallel-threshold* 7))
+  (let ((*rt-parallel-threshold* 7))
     (expect (rt-parallel-algo-init) :to-be-truthy)
-    (expect cl-cc/runtime::*rt-parallel-threshold* :to-equal 1024)))
+    (expect *rt-parallel-threshold* :to-equal 1024)))

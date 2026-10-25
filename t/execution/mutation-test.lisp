@@ -75,7 +75,7 @@ notice every one-operator change to the real implementation."
   `(((:not-an-int) nil)
     ((0) nil)
     ((#x5afe000000000000) t)
-    ((,(cl-cc/runtime::rt-poison-return-address 12345)) t)
+    ((,(cl-cc/runtime/execution:rt-poison-return-address 12345)) t)
     ((#x1234) nil))
   "Shared by both RT-RETURN-ADDRESS-POISONED-P tests below: the live-function
 assertion and the mutation-kill assertion must agree on exactly the same
@@ -87,8 +87,8 @@ block claims.")
     (with-soft-assertions
       (dolist (case +return-address-poisoned-p-cases+)
         (destructuring-bind (argument-forms expected) case
-          (expect (cl-cc/runtime::rt-return-address-poisoned-p (first argument-forms))
+          (expect (cl-cc/runtime/execution:rt-return-address-poisoned-p (first argument-forms))
                   :to-equal expected)))))
   (it "every mutation of RT-RETURN-ADDRESS-POISONED-P's body is killed by the case battery"
-    (%assert-full-mutation-kill "src/execution/runtime-code-cache.lisp" 'cl-cc/runtime::rt-return-address-poisoned-p
+    (%assert-full-mutation-kill "src/execution/runtime-code-cache.lisp" 'cl-cc/runtime/execution:rt-return-address-poisoned-p
                                 +return-address-poisoned-p-cases+)))

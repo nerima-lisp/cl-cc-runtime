@@ -18,14 +18,14 @@
    young-size=32 → semi-size=16, young-from-base=0, young addresses 0..15.
    old-size=32  → old-base=32, old addresses 32..63, num-cards=ceiling(32/64)=1.
    large-obj-size=old-size → large-obj addresses 64..95."
-  (cl-cc/runtime::make-rt-heap :young-size 32 :old-size 32))
+  (cl-cc/runtime/memory:make-rt-heap :young-size 32 :old-size 32))
 
 (defun %write-obj-header (heap addr size tag)
   "Write an object header at ADDR with SIZE words and TYPE-TAG."
-  (cl-cc/runtime::rt-heap-set-header
+  (cl-cc/runtime/memory:rt-heap-set-header
     heap
     addr
-    (cl-cc/runtime::make-rt-header size tag :gc-bits 0)))
+    (cl-cc/runtime/memory:make-rt-header size tag :gc-bits 0)))
 
 ;;; ------------------------------------------------------------
 ;;; Card Table: rt-card-index
@@ -33,14 +33,14 @@
 (it-sequential
   "rt-card-index at old-base address returns 0."
   (let* ((heap (%make-trace-heap))
-         (old-base (cl-cc/runtime::rt-heap-old-base heap)))
-    (expect (cl-cc/runtime::rt-card-index heap old-base) :to-equal 0)))
+         (old-base (cl-cc/runtime/memory:rt-heap-old-base heap)))
+    (expect (cl-cc/runtime/memory:rt-card-index heap old-base) :to-equal 0)))
 
 (it-sequential
   "rt-card-index 10 bytes past old-base returns 0 (same card, card-size=64)."
   (let* ((heap (%make-trace-heap))
-         (old-base (cl-cc/runtime::rt-heap-old-base heap)))
-    (expect (cl-cc/runtime::rt-card-index heap (+ old-base 10)) :to-equal 0)))
+         (old-base (cl-cc/runtime/memory:rt-heap-old-base heap)))
+    (expect (cl-cc/runtime/memory:rt-card-index heap (+ old-base 10)) :to-equal 0)))
 
 ;;; ------------------------------------------------------------
 ;;; Card Table: mark / clear / dirty-p
@@ -48,15 +48,15 @@
 (it-sequential
   "Card starts clean; mark-dirty makes dirty-p true; clear reverts it; clear-all clears all."
   (let* ((heap (%make-trace-heap))
-         (old-base (cl-cc/runtime::rt-heap-old-base heap)))
-    (expect (cl-cc/runtime::rt-card-dirty-p heap old-base) :to-be-falsy)
-    (cl-cc/runtime::rt-card-mark-dirty heap old-base)
-    (expect (cl-cc/runtime::rt-card-dirty-p heap old-base) :to-be-truthy)
-    (cl-cc/runtime::rt-card-clear heap old-base)
-    (expect (cl-cc/runtime::rt-card-dirty-p heap old-base) :to-be-falsy)
-    (cl-cc/runtime::rt-card-mark-dirty heap old-base)
-    (cl-cc/runtime::rt-card-clear-all heap)
-    (expect (cl-cc/runtime::rt-card-dirty-p heap old-base) :to-be-falsy)))
+         (old-base (cl-cc/runtime/memory:rt-heap-old-base heap)))
+    (expect (cl-cc/runtime/memory:rt-card-dirty-p heap old-base) :to-be-falsy)
+    (cl-cc/runtime/memory:rt-card-mark-dirty heap old-base)
+    (expect (cl-cc/runtime/memory:rt-card-dirty-p heap old-base) :to-be-truthy)
+    (cl-cc/runtime/memory:rt-card-clear heap old-base)
+    (expect (cl-cc/runtime/memory:rt-card-dirty-p heap old-base) :to-be-falsy)
+    (cl-cc/runtime/memory:rt-card-mark-dirty heap old-base)
+    (cl-cc/runtime/memory:rt-card-clear-all heap)
+    (expect (cl-cc/runtime/memory:rt-card-dirty-p heap old-base) :to-be-falsy)))
 
 ;;; ------------------------------------------------------------
 ;;; Address Predicates
@@ -72,7 +72,7 @@
   (declare (ignore label))
   (let ((heap (%make-trace-heap)))
     (expect
-      (not (not (cl-cc/runtime::rt-young-addr-p heap addr)))
+      (not (not (cl-cc/runtime/memory:rt-young-addr-p heap addr)))
       :to-equal
       expected)))
 
@@ -86,7 +86,7 @@
     (label addr expected)
   (declare (ignore label))
   (let ((heap (%make-trace-heap)))
-    (expect (not (not (cl-cc/runtime::rt-old-addr-p heap addr))) :to-equal expected)))
+    (expect (not (not (cl-cc/runtime/memory:rt-old-addr-p heap addr))) :to-equal expected)))
 
 (it-sequential-each (("young-0"      0  t)
                       ("young-15"     15 t)
@@ -102,7 +102,7 @@
   (declare (ignore label))
   (let ((heap (%make-trace-heap)))
     (expect
-      (not (not (cl-cc/runtime::rt-heap-addr-p heap addr)))
+      (not (not (cl-cc/runtime/memory:rt-heap-addr-p heap addr)))
       :to-equal
       expected)))
 
@@ -113,46 +113,46 @@
   "Cons (size=3, tag=1): pointer slots are (1 2) — car and cdr."
   (let ((heap (%make-trace-heap)))
     (%write-obj-header heap 0 3 1)
-    (expect (cl-cc/runtime::rt-object-pointer-slots heap 0) :to-equal '(1 2))))
+    (expect (cl-cc/runtime/memory:rt-object-pointer-slots heap 0) :to-equal '(1 2))))
 
 (it-sequential
   "Symbol (size=4, tag=2): pointer slots are (1 2 3) — name, pkg, value."
   (let ((heap (%make-trace-heap)))
     (%write-obj-header heap 0 4 2)
-    (expect (cl-cc/runtime::rt-object-pointer-slots heap 0) :to-equal '(1 2 3))))
+    (expect (cl-cc/runtime/memory:rt-object-pointer-slots heap 0) :to-equal '(1 2 3))))
 
 (it-sequential
   "Closure-4 (size=4, tag=3): pointer slots are (2 3) — env and code."
   (let ((heap (%make-trace-heap)))
     (%write-obj-header heap 0 4 3)
-    (expect (cl-cc/runtime::rt-object-pointer-slots heap 0) :to-equal '(2 3))))
+    (expect (cl-cc/runtime/memory:rt-object-pointer-slots heap 0) :to-equal '(2 3))))
 
 (it-sequential
   "Closure-2 (size=2, tag=3): pointer slots are () — no pointer fields."
   (let ((heap (%make-trace-heap)))
     (%write-obj-header heap 0 2 3)
-    (expect (cl-cc/runtime::rt-object-pointer-slots heap 0) :to-equal '())))
+    (expect (cl-cc/runtime/memory:rt-object-pointer-slots heap 0) :to-equal '())))
 
 (it-sequential
   "Array-4 (size=4, tag=5): pointer slots are (2 3) — elements."
   (let ((heap (%make-trace-heap)))
     (%write-obj-header heap 0 4 5)
-    (expect (cl-cc/runtime::rt-object-pointer-slots heap 0) :to-equal '(2 3))))
+    (expect (cl-cc/runtime/memory:rt-object-pointer-slots heap 0) :to-equal '(2 3))))
 
 (it-sequential
   "Other-3 (size=3, tag=7): pointer slots are (1 2)."
   (let ((heap (%make-trace-heap)))
     (%write-obj-header heap 0 3 7)
-    (expect (cl-cc/runtime::rt-object-pointer-slots heap 0) :to-equal '(1 2))))
+    (expect (cl-cc/runtime/memory:rt-object-pointer-slots heap 0) :to-equal '(1 2))))
 
 (it-sequential
   "String (size=5, tag=6): rt-object-pointer-slots returns nil."
   (let ((heap (%make-trace-heap)))
     (%write-obj-header heap 0 5 6)
-    (expect (cl-cc/runtime::rt-object-pointer-slots heap 0) :to-equal nil)))
+    (expect (cl-cc/runtime/memory:rt-object-pointer-slots heap 0) :to-equal nil)))
 
 (it-sequential
   "Unknown object (size=2, tag=0): rt-object-pointer-slots returns nil."
   (let ((heap (%make-trace-heap)))
     (%write-obj-header heap 0 2 0)
-    (expect (cl-cc/runtime::rt-object-pointer-slots heap 0) :to-equal nil)))
+    (expect (cl-cc/runtime/memory:rt-object-pointer-slots heap 0) :to-equal nil)))

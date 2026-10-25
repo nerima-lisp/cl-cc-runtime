@@ -1,1 +1,1 @@
-(defpackage :cl-cc/runtime/clos/test (:use :cl :cl-weave :cl-cc/runtime/clos) (:shadowing-import-from :cl-weave #:describe))
+(defpackage :cl-cc/runtime/clos/test (:use :cl :cl-weave :cl-cc/runtime/clos) (:shadowing-import-from :cl-weave #:describe) (:import-from :cl-cc/runtime/clos #:%rt-classify-arg #:%rt-cpl-walk #:%rt-eql-specializer-p #:%rt-extract-eql-specializer-keys #:*rt-primitive-type-classifiers*))

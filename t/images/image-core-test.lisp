@@ -27,7 +27,7 @@
 
 (defun %rt-core-register-test-roots ()
   (mapc
-    #'cl-cc/runtime::rt-image-register-global
+    #'cl-cc/runtime/images:rt-image-register-global
     '(*rt-core-test-root*
       *rt-core-test-closure*
       *rt-core-test-instance*
@@ -40,9 +40,9 @@
   (let ((path (%rt-core-test-path "clcc-roundtrip")))
     (setf *rt-core-test-root* (list :numbers #(1 2 3) :table (make-hash-table :test 'equal)))
     (setf (gethash "answer" (getf *rt-core-test-root* :table)) '(4 2))
-    (cl-cc/runtime::rt-save-core path :compression :none)
+    (cl-cc/runtime/images:rt-save-core path :compression :none)
     (setf *rt-core-test-root* :mutated)
-    (cl-cc/runtime::rt-load-core path)
+    (cl-cc/runtime/images:rt-load-core path)
     (expect (first *rt-core-test-root*) :to-equal :numbers)
     (expect (equalp #(1 2 3) (second *rt-core-test-root*)) :to-be-truthy)
     (expect (gethash "answer" (getf *rt-core-test-root* :table)) :to-equal '(4 2))))
@@ -54,10 +54,10 @@
     (setf *rt-core-test-closure* (let ((n 40))
         (lambda (x)
           (+ n x))))
-    (cl-cc/runtime::rt-save-core path :compression :none)
+    (cl-cc/runtime/images:rt-save-core path :compression :none)
     (setf *rt-core-test-closure* (lambda (x)
         x))
-    (cl-cc/runtime::rt-load-core path)
+    (cl-cc/runtime/images:rt-load-core path)
     (expect (funcall *rt-core-test-closure* 2) :to-equal 42)))
 
 (it-sequential
@@ -67,9 +67,9 @@
         (node (make-instance 'rt-core-test-node :name "root")))
     (setf (rt-core-test-node-next node) node
           *rt-core-test-instance* node)
-    (cl-cc/runtime::rt-save-core path :compression :none)
+    (cl-cc/runtime/images:rt-save-core path :compression :none)
     (setf *rt-core-test-instance* nil)
-    (cl-cc/runtime::rt-load-core path)
+    (cl-cc/runtime/images:rt-load-core path)
     (expect (rt-core-test-node-name *rt-core-test-instance*) :to-equal "root")
     (expect
       (rt-core-test-node-next *rt-core-test-instance*)
@@ -83,9 +83,9 @@
         (cell (cons :head nil)))
     (setf (cdr cell) cell
           *rt-core-test-cycle* cell)
-    (cl-cc/runtime::rt-save-core path :compression :none)
+    (cl-cc/runtime/images:rt-save-core path :compression :none)
     (setf *rt-core-test-cycle* nil)
-    (cl-cc/runtime::rt-load-core path)
+    (cl-cc/runtime/images:rt-load-core path)
     (expect (car *rt-core-test-cycle*) :to-be :head)
     (expect (cdr *rt-core-test-cycle*) :to-be *rt-core-test-cycle*)))
 
@@ -94,9 +94,9 @@
   (%rt-core-register-test-roots)
   (let ((path (%rt-core-test-path "clcc-mmap")))
     (setf *rt-core-test-root* '(:mmap t))
-    (cl-cc/runtime::rt-save-core path :compression :none)
-    (let ((core (cl-cc/runtime::rt-load-core path)))
-      (expect cl-cc/runtime::*saved-core-pathname* :to-equal (pathname path))
+    (cl-cc/runtime/images:rt-save-core path :compression :none)
+    (let ((core (cl-cc/runtime/images:rt-load-core path)))
+      (expect cl-cc/runtime/images:*saved-core-pathname* :to-equal (pathname path))
       (expect (getf core :lazy-loading) :to-be-truthy)
       (expect (getf core :aslr) :to-equal :offset-relative)
       (expect *rt-core-test-root* :to-equal '(:mmap t)))))
