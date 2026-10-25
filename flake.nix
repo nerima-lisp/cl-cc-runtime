@@ -12,7 +12,7 @@
     # repositories the way the ~320-line hand-rolled version of this file
     # used to.
     cl-nix-forge = {
-      url = "github:nerima-lisp/cl-nix-forge/v0.7.3";
+      url = "github:nerima-lisp/cl-nix-forge/v0.7.4";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
