@@ -319,7 +319,7 @@
   (:import-from #:cl-cc/runtime/resilience
                 #:rt-make-token-bucket #:rt-token-bucket-acquire #:rt-token-bucket-stats #:rt-token-bucket-wait
                 #:rt-token-bucket-accepted #:rt-token-bucket-burst #:rt-token-bucket-dropped
-                #:rt-token-bucket-last #:rt-token-bucket-rate #:rt-token-bucket-refill #:rt-token-bucket-tokens
+                #:rt-token-bucket-last #:rt-token-bucket-rate #:rt-token-bucket-tokens
                 #:rt-token-bucket-try-acquire
   )
   (:import-from #:cl-cc/runtime/serialization
