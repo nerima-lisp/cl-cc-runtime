@@ -91,7 +91,7 @@
   (it
     "wait retries until refill makes the request available"
     (let ((bucket
-            (cl-cc/runtime::rt-make-token-bucket :rate 1000.0 :burst 1.0)))
+            (cl-cc/runtime::rt-make-token-bucket :rate 10.0 :burst 1.0)))
       (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
       (expect
        (cl-cc/runtime::rt-token-bucket-wait bucket 1 :timeout 1.0)

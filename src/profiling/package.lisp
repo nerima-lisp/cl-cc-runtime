@@ -10,7 +10,8 @@
                 #:rt-otel-add-event #:rt-otel-end-span #:rt-otel-set-attribute
                 #:rt-otel-span-span-id #:rt-otel-span-trace-id #:rt-otel-start-span)
   (:import-from #:observability-kit
-                #:make-instrumentation-context)
+                #:make-instrumentation-context
+                #:proper-list-p)
   (:import-from #:cl-cc/runtime/os
                 #:rt-close #:rt-gettime-monotonic #:rt-open #:rt-read #:rt-write)
   (:intern
