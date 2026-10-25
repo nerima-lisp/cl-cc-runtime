@@ -20,17 +20,17 @@
     (rt-rcu-init)
     (rt-rcu-read-lock)
     (expect
-      (gethash sb-thread:*current-thread* cl-cc/runtime::*rt-rcu-readers*)
+      (gethash sb-thread:*current-thread* *rt-rcu-readers*)
       :to-be
       1)
     (rt-rcu-read-lock)
     (expect
-      (gethash sb-thread:*current-thread* cl-cc/runtime::*rt-rcu-readers*)
+      (gethash sb-thread:*current-thread* *rt-rcu-readers*)
       :to-be
       2)
-    (cl-cc/runtime::rt-rcu-read-unlock)
-    (cl-cc/runtime::rt-rcu-read-unlock)
-    (expect (hash-table-count cl-cc/runtime::*rt-rcu-readers*) :to-be 0))
+    (rt-rcu-read-unlock)
+    (rt-rcu-read-unlock)
+    (expect (hash-table-count *rt-rcu-readers*) :to-be 0))
   (it
     "rt-with-rcu-read runs the body and releases the reader afterwards"
     (rt-rcu-init)
@@ -38,12 +38,12 @@
           (rt-with-rcu-read
             ()
             (expect
-              (gethash sb-thread:*current-thread* cl-cc/runtime::*rt-rcu-readers*)
+              (gethash sb-thread:*current-thread* *rt-rcu-readers*)
               :to-be
               1)
             :body-value)))
       (expect result :to-be :body-value))
-    (expect (hash-table-count cl-cc/runtime::*rt-rcu-readers*) :to-be 0)))
+    (expect (hash-table-count *rt-rcu-readers*) :to-be 0)))
 
 (describe "rcu synchronization"
   (it "synchronize returns immediately when there are no readers"
@@ -68,7 +68,7 @@
                       (rt-rcu-read-lock)
                       (sb-thread:signal-semaphore reader-locked)
                       (sb-thread:wait-on-semaphore release)
-                      (cl-cc/runtime::rt-rcu-read-unlock)))))
+                      (rt-rcu-read-unlock)))))
       (sb-thread:wait-on-semaphore reader-locked)   ; reader now holds the lock
       (let ((writer (sb-thread:make-thread
                      (lambda ()
@@ -95,4 +95,4 @@
       (expect
         (< (- (get-internal-real-time) started) internal-time-units-per-second)
         :to-be-truthy))
-    (cl-cc/runtime::rt-rcu-read-unlock)))
+    (rt-rcu-read-unlock)))

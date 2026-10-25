@@ -1,1 +1,1 @@
-(defpackage :cl-cc/runtime/resilience/test (:use :cl :cl-weave :cl-cc/runtime/resilience) (:shadowing-import-from :cl-weave #:describe))
+(defpackage :cl-cc/runtime/resilience/test (:use :cl :cl-weave :cl-cc/runtime/resilience) (:shadowing-import-from :cl-weave #:describe) (:import-from :cl-cc/runtime/resilience #:rt-token-bucket-accepted #:rt-token-bucket-dropped #:rt-token-bucket-try-acquire))

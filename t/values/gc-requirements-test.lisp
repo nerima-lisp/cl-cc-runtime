@@ -3,42 +3,42 @@
 (defun %fr-assert-pointer-tags (expected-tags)
   (dolist (case expected-tags)
     (destructuring-bind (addr tag) case
-      (expect (cl-cc/runtime::pointer-tag
-                 (cl-cc/runtime::encode-pointer addr tag)) :to-equal tag))))
+      (expect (cl-cc/runtime/values:pointer-tag
+                 (cl-cc/runtime/values:encode-pointer addr tag)) :to-equal tag))))
 
-(it-sequential "FR-336: NaN-boxing pointer predicate rejects immediate non-pointer values." (expect (cl-cc/runtime::val-pointer-p
-                 (cl-cc/runtime::encode-fixnum 42)) :to-be-falsy)
-  (expect (cl-cc/runtime::val-pointer-p cl-cc/runtime:+val-t+) :to-be-falsy)
-  (expect (cl-cc/runtime::val-pointer-p cl-cc/runtime:+val-nil+) :to-be-falsy))
+(it-sequential "FR-336: NaN-boxing pointer predicate rejects immediate non-pointer values." (expect (cl-cc/runtime/values:val-pointer-p
+                 (cl-cc/runtime/values:encode-fixnum 42)) :to-be-falsy)
+  (expect (cl-cc/runtime/values:val-pointer-p cl-cc/runtime/values:+val-t+) :to-be-falsy)
+  (expect (cl-cc/runtime/values:val-pointer-p cl-cc/runtime/values:+val-nil+) :to-be-falsy))
 
 (it-sequential "FR-336: Encoded pointers round-trip through decode-pointer." (let* ((addr #xABCD)
-         (encoded (cl-cc/runtime::encode-pointer addr cl-cc/runtime:+tag-object+)))
-    (expect (cl-cc/runtime::val-pointer-p encoded) :to-be-truthy)
-    (expect (cl-cc/runtime::decode-pointer encoded) :to-equal addr)))
+         (encoded (cl-cc/runtime/values:encode-pointer addr cl-cc/runtime/values:+tag-object+)))
+    (expect (cl-cc/runtime/values:val-pointer-p encoded) :to-be-truthy)
+    (expect (cl-cc/runtime/values:decode-pointer encoded) :to-equal addr)))
 
 (it-sequential "FR-336: Pointer sub-tags are correctly extracted from NaN-boxed values." (%fr-assert-pointer-tags
-   `((#x100 ,cl-cc/runtime:+tag-object+)
-     (#x200 ,cl-cc/runtime:+tag-cons+)
-     (#x300 ,cl-cc/runtime:+tag-symbol+))))
+   `((#x100 ,cl-cc/runtime/values:+tag-object+)
+     (#x200 ,cl-cc/runtime/values:+tag-cons+)
+     (#x300 ,cl-cc/runtime/values:+tag-symbol+))))
 
-(it-sequential "FR-336: NaN-boxing cons predicate detects cons-tagged pointers only." (let ((cons-ptr (cl-cc/runtime::encode-pointer #x500 cl-cc/runtime:+tag-cons+))
-        (obj-ptr (cl-cc/runtime::encode-pointer #x600 cl-cc/runtime:+tag-object+)))
-    (expect (cl-cc/runtime::val-cons-p cons-ptr) :to-be-truthy)
-    (expect (cl-cc/runtime::val-cons-p obj-ptr) :to-be-falsy)))
+(it-sequential "FR-336: NaN-boxing cons predicate detects cons-tagged pointers only." (let ((cons-ptr (cl-cc/runtime/values:encode-pointer #x500 cl-cc/runtime/values:+tag-cons+))
+        (obj-ptr (cl-cc/runtime/values:encode-pointer #x600 cl-cc/runtime/values:+tag-object+)))
+    (expect (cl-cc/runtime/values:val-cons-p cons-ptr) :to-be-truthy)
+    (expect (cl-cc/runtime/values:val-cons-p obj-ptr) :to-be-falsy)))
 
-(it-sequential "FR-140: NIL, T, and common keywords/symbols are immediate values, not heap pointers." (expect (cl-cc/runtime::cl-value->val nil) :to-equal cl-cc/runtime:+val-nil+)
-  (expect (cl-cc/runtime::cl-value->val t) :to-equal cl-cc/runtime:+val-t+)
-  (let ((encoded (cl-cc/runtime::cl-value->val :key)))
-    (expect (cl-cc/runtime::val-immediate-symbol-p encoded) :to-be-truthy)
-    (expect (cl-cc/runtime::val-pointer-p encoded) :to-be-falsy)
-    (expect (cl-cc/runtime::val->cl-value encoded) :to-be :key)))
+(it-sequential "FR-140: NIL, T, and common keywords/symbols are immediate values, not heap pointers." (expect (cl-cc/runtime/values:cl-value->val nil) :to-equal cl-cc/runtime/values:+val-nil+)
+  (expect (cl-cc/runtime/values:cl-value->val t) :to-equal cl-cc/runtime/values:+val-t+)
+  (let ((encoded (cl-cc/runtime/values:cl-value->val :key)))
+    (expect (val-immediate-symbol-p encoded) :to-be-truthy)
+    (expect (cl-cc/runtime/values:val-pointer-p encoded) :to-be-falsy)
+    (expect (cl-cc/runtime/values:val->cl-value encoded) :to-be :key)))
 
-(it-sequential "FR-264: Pointer compression stores heap-relative offsets and decodes to the original address." (let ((cl-cc/runtime::*compressed-pointers-enabled* t)
-        (cl-cc/runtime::*heap-base-address* #x10000000))
-    (let ((encoded (cl-cc/runtime::encode-pointer #x10001000 cl-cc/runtime:+tag-object+)))
-      (expect (cl-cc/runtime::val-compressed-pointer-p encoded) :to-be-truthy)
-      (expect (cl-cc/runtime::decode-pointer encoded) :to-equal #x10001000))))
+(it-sequential "FR-264: Pointer compression stores heap-relative offsets and decodes to the original address." (let ((cl-cc/runtime/values:*compressed-pointers-enabled* t)
+        (cl-cc/runtime/values:*heap-base-address* #x10000000))
+    (let ((encoded (cl-cc/runtime/values:encode-pointer #x10001000 cl-cc/runtime/values:+tag-object+)))
+      (expect (cl-cc/runtime/values:val-compressed-pointer-p encoded) :to-be-truthy)
+      (expect (cl-cc/runtime/values:decode-pointer encoded) :to-equal #x10001000))))
 
-(it-sequential "FR-265: Small byte strings are encoded as SSO immediates and round-trip without heap allocation." (let ((encoded (cl-cc/runtime::cl-value->val "abc")))
-    (expect (cl-cc/runtime::val-sso-string-p encoded) :to-be-truthy)
-    (expect (cl-cc/runtime::val->cl-value encoded) :to-equal "abc")))
+(it-sequential "FR-265: Small byte strings are encoded as SSO immediates and round-trip without heap allocation." (let ((encoded (cl-cc/runtime/values:cl-value->val "abc")))
+    (expect (cl-cc/runtime/values:val-sso-string-p encoded) :to-be-truthy)
+    (expect (cl-cc/runtime/values:val->cl-value encoded) :to-equal "abc")))

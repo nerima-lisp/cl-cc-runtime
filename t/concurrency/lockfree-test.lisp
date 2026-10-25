@@ -95,7 +95,7 @@
   (it
     "put then get round-trips a value"
     (let ((m (rt-make-lfhash-map)))
-      (cl-cc/runtime::rt-lfhash-put m :k 99)
+      (rt-lfhash-put m :k 99)
       (multiple-value-bind (v found) (rt-lfhash-get m :k)
         (expect v :to-be 99)
         (expect found :to-be-truthy))
@@ -103,14 +103,14 @@
   (it
     "put overwrites an existing key without growing the count"
     (let ((m (rt-make-lfhash-map)))
-      (cl-cc/runtime::rt-lfhash-put m :k 1)
-      (cl-cc/runtime::rt-lfhash-put m :k 2)
+      (rt-lfhash-put m :k 1)
+      (rt-lfhash-put m :k 2)
       (expect (rt-lfhash-get m :k) :to-be 2)
       (expect (rt-lfhash-count m) :to-be 1)))
   (it
     "remove marks the key deleted and decrements the count"
     (let ((m (rt-make-lfhash-map)))
-      (cl-cc/runtime::rt-lfhash-put m :k 5)
+      (rt-lfhash-put m :k 5)
       (expect (rt-lfhash-remove m :k) :to-be-truthy)
       (expect (nth-value 1 (rt-lfhash-get m :k)) :to-be-null)
       (expect (rt-lfhash-count m) :to-be 0)
@@ -135,7 +135,7 @@
           (ref (make-hash-table)))
       (dolist (p pairs)
         (destructuring-bind (k v) p
-          (cl-cc/runtime::rt-lfhash-put m k v)
+          (rt-lfhash-put m k v)
           (setf (gethash k ref) v)))
       (maphash
         (lambda (k v)

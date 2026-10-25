@@ -10,7 +10,7 @@
 ;;; ── Event catalogue + init ────────────────────────────────────────
 (it-sequential
   "The supported event catalogue lists the documented counter kinds."
-  (let ((names cl-cc/runtime::*perf-event-names*))
+  (let ((names *perf-event-names*))
     (expect (member :cycles names) :to-be-truthy)
     (expect (member :instructions names) :to-be-truthy)
     (expect (member :cache-misses names) :to-be-truthy)))
@@ -18,18 +18,18 @@
 (it-sequential
   "rt-perf-init resets the counter table and reports success."
   (expect (rt-perf-init) :to-be-truthy)
-  (expect (hash-table-count cl-cc/runtime::*rt-perf-counters*) :to-equal 0))
+  (expect (hash-table-count *rt-perf-counters*) :to-equal 0))
 
 ;;; ── Enable / read / disable (unsupported hardware path) ───────────
 (it-sequential "Enabling a known counter registers a struct tagged with its type/name." (rt-perf-init)
   (let ((counter (rt-perf-enable-counter :cycles)))
     (expect counter :to-be-truthy)
-    (expect (cl-cc/runtime::rt-perf-counter-name counter) :to-be :cycles)
+    (expect (rt-perf-counter-name counter) :to-be :cycles)
     ;; :cycles is index 0 in the event catalogue
-    (expect (cl-cc/runtime::rt-perf-counter-type counter) :to-equal 0)
+    (expect (rt-perf-counter-type counter) :to-equal 0)
     ;; no hardware here, so the counter is registered but not enabled
-    (expect (cl-cc/runtime::rt-perf-counter-enabled counter) :to-be-falsy)
-    (expect (gethash :cycles cl-cc/runtime::*rt-perf-counters*) :to-be counter)))
+    (expect (rt-perf-counter-enabled counter) :to-be-falsy)
+    (expect (gethash :cycles *rt-perf-counters*) :to-be counter)))
 
 (it-sequential
   "Enabling an event not in the catalogue returns NIL."
@@ -51,8 +51,8 @@
   "Disabling a counter drops it from the registry."
   (rt-perf-init)
   (rt-perf-enable-counter :cache-misses)
-  (cl-cc/runtime::rt-perf-disable-counter :cache-misses)
-  (expect (gethash :cache-misses cl-cc/runtime::*rt-perf-counters*) :to-be-null))
+  (rt-perf-disable-counter :cache-misses)
+  (expect (gethash :cache-misses *rt-perf-counters*) :to-be-null))
 
 ;;; ── with-perf-counters on unsupported platform ────────────────────
 ;;; PERF-COUNTERS-UNSUPPORTED derives from RT-RUNTIME-CONDITION, not CL:ERROR
@@ -70,7 +70,7 @@ documented unsupported condition rather than running the body."
             (:cycles)
             (error "body must not run when counters are unsupported"))
           nil)
-      (cl-cc/runtime::perf-counters-unsupported ()
+      (cl-cc/runtime/profiling/infra:perf-counters-unsupported ()
         t))
     :to-be-truthy))
 

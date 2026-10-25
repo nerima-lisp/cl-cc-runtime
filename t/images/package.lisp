@@ -1,1 +1,1 @@
-(defpackage :cl-cc/runtime/images/test (:use :cl :cl-weave :cl-cc/runtime/images) (:shadowing-import-from :cl-weave #:describe))
+(defpackage :cl-cc/runtime/images/test (:use :cl :cl-weave :cl-cc/runtime/images) (:shadowing-import-from :cl-weave #:describe) (:import-from :cl-cc/runtime/images #:*rt-code-version* #:*rt-image-globals* #:*rt-image-restore-hooks* #:make-rt-image #:make-rt-image-header #:rt-image-code-version #:rt-image-globals #:rt-image-p #:rt-validate-image))

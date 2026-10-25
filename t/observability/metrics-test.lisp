@@ -11,7 +11,7 @@
     (let ((counter (rt-make-counter (%metrics-test-name "reqs"))))
       (expect (rt-counter-increment! counter) :to-equal 1)
       (expect (rt-counter-increment! counter 3) :to-equal 4)
-      (expect (cl-cc/runtime::rt-counter-value counter) :to-equal 4)))
+      (expect (rt-counter-value counter) :to-equal 4)))
 
   (cl-weave:it-property
     "metrics counter value equals sum of increments"
@@ -22,7 +22,7 @@
       (dolist (delta deltas)
         (rt-counter-increment! counter delta))
       (cl-weave:expect
-        (cl-cc/runtime::rt-counter-value counter)
+        (rt-counter-value counter)
         :to-be
         (reduce #'+ deltas :initial-value 0))))
 
@@ -30,19 +30,19 @@
     "Gauge set stores a value that can rise and fall."
     (let ((gauge (rt-make-gauge (%metrics-test-name "temp"))))
       (rt-gauge-set! gauge 5)
-      (expect (cl-cc/runtime::rt-gauge-value gauge) :to-equal 5)
+      (expect (rt-gauge-value gauge) :to-equal 5)
       (rt-gauge-set! gauge 2)
-      (expect (cl-cc/runtime::rt-gauge-value gauge) :to-equal 2)))
+      (expect (rt-gauge-value gauge) :to-equal 2)))
 
   (it-sequential
     "Histogram readers expose bounds and zero values before the first observation."
     (let ((histogram (rt-make-histogram (%metrics-test-name "hist") '(1 5 10))))
-      (expect (cl-cc/runtime::rt-histogram-buckets histogram)
+      (expect (rt-histogram-buckets histogram)
               :to-equal '(1 5 10))
-      (expect (cl-cc/runtime::rt-histogram-counts histogram)
+      (expect (rt-histogram-counts histogram)
               :to-equal '(0 0 0 0))
-      (expect (cl-cc/runtime::rt-histogram-count histogram) :to-equal 0)
-      (expect (cl-cc/runtime::rt-histogram-sum histogram) :to-equal 0)))
+      (expect (rt-histogram-count histogram) :to-equal 0)
+      (expect (rt-histogram-sum histogram) :to-equal 0)))
 
   (it-sequential
     "Histogram snapshots expose cumulative buckets and the +Inf bucket."
@@ -50,14 +50,14 @@
       (rt-histogram-observe! histogram 0.5)
       (rt-histogram-observe! histogram 3)
       (rt-histogram-observe! histogram 5)
-      (expect (cl-cc/runtime::rt-histogram-counts histogram)
+      (expect (rt-histogram-counts histogram)
               :to-equal '(1 3 3 3))))
 
   (it-sequential
     "An observation above every bound appears in the +Inf bucket."
     (let ((histogram (rt-make-histogram (%metrics-test-name "hist") '(1 5 10))))
       (rt-histogram-observe! histogram 100)
-      (expect (cl-cc/runtime::rt-histogram-counts histogram)
+      (expect (rt-histogram-counts histogram)
               :to-equal '(0 0 0 1))))
 
   (cl-weave:it-property
@@ -68,12 +68,12 @@
             (rt-make-histogram (%metrics-test-name "hist") '(5 10 15))))
       (dolist (value values)
         (rt-histogram-observe! histogram value))
-      (cl-weave:expect (cl-cc/runtime::rt-histogram-count histogram)
+      (cl-weave:expect (rt-histogram-count histogram)
                        :to-be (length values))
-      (cl-weave:expect (cl-cc/runtime::rt-histogram-sum histogram)
+      (cl-weave:expect (rt-histogram-sum histogram)
                        :to-be (reduce #'+ values))
       (cl-weave:expect
-        (car (last (cl-cc/runtime::rt-histogram-counts histogram)))
+        (car (last (rt-histogram-counts histogram)))
         :to-be
         (length values))))
 
@@ -131,8 +131,21 @@
 
   (it-sequential
     "gc-stats returns a plist exposing the stable public GC fields."
-    (let ((stats (gc-stats)))
+    (let ((stats (cl-cc/runtime/observability:gc-stats)))
       (expect (listp stats) :to-be-truthy)
       (expect (member :minor-gcs stats) :to-be-truthy)
       (expect (member :major-gcs stats) :to-be-truthy))))
 
+(in-package :cl-cc/runtime/observability/test)
+
+(it-sequential
+  "FR-356: public gc-stats exposes stable GC counters and byte/pause metrics."
+  (let* ((heap (%make-small-heap))
+         (stats (cl-cc/runtime/observability:gc-stats heap)))
+    (expect (member :minor-gcs stats) :to-be-truthy)
+    (expect (member :major-gcs stats) :to-be-truthy)
+    (expect (member :total-collected-bytes stats) :to-be-truthy)
+    (expect (member :pause-ms-p99 stats) :to-be-truthy)
+    (expect (getf stats :minor-gcs) :to-equal 0)
+    (expect (getf stats :major-gcs) :to-equal 0)
+    (expect (getf stats :total-collected-bytes) :to-equal 0)))

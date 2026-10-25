@@ -1,1 +1,1 @@
-(defpackage :cl-cc/runtime/dynamic-binding/test (:use :cl :cl-weave :cl-cc/runtime/dynamic-binding) (:shadowing-import-from :cl-weave #:describe))
+(defpackage :cl-cc/runtime/dynamic-binding/test (:use :cl :cl-weave :cl-cc/runtime/dynamic-binding) (:shadowing-import-from :cl-weave #:describe) (:import-from :cl-cc/runtime/dynamic-binding #:*rt-special-variable-metadata* #:rt-dynamic-bind #:rt-dynamic-unbind #:rt-register-special-variable))
