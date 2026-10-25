@@ -203,6 +203,16 @@
               ];
             }
           );
+          # These input flakes install source only; compile their ASDF systems
+          # here so consumers never write FASLs into immutable store outputs.
+          deflate = ctx.cl.lispDerivation {
+            src = cl-deflate-kit.outPath;
+            lispSystem = "cl-deflate-kit";
+          };
+          crypto = ctx.cl.lispDerivation {
+            src = cl-crypto-kit.outPath;
+            lispSystem = "cl-crypto-kit";
+          };
         in
         [
           cl-log-kit.packages.${ctx.system}.cl-log-kit
@@ -211,14 +221,8 @@
           cl-host-kit.packages.${ctx.system}.cl-host-kit
           observability
           observabilityAdapters
-          (ctx.cl.fromDerivation {
-            drv = cl-deflate-kit.packages.${ctx.system}.default;
-            recursive = true;
-          })
-          (ctx.cl.fromDerivation {
-            drv = cl-crypto-kit.packages.${ctx.system}.default;
-            recursive = true;
-          })
+          deflate
+          crypto
           cl-resilience-kit.packages.${ctx.system}.cl-resilience-kit
         ];
 
