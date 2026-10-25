@@ -99,7 +99,7 @@
   (it
     "wait returns nil when the timeout is shorter than retry-after"
     (let ((bucket
-            (cl-cc/runtime::rt-make-token-bucket :rate 0.001 :burst 1.0)))
+            (cl-cc/runtime::rt-make-token-bucket :rate 1.0 :burst 1.0)))
       (cl-cc/runtime::rt-token-bucket-try-acquire bucket)
       (expect
        (cl-cc/runtime::rt-token-bucket-wait bucket 1 :timeout 0.05)
@@ -132,7 +132,21 @@
       (expect (cl-cc/runtime::rt-token-bucket-try-acquire bucket 2)
               :to-be-truthy)
       (expect (getf (cl-cc/runtime::rt-token-bucket-stats bucket) :tokens)
-              :to-equal 0d0))))
+              :to-equal 0d0)))
+  (it
+    "refills at the configured rate below the burst cap"
+    (let ((bucket
+            (cl-cc/runtime::rt-make-token-bucket :rate 4.0 :burst 100.0)))
+      (expect (cl-cc/runtime::rt-token-bucket-acquire bucket 100)
+              :to-be-truthy)
+      (sleep 1.0)
+      (expect (cl-cc/runtime::rt-token-bucket-acquire bucket 6)
+              :to-be-null)
+      (expect (cl-cc/runtime::rt-token-bucket-acquire bucket 3)
+              :to-be-truthy)
+      (let ((tokens
+              (getf (cl-cc/runtime::rt-token-bucket-stats bucket) :tokens)))
+        (expect (<= 0d0 tokens 3d0) :to-be-truthy)))))
 
 (describe
   "token bucket stats (ratelimit.lisp)"

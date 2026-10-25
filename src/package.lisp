@@ -12,7 +12,7 @@
                 #:*rt-method-context-stack* #:*rt-primitive-type-classifiers*
   )
   (:import-from #:cl-cc/runtime/compression
-                #:adler32 #:crc32 #:gzip-compress #:gzip-decompress #:zlib-compress
+                #:gzip-compress #:gzip-decompress #:zlib-compress
                 #:zlib-decompress
   )
   (:import-from #:cl-cc/runtime/concurrency
