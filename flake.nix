@@ -46,6 +46,9 @@
       url = "github:nerima-lisp/cl-log-kit/v2.2.0";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.cl-nix-forge.follows = "cl-nix-forge";
+      # Both ASDF dependencies must resolve the same system name. Observability
+      # requires 0.6.1; log-kit accepts that version for its 0.5.0 minimum.
+      inputs.cl-concurrent-kit.follows = "cl-observability-kit/cl-concurrent-kit";
     };
     cl-json-kit = {
       url = "github:nerima-lisp/cl-json-kit/v1.2.0";
