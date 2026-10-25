@@ -140,7 +140,7 @@
 
 (it-sequential
   "FR-356: public gc-stats exposes stable GC counters and byte/pause metrics."
-  (let* ((heap (%make-small-heap))
+  (let* ((heap (cl-cc/runtime/memory:make-rt-heap :young-size 32 :old-size 32))
          (stats (cl-cc/runtime/observability:gc-stats heap)))
     (expect (member :minor-gcs stats) :to-be-truthy)
     (expect (member :major-gcs stats) :to-be-truthy)

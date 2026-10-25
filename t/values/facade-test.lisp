@@ -1,5 +1,4 @@
-progn
-  (in-package :cl-cc/runtime/values/test)
+(in-package :cl-cc/runtime/values/test)
   (defun %assert-facade-export-surface ()
   (let* ((rows (with-open-file (stream
                                 (asdf:system-relative-pathname

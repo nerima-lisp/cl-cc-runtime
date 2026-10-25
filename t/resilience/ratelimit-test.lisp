@@ -90,8 +90,20 @@
       (expect (cl-cc/runtime/resilience:rt-token-bucket-wait bucket) :to-be-truthy)))
   (it
     "wait retries until refill makes the request available"
-    (let ((bucket
-            (cl-cc/runtime/resilience:rt-make-token-bucket :rate 10.0 :burst 1.0)))
+    (let* ((clock (cl-boundary-kit:make-fake-clock))
+           (sleeper
+             (cl-boundary-kit:make-sleeper
+              :sleep-fn (lambda (seconds)
+                         (cl-boundary-kit:advance-fake-clock clock seconds))))
+           (limiter
+             (resilience-kit:make-rate-limiter
+              :refill-rate 1.0
+              :capacity 1.0
+              :clock clock
+              :monotonic-units-per-second 1.0
+              :sleeper sleeper))
+           (bucket (cl-cc/runtime/resilience::make-rt-token-bucket
+                    :limiter limiter)))
       (rt-token-bucket-try-acquire bucket)
       (expect
        (cl-cc/runtime/resilience:rt-token-bucket-wait bucket 1 :timeout 1.0)
