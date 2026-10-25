@@ -182,24 +182,16 @@ runtime leaf system."
           (list (cons "sampleType"
                       (list (json-kit:make-json-object
                              (list (cons "type" (string-index "samples"))
-                                   (cons "unit" (string-index "count")))))
-                (cons "periodType"
+                                   (cons "unit" (string-index "count")))))) (cons "periodType"
                       (json-kit:make-json-object
                        (list (cons "type" (string-index "cpu"))
-                             (cons "unit" (string-index "nanoseconds")))))
-                (cons "period"
+                             (cons "unit" (string-index "nanoseconds"))))) (cons "period"
                       (truncate 1000000000
-                                (rt-continuous-profile-session-sample-rate-hz session)))
-                (cons "timeNanos"
-                      (rt-continuous-profile-session-started-at-nanos session))
-                (cons "durationNanos"
+                                (rt-continuous-profile-session-sample-rate-hz session))) (cons "timeNanos"
+                      (rt-continuous-profile-session-started-at-nanos session)) (cons "durationNanos"
                       (- (or (rt-continuous-profile-session-stopped-at-nanos session)
                              (%rt-profile-session-now-nanos session))
-                         (rt-continuous-profile-session-started-at-nanos session)))
-                (cons "sample" sample-json)
-                (cons "location" (nreverse locations))
-                (cons "function" (nreverse functions))
-                (cons "stringTable" (nreverse string-table))))))))))
+                         (rt-continuous-profile-session-started-at-nanos session))) (cons "sample" sample-json) (cons "location" (nreverse locations)) (cons "function" (nreverse functions)) (cons "stringTable" (nreverse string-table)))))))))
 
 (defun rt-export-continuous-profile
     (session
