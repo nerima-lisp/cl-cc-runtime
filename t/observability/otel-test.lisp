@@ -26,12 +26,12 @@
                                 ("http.status_code" . 503))
                               :events
                               (list
-                               (make-rt-otel-event :name
-                                                   "retry"
-                                                   :time
-                                                   event-time
-                                                   :attributes
-                                                   '(("attempt" . 2))))
+                               (make-rt-otel-event :name "retry"
+                                                   :time event-time
+                                                   :attributes (list (cons "attempt" 2)))
+                               (make-rt-otel-event :name "fallback"
+                                                   :time (+ event-time 1000000000)
+                                                   :attributes (list (cons "attempt" 3))))
                               :status-code
                               "ERROR"
                               :status-message
@@ -44,7 +44,10 @@
      (expect (rt-otel-span-parent-span-id span) :to-equal parent-span-id)
      (expect (gethash "http.method" attributes) :to-equal "GET")
      (expect (gethash "http.status_code" attributes) :to-equal 503)
-     (expect (rt-otel-event-name event) :to-equal "retry")
+     (expect (mapcar (function rt-otel-event-name)
+                     (rt-otel-span-events span))
+             :to-equal
+             (list "retry" "fallback"))
      (expect (rt-otel-event-time event) :to-equal event-time)
      (expect (rt-otel-span-status-code span) :to-equal "ERROR")
      (expect (rt-otel-span-status-message span)
@@ -96,75 +99,76 @@
              :to-equal
              "inner")))
   (it-sequential
-   "Mutable span accessors round-trip without ending the active span."
+   "Span accessors project kit state and preserve runtime event order."
    (let* ((span (rt-otel-start-span "initial-span"))
-          (trace-id "0123456789abcdef0123456789abcdef")
-          (span-id "0123456789abcdef")
-          (parent-span-id "fedcba9876543210")
-          (start-time 1700000000123456789)
-          (end-time 1700000001123456789)
-          (event-time 1700000000623456789)
-          (attributes (make-hash-table :test (function equal)))
-          (event (make-rt-otel-event
-                  :name "mutable-event"
-                  :time event-time
-                  :attributes (list (cons "event.attribute" "event-value")))))
+          (first-event-time 1700000000623456789)
+          (second-event-time 1700000000123456789))
      (unwind-protect
-          (progn
-            (setf (rt-otel-span-name span) "mutable-span"
-                  (rt-otel-span-trace-id span) trace-id
-                  (rt-otel-span-span-id span) span-id
-                  (rt-otel-span-parent-span-id span) parent-span-id
-                  (rt-otel-span-start span) start-time
-                  (rt-otel-span-end span) end-time
-                  (rt-otel-span-attributes span) attributes
-                  (rt-otel-span-events span) (list event)
-                  (rt-otel-span-status-code span) "ERROR"
-                  (rt-otel-span-status-message span) "mutable status")
-            (setf (gethash "mutable.attribute"
-                           (rt-otel-span-attributes span))
-                  "visible")
-            (expect (eq (rt-otel-span-attributes span) attributes)
-                    :to-be-truthy)
-            (expect (rt-otel-span-name span) :to-equal "mutable-span")
-            (expect (rt-otel-span-trace-id span) :to-equal trace-id)
-            (expect (rt-otel-span-span-id span) :to-equal span-id)
-            (expect (rt-otel-span-parent-span-id span)
-                    :to-equal
-                    parent-span-id)
-            (expect (rt-otel-span-start span) :to-equal start-time)
-            (expect (rt-otel-span-end span) :to-equal end-time)
-            (expect (eq (first (rt-otel-span-events span)) event)
-                    :to-be-truthy)
-            (expect (rt-otel-span-status-code span) :to-equal "ERROR")
-            (expect (rt-otel-span-status-message span)
-                    :to-equal
-                    "mutable status")
-            (let ((json (rt-otel-span-to-json span)))
-              (expect (search trace-id json) :to-be-truthy)
-              (expect (search span-id json) :to-be-truthy)
-              (expect (search parent-span-id json) :to-be-truthy)
-              (expect (search "mutable-span" json) :to-be-truthy)
-              (expect (search "mutable.attribute" json) :to-be-truthy)
-              (expect (search "visible" json) :to-be-truthy)
-              (expect (search "mutable-event" json) :to-be-truthy)
-              (expect (search "event.attribute" json) :to-be-truthy)
-              (expect (search "event-value" json) :to-be-truthy)
-              (expect (search (format nil "~D" event-time) json)
-                      :to-be-truthy)
-              (expect (search (format nil "~D" start-time) json)
-                      :to-be-truthy)
-              (expect (search (format nil "~D" end-time) json)
-                      :to-be-truthy)
-              (expect (search "ERROR" json) :to-be-truthy)
-              (expect (search "mutable status" json) :to-be-truthy))
-            (expect (eq *rt-otel-span* span) :to-be-truthy)
-            (expect (rt-otel-set-attribute "after-json" "active" span)
-                    :to-equal
-                    "active")
-            (expect (gethash "after-json" (rt-otel-span-attributes span))
-                    :to-equal
-                    "active")
-            (expect (eq *rt-otel-span* span) :to-be-truthy)
-            (expect (rt-otel-span-end span) :to-equal end-time))
-       (rt-otel-end-span span)))))
+         (progn
+           (setf (rt-otel-span-name span) "updated-span")
+           (rt-otel-set-attribute "visible" "adapter-value" span)
+           (setf (rt-otel-span-status-code span) "ERROR"
+                 (rt-otel-span-status-message span) "adapter status")
+           (let ((event-attributes
+                    (make-hash-table :test (function equal))))
+             (setf (gethash "event.attribute" event-attributes) "first-value")
+             (let ((added-event
+                    (rt-otel-add-event
+                     "first-event"
+                     :attributes event-attributes
+                     :timestamp-nanos first-event-time
+                     :span span)))
+               (expect (rt-otel-event-name added-event) :to-equal "first-event")
+               (expect (rt-otel-event-time added-event)
+                       :to-equal
+                       first-event-time)
+               (expect (rt-otel-event-attributes added-event)
+                       :to-equal
+                       (list (cons "event.attribute" "first-value")))))
+           (rt-otel-add-event
+            "second-event"
+            :attributes (list (cons "event.attribute" "second-value"))
+            :timestamp-nanos second-event-time
+            :span span)
+           (expect (rt-otel-span-name span) :to-equal "updated-span")
+           (expect (gethash "visible" (rt-otel-span-attributes span))
+                   :to-equal
+                   "adapter-value")
+           (expect (rt-otel-span-status-code span) :to-equal "ERROR")
+           (expect (rt-otel-span-status-message span)
+                   :to-equal
+                   "adapter status")
+           (expect (mapcar (function rt-otel-event-name)
+                           (rt-otel-span-events span))
+                   :to-equal
+                   (list "second-event" "first-event"))
+           (expect (rt-otel-event-time (first (rt-otel-span-events span)))
+                   :to-equal
+                   second-event-time)
+           (let ((attributes (rt-otel-span-attributes span)))
+             (setf (gethash "copy-only" attributes) "detached")
+             (expect (gethash "copy-only"
+                              (rt-otel-span-attributes span))
+                     :to-equal
+                     nil))
+           (let* ((json (rt-otel-span-to-json span))
+                  (first-position (search "first-event" json))
+                  (second-position (search "second-event" json)))
+             (expect (search "updated-span" json) :to-be-truthy)
+             (expect (search "adapter-value" json) :to-be-truthy)
+             (expect (and first-position
+                          second-position
+                          (< first-position second-position))
+                     :to-be-truthy))
+           (expect (rt-otel-set-attribute "after-json" "active" span)
+                   :to-equal
+                   "active")
+           (expect (gethash "after-json" (rt-otel-span-attributes span))
+                   :to-equal
+                   "active")
+           (expect (eq *rt-otel-span* span) :to-be-truthy)
+           (rt-otel-end-span span)
+           (expect (plusp (rt-otel-span-end span)) :to-be-truthy)
+           (expect (null *rt-otel-span*) :to-be-truthy))
+       (unless (plusp (rt-otel-span-end span))
+         (rt-otel-end-span span))))))

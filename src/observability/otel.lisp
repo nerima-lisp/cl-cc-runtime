@@ -9,19 +9,7 @@
     (time 0)
     (attributes nil))
 
-  (defstruct (rt-otel-span (:constructor %make-rt-otel-span (handle)))
-    handle
-    record
-    name
-    trace-id
-    span-id
-    parent-span-id
-    start
-    end
-    (attributes (make-hash-table :test (function equal)))
-    events
-    status-code
-    status-message)
+  (defstruct (rt-otel-span (:constructor %make-rt-otel-span (handle))) handle record)
 
   (defvar *rt-otel-span* nil)
   (defvar *rt-otel-ending-span* nil)
@@ -126,40 +114,71 @@
   (defvar *rt-otel-tracer*
     (make-tracer *rt-otel-tracer-provider* "cl-cc/runtime"))
 
-  (defun %rt-otel-span-handle (span)
-    (check-type span rt-otel-span)
-    (rt-otel-span-handle span))
+  (progn
+    (defun %rt-otel-span-handle (span)
+      (check-type span rt-otel-span)
+      (rt-otel-span-handle span))
 
-  (defun %rt-otel-event-from-kit (event)
-    (make-rt-otel-event
-     :name (span-event-name event)
-     :time (%rt-otel-time->unix-nanos (span-event-timestamp event))
-     :attributes (span-event-attributes event)))
-  (defun %rt-otel-populate-span (span &optional events)
-    (let* ((handle (%rt-otel-span-handle span))
-           (attributes (make-hash-table :test (function equal)))
-           (start-time (span-start-time handle))
-           (end-time (span-end-time handle)))
-      (dolist (pair (span-attributes handle))
-        (setf (gethash (car pair) attributes) (cdr pair)))
-      (setf (rt-otel-span-name span) (span-name handle)
-            (rt-otel-span-trace-id span) (span-trace-id handle)
-            (rt-otel-span-span-id span) (span-id handle)
-            (rt-otel-span-parent-span-id span) (span-parent-span-id handle)
-            (rt-otel-span-start span) (%rt-otel-time->unix-nanos start-time)
-            (rt-otel-span-end span)
-            (if end-time (%rt-otel-time->unix-nanos end-time) 0)
-            (rt-otel-span-attributes span) attributes
-            (rt-otel-span-events span)
-            (or events
-                (mapcar (function %rt-otel-event-from-kit)
-                        (span-events handle)))
-            (rt-otel-span-status-code span)
-            (string-upcase (symbol-name (span-status handle)))
-            (rt-otel-span-status-message span)
-            (or (span-status-message handle) ""))
-      span))
+    (defun rt-otel-span-name (span)
+      (span-name (%rt-otel-span-handle span)))
 
+    (defun (setf rt-otel-span-name) (name span)
+      (span-update-name (%rt-otel-span-handle span) name)
+      name)
+
+    (defun rt-otel-span-trace-id (span)
+      (span-trace-id (%rt-otel-span-handle span)))
+
+    (defun rt-otel-span-span-id (span)
+      (span-id (%rt-otel-span-handle span)))
+
+    (defun rt-otel-span-parent-span-id (span)
+      (span-parent-span-id (%rt-otel-span-handle span)))
+
+    (defun rt-otel-span-start (span)
+      (%rt-otel-time->unix-nanos
+       (span-start-time (%rt-otel-span-handle span))))
+
+    (defun rt-otel-span-end (span)
+      (let ((end-time (span-end-time (%rt-otel-span-handle span))))
+        (if end-time (%rt-otel-time->unix-nanos end-time) 0)))
+
+    (defun rt-otel-span-attributes (span)
+      (let ((attributes (make-hash-table :test (function equal))))
+        (dolist (pair (span-attributes (%rt-otel-span-handle span)))
+          (setf (gethash (car pair) attributes) (cdr pair)))
+        attributes))
+
+    (defun rt-otel-span-status-code (span)
+      (string-upcase
+       (symbol-name (span-status (%rt-otel-span-handle span)))))
+
+    (defun (setf rt-otel-span-status-code) (status span)
+      (span-set-status (%rt-otel-span-handle span)
+                       (intern (string-upcase (string status)) :keyword)
+                       :message (rt-otel-span-status-message span))
+      status)
+
+    (defun rt-otel-span-status-message (span)
+      (or (span-status-message (%rt-otel-span-handle span)) ""))
+
+    (defun (setf rt-otel-span-status-message) (message span)
+      (span-set-status (%rt-otel-span-handle span)
+                       (intern (string-upcase (rt-otel-span-status-code span))
+                               :keyword)
+                       :message message)
+      message))
+
+  (progn
+    (defun %rt-otel-event-from-kit (event)
+      (make-rt-otel-event
+       :name (span-event-name event)
+       :time (%rt-otel-time->unix-nanos (span-event-timestamp event))
+       :attributes (span-event-attributes event)))
+
+    (defun rt-otel-span-events (span)
+      (mapcar (function %rt-otel-event-from-kit)
+              (reverse (span-events (%rt-otel-span-handle span))))))
   (defun make-rt-otel-span (&key (name "span") trace-id span-id parent-span-id
                                  (start nil start-supplied-p)
                                  (end nil end-supplied-p)
@@ -167,21 +186,21 @@
                                  (status-code "UNSET")
                                  (status-message ""))
     (let* ((parent-context
-             (when parent-span-id
-               (make-instrumentation-context
-                :trace-id (or trace-id (%rt-otel-random-hex 16))
-                :span-id parent-span-id
-                :trace-flags 1)))
+            (when parent-span-id
+              (make-instrumentation-context
+               :trace-id (or trace-id (%rt-otel-random-hex 16))
+               :span-id parent-span-id
+               :trace-flags 1)))
            (custom-ids-p (or trace-id span-id))
            (provider
-             (if custom-ids-p
-                 (make-tracer-provider
-                  :id-generator (%rt-otel-id-generator trace-id span-id)
-                  :exporter (function %rt-otel-capture-span-record))
-                 *rt-otel-tracer-provider*))
+            (if custom-ids-p
+                (make-tracer-provider
+                 :id-generator (%rt-otel-id-generator trace-id span-id)
+                 :exporter (function %rt-otel-capture-span-record))
+              *rt-otel-tracer-provider*))
            (tracer (if custom-ids-p
                        (make-tracer provider "cl-cc/runtime")
-                       *rt-otel-tracer*))
+                     *rt-otel-tracer*))
            (options (list :parent parent-context
                           :attributes (%rt-otel-attributes-alist attributes))))
       (when start-supplied-p
@@ -190,7 +209,7 @@
                       (list :start-time (%rt-otel-unix-nanos->time start)))))
       (let* ((handle (apply (function start-span) tracer name options))
              (span (%make-rt-otel-span handle)))
-        (dolist (event events)
+        (dolist (event (reverse events))
           (check-type event rt-otel-event)
           (span-add-event
            handle
@@ -206,26 +225,19 @@
            handle
            (intern (string-upcase (string status-code)) :keyword)
            :message status-message))
-        (%rt-otel-populate-span span events)
-        (when start-supplied-p
-          (setf (rt-otel-span-start span) start))
         (when end-supplied-p
           (let ((*rt-otel-ending-span* span))
-            (end-span handle
-                      :end-time (%rt-otel-unix-nanos->time end))
-            (setf (rt-otel-span-end span) end
-                  (rt-otel-span-record span)
-                  (or (rt-otel-span-record span)
-                      (error "The tracing kit did not produce a span record.")))))
+            (end-span handle :end-time (%rt-otel-unix-nanos->time end)))
+          (unless (rt-otel-span-record span)
+            (error "The tracing kit did not produce a span record.")))
         span)))
 
   (defun rt-otel-start-span (name &key parent)
     (let* ((parent-handle (if (rt-otel-span-p parent)
                               (%rt-otel-span-handle parent)
-                              parent))
+                            parent))
            (handle (start-span *rt-otel-tracer* name :parent parent-handle))
            (span (%make-rt-otel-span handle)))
-      (%rt-otel-populate-span span)
       (setf *rt-otel-span* span)
       span))
 
@@ -234,10 +246,7 @@
       (let ((*rt-otel-ending-span* span))
         (if end-time
             (end-span handle :end-time end-time)
-            (end-span handle)))
-      (let ((span-end (span-end-time handle)))
-        (setf (rt-otel-span-end span)
-              (if span-end (%rt-otel-time->unix-nanos span-end) 0))))
+          (end-span handle))))
     (when (eq *rt-otel-span* span)
       (setf *rt-otel-span* nil))
     span)
@@ -248,31 +257,25 @@
   (defun rt-otel-set-attribute (key value &optional (span *rt-otel-span*))
     (unless span
       (error "No active OpenTelemetry span"))
-    (let ((attribute-key (princ-to-string key)))
-      (span-set-attribute (%rt-otel-span-handle span)
-                          attribute-key
-                          value)
-      (setf (gethash attribute-key (rt-otel-span-attributes span)) value))
+    (span-set-attribute (%rt-otel-span-handle span)
+                        (princ-to-string key)
+                        value)
     value)
 
   (defun rt-otel-add-event
       (name &key attributes (timestamp-nanos nil timestamp-nanos-p)
-                  (span *rt-otel-span*))
+            (span *rt-otel-span*))
     (unless span
       (error "No active OpenTelemetry span"))
     (let* ((handle (%rt-otel-span-handle span))
-           (options (list :attributes (%rt-otel-attributes-alist attributes))))
-      (when timestamp-nanos-p
-        (setf options
-              (append options
-                      (list :timestamp
-                            (%rt-otel-unix-nanos->time timestamp-nanos)))))
-      (apply #'span-add-event handle name options)
-      (let ((event (%rt-otel-event-from-kit
-                    (car (last (span-events handle))))))
-        (setf (rt-otel-span-events span)
-              (append (rt-otel-span-events span) (list event)))
-        event)))
+           (options
+             (append (list :attributes (%rt-otel-attributes-alist attributes))
+                     (when timestamp-nanos-p
+                       (list :timestamp
+                             (%rt-otel-unix-nanos->time timestamp-nanos))))))
+      (apply (function span-add-event) handle name options)
+      (%rt-otel-event-from-kit
+       (car (last (span-events handle))))))
 
   (defun rt-otel-set-status (status &optional (message "") (span *rt-otel-span*))
     (unless span
@@ -282,8 +285,6 @@
       (span-set-status (%rt-otel-span-handle span)
                        status-keyword
                        :message message)
-      (setf (rt-otel-span-status-code span) code
-            (rt-otel-span-status-message span) message)
       code))
 
   (defun %rt-otel-field (document name)
@@ -303,13 +304,13 @@
            (document (when record (span-record->otlp record)))
            (kind (or (%rt-otel-field document "kind") "internal"))
            (status
-             (json-kit:make-json-object
-              (list (cons "code"
-                          (string-upcase
-                           (princ-to-string
-                            (rt-otel-span-status-code span))))
-                    (cons "message"
-                          (or (rt-otel-span-status-message span) ""))))))
+            (json-kit:make-json-object
+             (list (cons "code"
+                         (string-upcase
+                          (princ-to-string
+                           (rt-otel-span-status-code span))))
+                   (cons "message"
+                         (or (rt-otel-span-status-message span) ""))))))
       (json-kit:stringify
        (json-kit:make-json-object
         (list (cons "traceId"
@@ -328,7 +329,7 @@
                     (%rt-json-attributes (rt-otel-span-attributes span)))
               (cons "events"
                     (mapcar (function %rt-otel-event-document->json)
-                            (rt-otel-span-events span)))
+                            (reverse (rt-otel-span-events span))))
               (cons "status" status))))))
 
   (defun rt-otel-span-to-json (span)

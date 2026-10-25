@@ -20,8 +20,8 @@
                 #:metric-sample-sum #:metric-sample-buckets #:metric-name
                 #:proper-list-p
                 #:make-tracer-provider #:make-tracer #:make-instrumentation-context
-                #:start-span #:end-span #:span-p #:span-name #:span-trace-id #:span-id
-                #:span-parent-span-id #:span-start-time #:span-end-time #:span-attributes
+                #:start-span #:end-span #:span-p #:span-name #:span-update-name
+                #:span-trace-id #:span-id #:span-parent-span-id #:span-start-time #:span-end-time #:span-attributes
                 #:span-events #:span-event-name #:span-event-timestamp
                 #:span-event-attributes #:span-event-p #:span-status
                 #:span-status-message #:span-ended-p #:span-set-attribute
