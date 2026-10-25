@@ -206,10 +206,14 @@
           # These input flakes install source only; compile their ASDF systems
           # here so consumers never write FASLs into immutable store outputs.
           deflate = ctx.cl.lispDerivation {
+            pname = "cl-deflate-kit";
+            version = "0.3.0";
             src = cl-deflate-kit.outPath;
             lispSystem = "cl-deflate-kit";
           };
           crypto = ctx.cl.lispDerivation {
+            pname = "cl-crypto-kit";
+            version = "0.2.1";
             src = cl-crypto-kit.outPath;
             lispSystem = "cl-crypto-kit";
           };
